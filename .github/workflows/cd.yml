@@ -18,9 +18,9 @@ jobs:
       - name: Create PR via GitHub CLI
         run: |
           gh pr create \
-            --base main \
+            --base master \
             --head dev \
-            --title "New code ready - merge dev into main" \
+            --title "New code ready - merge dev into master" \
             --body "Automated PR. CI tests passed on dev. Review and merge when ready." \
             || echo "PR already exists"
         env:

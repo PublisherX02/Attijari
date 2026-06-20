@@ -1,17 +1,18 @@
-fastapi
-uvicorn
-pydantic
-python-magic-bin
-oletools
-ioc-finder
-requests
-yara-python
-pymupdf
-pytesseract
-python-dotenv
-psycopg2-binary
-dkimpy
-checkdmarc
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
+fastapi==0.137.2
+uvicorn==0.49.0
+pydantic==2.13.4
+python-magic==0.4.27; sys_platform != "win32"
+python-magic-bin==0.4.14; sys_platform == "win32"
+oletools==0.60.2
+ioc-finder==9.4.1
+requests==2.34.2
+yara-python==4.5.4
+pymupdf==1.27.2.3
+pytesseract==0.3.13
+python-dotenv==1.2.2
+psycopg2-binary==2.9.12
+dkimpy==1.1.8
+checkdmarc==5.17.1
+google-api-python-client==2.197.0
+google-auth-httplib2==0.4.0
+google-auth-oauthlib==1.4.0
