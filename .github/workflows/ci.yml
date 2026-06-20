@@ -30,18 +30,19 @@ jobs:
 
       - name: Run tests
         run: |
+          misplaced_tests=""
+          if [ -d src ]; then
+            misplaced_tests="$(find src -type f \( -name 'test_*.py' -o -name '*_test.py' \))"
+          fi
+
+          if [ -n "$misplaced_tests" ]; then
+            echo "Python test files were found under src/. Move these tests to tests/:"
+            echo "$misplaced_tests"
+            exit 1
+          fi
+
           if [ -d tests ]; then
             python -m pytest tests/ -v
-          elif [ -d src ]; then
-            misplaced_tests="$(find src -type f \( -name 'test_*.py' -o -name '*_test.py' \))"
-            if [ -n "$misplaced_tests" ]; then
-              echo "Python test files were found under src/, but tests/ is missing:"
-              echo "$misplaced_tests"
-              echo "Move these tests to tests/."
-              exit 1
-            else
-              echo "No tests directory or Python test files found. Skipping tests."
-            fi
           else
             echo "No tests directory or Python test files found. Skipping tests."
           fi
