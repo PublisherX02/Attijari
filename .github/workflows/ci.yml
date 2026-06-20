@@ -30,10 +30,13 @@ jobs:
 
       - name: Run tests
         run: |
-          if find . -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
-            python -m pytest -v
+          if [ -d tests ]; then
+            python -m pytest tests/ -v
+          elif find src -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
+            echo "Python test files were found under src/, but tests/ is missing. Update CI test path."
+            exit 1
           else
-            echo "No Python tests found. Skipping tests."
+            echo "No tests directory or Python test files found. Skipping tests."
           fi
         env:
           VirusTotal_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
