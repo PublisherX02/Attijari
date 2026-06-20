@@ -32,7 +32,7 @@ jobs:
         run: |
           if [ -d tests ]; then
             python -m pytest tests/ -v
-          elif find src -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
+          elif [ -d src ] && find src -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
             echo "Python test files were found under src/, but tests/ is missing. Update CI test path."
             exit 1
           else
