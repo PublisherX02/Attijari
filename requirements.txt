@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+pydantic
+python-magic-bin
+oletools
+ioc-finder
+requests
+yara-python
+pymupdf
+pytesseract
+python-dotenv
+psycopg2-binary
+dkimpy
+checkdmarc
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
