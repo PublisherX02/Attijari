@@ -32,9 +32,16 @@ jobs:
         run: |
           if [ -d tests ]; then
             python -m pytest tests/ -v
-          elif [ -d src ] && find src -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
-            echo "Python test files were found under src/, but tests/ is missing. Move tests to tests/."
-            exit 1
+          elif [ -d src ]; then
+            misplaced_tests="$(find src -type f \( -name 'test_*.py' -o -name '*_test.py' \))"
+            if [ -n "$misplaced_tests" ]; then
+              echo "Python test files were found under src/, but tests/ is missing:"
+              echo "$misplaced_tests"
+              echo "Move these tests to tests/."
+              exit 1
+            else
+              echo "No tests directory or Python test files found. Skipping tests."
+            fi
           else
             echo "No tests directory or Python test files found. Skipping tests."
           fi
