@@ -27,4 +27,5 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
         env:
-          VirusTotal_API_KEY: ${{ secrets.VirusTotal_API_KEY }}
+          VirusTotal_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          CI: true
