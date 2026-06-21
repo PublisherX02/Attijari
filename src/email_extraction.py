@@ -186,21 +186,32 @@ class EmailIngestion:
 
         #attached files
         print(f"[PARSE] Processing attachments...")
+        att_count = 0
         try:
             for part in msg.iter_attachments():
+                if att_count >= MAX_ATTACHMENT_COUNT:
+                    result["parse_errors"].append(
+                        f"attachments:exceeded max count ({MAX_ATTACHMENT_COUNT}), remaining skipped")
+                    print(f"[PARSE] LIMIT — {MAX_ATTACHMENT_COUNT} attachments max, skipping rest")
+                    break
+                att_count += 1
                 _check_elapsed(t0, PARSE_TIMEOUT, "Attachment loop")
                 att = self._extract_attachment(part)
                 if att:
-                    result["attachments"].append(att)
+                    if att.get("error"):
+                        result["parse_errors"].append(f"attachment:{att['original_name']}:{att['error']}")
+                    else:
+                        result["attachments"].append(att)
         except Exception as e:
             result["parse_errors"].append(f"attachments:{e}")
 
-        #security protocol
+        #security protocol — status stays "recu" until full analysis chain passes
+        #only escalate on errors; "accepted" is set downstream after verification
         if result["parse_errors"]:
             result["status"] = "escalated"
             print(f"[PARSE] Done with {len(result['parse_errors'])} error(s) -> ESCALATED ({time.time()-t0:.1f}s)")
         else:
-            print(f"[PARSE] Done OK — {len(result['attachments'])} attachment(s) ({time.time()-t0:.1f}s)")
+            print(f"[PARSE] Done OK — {len(result['attachments'])} attachment(s), status=recu ({time.time()-t0:.1f}s)")
         return result
 
     #security protocol for attached files — extracting PJ not given name
@@ -210,13 +221,16 @@ class EmailIngestion:
             content = part.get_content()
             if isinstance(content, str):
                 content = content.encode()
-            
-            sha = hashlib.sha256(content).hexdigest()
-            internal_id = sha[:16] #internal identifier
-            
-            #saving original names
+
             original_name = part.get_filename() or "unnamed"
             declared_type = part.get_content_type() or "unknown"
+
+            if len(content) > MAX_ATTACHMENT_SIZE:
+                print(f"[ATTACHMENT] REJECTED {original_name} — {len(content)/1024/1024:.1f} MB exceeds {MAX_ATTACHMENT_SIZE/1024/1024:.0f} MB limit")
+                return {"error": f"size {len(content)} exceeds limit {MAX_ATTACHMENT_SIZE}", "original_name": original_name}
+
+            sha = hashlib.sha256(content).hexdigest()
+            internal_id = sha[:16] #internal identifier
             print(f"[ATTACHMENT] {original_name} ({declared_type}, {len(content)} bytes)")
 
             #Secure saving of internal ids
@@ -301,4 +315,3 @@ if __name__ == "__main__":
     print(f"\n{'=' * 50}")
     print(f"[DONE] Finished in {elapsed:.1f}s")
     print(f"{'=' * 50}")
-
