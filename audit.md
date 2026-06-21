@@ -36,3 +36,17 @@ Must do Tomorrow:
 Must do next:
     - Read and configure AbuserIPDB API key
     - Build the analysis chain that promotes emails from "recu" to "accepted"
+
+
+## Day 3:
+- Architecture Problem
+  To establish the connectuion and the autonomation of the tool when receiving emails automatically we need to decide on two architectures each one having their own weak sides
+  - # Plan1:
+    - Each administrative pc has a built in copie of this tool with no privileges ".exe". and in the .env keys we have the IMAP of the user Outlook email and the IMAP creditentials of the SecOps engineers to send reports and confirmation.
+    - Pros: less risk while manipulating source code/noc hange to the system architecture
+    - Cons: each new acc created, new pc configured needs to receive a new update version of the system since pcs only receive .eve file with no edit rights
+
+  - # Plan2:
+    - One copie of the triage tool hosted in one of the servers connected to all administrative pcs and Secops engineers via IMAP creditentials.
+    - Pros: Easier configuration 
+    - Cons: repetitive source code manipulation can cause unexpected problems/.env becomes unreadable/email_triage. py needs a whole architecture change to fetch all the emails from each user/multiple servers needed for peak hours and API antispam prevention
