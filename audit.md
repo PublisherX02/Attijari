@@ -50,3 +50,6 @@ Must do next:
     - One copie of the triage tool hosted in one of the servers connected to all administrative pcs and Secops engineers via IMAP creditentials.
     - Pros: Easier configuration 
     - Cons: repetitive source code manipulation can cause unexpected problems/.env becomes unreadable/email_triage. py needs a whole architecture change to fetch all the emails from each user/multiple servers needed for peak hours and API antispam prevention
+#
+- Completed the rules layer + passing checks with flying colors 
+- needs to work on autonomating the scanning tests each time a new email is received

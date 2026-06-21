@@ -8,3 +8,4 @@ CLAUDE.md
 src/data
 src/ingestion/
 src/__pycache__/
+data/

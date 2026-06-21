@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import time
+import socket
 from email import policy
 from email.parser import BytesParser
 from datetime import datetime
@@ -60,23 +61,47 @@ class EmailIngestion:
     def fetch_unread(self, limit: int = 5) -> list[bytes]:
         print(f"[FETCH] Searching for unread emails (limit={limit})...")
         t0 = time.time()
-        _ , msg_ids = self.conn.search(None, "UNSEEN")
-        ids = msg_ids[0].split()
-        total = len(ids)
-        ids = ids[-limit:]  # keep only the most recent
-        print(f"[FETCH] Found {total} unread, fetching last {len(ids)}")
-        raw_emails = []
-        for i, mid in enumerate(ids, 1):
-            _check_elapsed(t0, FETCH_TIMEOUT, f"Fetch batch")
-            print(f"[FETCH] Downloading {i}/{len(ids)} (id={mid.decode()})...")
-            _ , data = self.conn.fetch(mid , "(RFC822)")
-            raw_byte = data[0][1]
-            if len(raw_byte) > MAX_EMAIL_SIZE:
-                print(f"[FETCH] SKIPPED id={mid.decode()} — {len(raw_byte)/1024/1024:.1f} MB exceeds {MAX_EMAIL_SIZE/1024/1024:.0f} MB limit")
-                continue
-            raw_emails.append(raw_byte)
-        print(f"[FETCH] All downloaded ({time.time()-t0:.1f}s)")
-        return raw_emails
+        try:
+            # enforce socket-level timeout for blocking IMAP ops
+            if hasattr(self.conn, "sock") and self.conn.sock:
+                try:
+                    self.conn.sock.settimeout(FETCH_TIMEOUT)
+                except Exception:
+                    pass
+
+            _, msg_ids = self.conn.search(None, "UNSEEN")
+            ids = msg_ids[0].split() if msg_ids and msg_ids[0] else []
+            total = len(ids)
+            ids = ids[-limit:]  # keep only the most recent
+            print(f"[FETCH] Found {total} unread, fetching last {len(ids)}")
+            raw_emails = []
+            for i, mid in enumerate(ids, 1):
+                _check_elapsed(t0, FETCH_TIMEOUT, f"Fetch batch")
+                print(f"[FETCH] Downloading {i}/{len(ids)} (id={mid.decode()})...")
+                _, data = self.conn.fetch(mid, "(RFC822)")
+                raw_byte = data[0][1]
+                if len(raw_byte) > MAX_EMAIL_SIZE:
+                    print(f"[FETCH] SKIPPED id={mid.decode()} — {len(raw_byte)/1024/1024:.1f} MB exceeds {MAX_EMAIL_SIZE/1024/1024:.0f} MB limit")
+                    continue
+                raw_emails.append(raw_byte)
+            print(f"[FETCH] All downloaded ({time.time()-t0:.1f}s)")
+            return raw_emails
+
+        except (socket.timeout, TimeoutError) as e:
+            print(f"[FETCH] Timeout or network error: {e}")
+            return []
+        except KeyboardInterrupt:
+            print("[FETCH] Interrupted by user")
+            return []
+        except Exception as e:
+            print(f"[FETCH] Error during fetch: {type(e).__name__}: {e}")
+            return []
+        finally:
+            try:
+                if hasattr(self.conn, "sock") and self.conn.sock:
+                    self.conn.sock.settimeout(None)
+            except Exception:
+                pass
 
     #archiving emails before manipulation to save content
     def archive_raw(self, raw:bytes) -> Path:
@@ -126,8 +151,12 @@ class EmailIngestion:
             "status": result["status"],
             "from": result["headers"].get("from"),
             "subject": result["headers"].get("subject"),
-            "attachments": len(result["attachments"]),
-            "parse_errors": result["parse_errors"],
+            "attachments": len(result.get("attachments", [])),
+            "parse_errors": result.get("parse_errors"),
+            "llm_analysis": None if not result.get("llm_analysis") else {
+                "verdict": result["llm_analysis"].get("verdict"),
+                "reasons": result["llm_analysis"].get("reasons"),
+            },
             "processed_at": datetime.now().isoformat(),
         }
         self._save_ledger(ledger)

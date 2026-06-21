@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from email_extraction import EmailIngestion, TimeoutError
 from rules import RuleEngine
+from analysis import analyze_email_body
 
 
 def run_pipeline():
@@ -62,6 +63,22 @@ def run_pipeline():
                 for detail in analysis["details"]:
                     flag_marker = "!!" if detail["flagged"] else "ok"
                     print(f"  [{flag_marker}] {detail['rule']}: {detail['reason']}")
+
+                # LLM analysis (Ollama)
+                try:
+                    llm_input = parsed.get("body_text") or ""
+                    context = {"headers": parsed.get("headers", {}), "attachments": parsed.get("attachments", [])}
+                    llm_res = analyze_email_body(llm_input, context=context)
+                    parsed["llm_analysis"] = llm_res
+                    llm_verdict = (llm_res.get("verdict") or "accepted").lower()
+                    print(f"[LLM] Model verdict: {llm_verdict.upper()}")
+                    if llm_res.get("reasons"):
+                        print(f"  Reasons: {llm_res.get('reasons')}")
+                    if parsed["status"] != "escalated" and llm_verdict == "escalated":
+                        parsed["status"] = "escalated"
+                        print(f"[LLM] Model flagged -> ESCALATED")
+                except Exception as e:
+                    print(f"[LLM] Analysis failed: {e}")
             else:
                 print(f"[RULES] Skipped — email already ESCALATED from parse errors")
 
