@@ -192,6 +192,7 @@ class EmailIngestion:
                 if att_count >= MAX_ATTACHMENT_COUNT:
                     result["parse_errors"].append(
                         f"attachments:exceeded max count ({MAX_ATTACHMENT_COUNT}), remaining skipped")
+                    result["status"] = "escalated"
                     print(f"[PARSE] LIMIT — {MAX_ATTACHMENT_COUNT} attachments max, skipping rest")
                     break
                 att_count += 1
@@ -222,27 +223,27 @@ class EmailIngestion:
             if isinstance(content, str):
                 content = content.encode()
 
-            original_name = part.get_filename() or "unnamed"
+            filename = part.get_filename() or "unnamed"
             declared_type = part.get_content_type() or "unknown"
 
             if len(content) > MAX_ATTACHMENT_SIZE:
-                print(f"[ATTACHMENT] REJECTED {original_name} — {len(content)/1024/1024:.1f} MB exceeds {MAX_ATTACHMENT_SIZE/1024/1024:.0f} MB limit")
-                return {"error": f"size {len(content)} exceeds limit {MAX_ATTACHMENT_SIZE}", "original_name": original_name}
+                print(f"[ATTACHMENT] WARNING oversized attachment skipped: {filename} ({len(content)} bytes)")
+                return {"error": "oversized", "original_name": filename, "size_bytes": len(content)}
 
             sha = hashlib.sha256(content).hexdigest()
-            internal_id = sha[:16] #internal identifier
-            print(f"[ATTACHMENT] {original_name} ({declared_type}, {len(content)} bytes)")
+            internal_id = sha #internal identifier
+            print(f"[ATTACHMENT] {filename} ({declared_type}, {len(content)} bytes)")
 
             #Secure saving of internal ids
             att_dir = Path("data/attachments")
             att_dir.mkdir(parents=True , exist_ok = True)
             safe_path = att_dir / internal_id
             safe_path.write_bytes(content)
-            _check_elapsed(t0, ATTACHMENT_TIMEOUT, f"Attachment {original_name}")
+            _check_elapsed(t0, ATTACHMENT_TIMEOUT, f"Attachment {filename}")
 
             return{
                 "internal_id" : internal_id,
-                "original_name" : original_name,
+                "original_name" : filename,
                 "declared_type" : declared_type,
                 "size_bytes" : len(content),
                 "sha256" : sha,
