@@ -5,7 +5,8 @@ settings.local.json
 tesseract/
 doc/
 CLAUDE.md
-src/data
+/data/
+/src/data/
 src/ingestion/
 src/__pycache__/
 data/
