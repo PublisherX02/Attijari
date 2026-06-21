@@ -17,6 +17,9 @@ DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.0
 OLLAMA_HTTP_URL = "http://localhost:11434/api/generate"
+HTTP_TIMEOUT = 120
+HTTP_RETRIES = 3
+HTTP_BACKOFF = 2.0
 
 
 def _load_skills_prompt(path_candidates: list[str] = SKILLS_PATHS) -> str:
@@ -46,9 +49,25 @@ def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOK
         "stop": ["```"]
     }).encode("utf-8")
 
-    req = request.Request(OLLAMA_HTTP_URL, data=payload, headers={"Content-Type": "application/json"})
-    with request.urlopen(req, timeout=60) as resp:
-        return resp.read().decode("utf-8")
+    last_exc = None
+    timeout = HTTP_TIMEOUT
+    for attempt in range(1, HTTP_RETRIES + 1):
+        if attempt > 1:
+            backoff = HTTP_BACKOFF ** (attempt - 1)
+            print(f"[LLM] Retrying HTTP call (attempt {attempt}/{HTTP_RETRIES}) after {backoff}s")
+            import time as _time
+            _time.sleep(backoff)
+        req = request.Request(OLLAMA_HTTP_URL, data=payload, headers={"Content-Type": "application/json"})
+        try:
+            with request.urlopen(req, timeout=timeout) as resp:
+                return resp.read().decode("utf-8")
+        except Exception as e:
+            last_exc = e
+            # on timeout, increase timeout for next attempt modestly
+            timeout = min(timeout * 1.5, HTTP_TIMEOUT * 3)
+            continue
+    # if all retries failed, raise the last exception
+    raise RuntimeError(f"HTTP Ollama call failed after {HTTP_RETRIES} attempts: {last_exc}")
 
 
 def _call_ollama_client(model: str, prompt: str) -> str:
@@ -119,8 +138,8 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         except Exception:
             model_output = _call_ollama_http(model, prompt)
     except Exception as e:
-        # escalate if analysis failed
-        return {"verdict": "escalated", "reasons": [f"analysis_failed:{e}"], "raw_model_output": None}
+        # Model path failed; return 'unavailable' so pipeline doesn't auto-escalate
+        return {"verdict": "unavailable", "reasons": [f"analysis_failed:{e}"], "raw_model_output": None}
 
     # Robust JSON extraction: look for 'verdict' key in balanced JSON block, else NDJSON reconstruction
     parsed = None
@@ -205,7 +224,8 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
             else:
                 parsed = json.loads(model_output)
     except Exception:
-        return {"verdict": "escalated", "reasons": ["model_output_not_json"], "raw_model_output": model_output}
+        # Parsing failed — mark analysis as unavailable for manual review rather than auto-escalate
+        return {"verdict": "unavailable", "reasons": ["model_output_not_json"], "raw_model_output": model_output}
 
     verdict = parsed.get("verdict", "accepted")
     reasons = parsed.get("reasons", []) or []

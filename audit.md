@@ -53,3 +53,32 @@ Must do next:
 #
 - Completed the rules layer + passing checks with flying colors 
 - needs to work on autonomating the scanning tests each time a new email is received
+
+#
+- Problem: LLM (Ollama) instability — frequent timeouts and streaming/NDJSON formats made parsing unreliable; wrong `rules.py` version appeared earlier due to import path confusion.
+
+- What we faced:
+  - Ollama often returned NDJSON/events or timed out, causing parse failures and accidental escalations.
+  - Pipeline sometimes imported the wrong rules module (duplicate files/paths).
+  - MAX_ATTACHMENT_SIZE and MAX_ATTACHMENT_COUNT were defined but not enforced in earlier parse flow.
+
+- What we changed:
+  - Enforced MAX_ATTACHMENT_COUNT before extracting attachments and made _extract_attachment reject oversized files (max size enforced).
+  - Rewrote/verified src/rules.py to use deterministic lists (BLOCKED_EXTENSIONS, BLOCKLIST_DOMAINS, BLOCKED_HASHES) and added a `phishy_body` heuristic.
+  - Added robust LLM helper (src/analysis.py): prefers non-streaming calls, reconstructs NDJSON when needed, extracts balanced JSON blocks, and loads a hardened skills.md system prompt.
+  - Hardened LLM calls with retries, backoff, increased timeouts; changed failure semantics so analysis returns "unavailable" instead of auto-escalating on transient failures.
+  - Persisted compact LLM summary (verdict + reasons) into the processed ledger for auditing.
+  - Fixed import/path issues by using correct module locations and adjusted main.py to pass headers+attachments as context to the LLM.
+
+- What still not working / open items:
+  - Ollama endpoint still occasionally slow or non-responsive; need to check local Ollama daemon health or use a hosted fallback.
+  - Full raw LLM outputs are not fully persisted (only compact summary saved) — limits offline analysis/auditability.
+  - Model tuning (temperature, stop tokens) in skills.md could be improved to force single-blob JSON output.
+  - Consider async queueing for LLM calls to avoid blocking ingestion during analysis.
+
+- Next actions (recommended):
+  1. Store full raw LLM responses for failed calls in data/ for offline debugging.
+  2. Add quick healthcheck + restart for Ollama or fallback to remote model.
+  3. Add unit tests for NDJSON -> JSON parsing and for attachment size/count enforcement.
+  4. Consider changing LLM failure policy only after operator review (now returns "unavailable").
+
