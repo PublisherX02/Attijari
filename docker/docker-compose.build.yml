@@ -1,0 +1,54 @@
+# Build-only compose file — builds all extraction container images
+# Usage: docker compose -f docker/docker-compose.build.yml build
+#
+# These containers are NOT long-running services. They are invoked
+# per-attachment by sandbox.py with strict security constraints.
+
+services:
+  magic:
+    build:
+      context: .
+      dockerfile: magic.Dockerfile
+    image: tijari-extract-magic
+
+  oletools:
+    build:
+      context: .
+      dockerfile: oletools.Dockerfile
+    image: tijari-extract-oletools
+
+  pdfid:
+    build:
+      context: .
+      dockerfile: pdfid.Dockerfile
+    image: tijari-extract-pdfid
+
+  pymupdf:
+    build:
+      context: .
+      dockerfile: pymupdf.Dockerfile
+    image: tijari-extract-pymupdf
+
+  tesseract:
+    build:
+      context: .
+      dockerfile: tesseract.Dockerfile
+    image: tijari-extract-tesseract
+
+  yara:
+    build:
+      context: .
+      dockerfile: yara.Dockerfile
+    image: tijari-extract-yara
+
+  ioc-finder:
+    build:
+      context: .
+      dockerfile: ioc_finder.Dockerfile
+    image: tijari-extract-ioc-finder
+
+  markitdown:
+    build:
+      context: .
+      dockerfile: markitdown.Dockerfile
+    image: tijari-extract-markitdown

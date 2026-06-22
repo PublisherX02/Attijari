@@ -1,7 +1,9 @@
 import os
 import time
-import requests
+
+import requests  # for exception types only
 from dotenv import load_dotenv
+from http_client import get_session
 
 load_dotenv()
 
@@ -33,7 +35,7 @@ def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str |
     attempt = 0
     while attempt <= retries:
         try:
-            resp = requests.post(BASE_URL, json=payload, headers=headers, timeout=timeout)
+            resp = get_session().post(BASE_URL, json=payload, headers=headers, timeout=timeout)
             status = resp.status_code
             text = resp.text
             # try parse json
@@ -80,7 +82,7 @@ def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str |
                 "raw": data,
             }
 
-        except requests.RequestException as e:
+        except requests.exceptions.RequestException as e:
             # transient network error: retry
             if attempt < retries:
                 backoff = 1 + attempt * 2
@@ -97,4 +99,3 @@ def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str |
 
     # fallback
     return {"source": "threatfox", "indicator": indicator, "indicator_type": indicator_type, "found": False, "error": "retries exhausted"}
-

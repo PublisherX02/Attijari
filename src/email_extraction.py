@@ -3,11 +3,18 @@ import imaplib
 import hashlib
 import json
 import os
+import ssl
 import time
 from email import policy
 from email.parser import BytesParser
 from datetime import datetime
 from pathlib import Path
+
+try:
+    import magic
+    _HAS_MAGIC = True
+except ImportError:
+    _HAS_MAGIC = False
 
 #email extraction function
 
@@ -21,6 +28,18 @@ ATTACHMENT_TIMEOUT = 15
 MAX_EMAIL_SIZE = 25 * 1024 * 1024       # 25 MB
 MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024   # 10 MB per attachment
 MAX_ATTACHMENT_COUNT = 20                # max attachments per email
+
+# safe base directory — all file storage resolved relative to project root
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SAFE_DATA_DIR = _PROJECT_ROOT / "data"
+
+
+def _safe_path(base: Path, filename: str) -> Path:
+    """Resolve a path under base and verify it doesn't escape via traversal."""
+    resolved = (base / filename).resolve()
+    if not str(resolved).startswith(str(base.resolve())):
+        raise ValueError(f"Path traversal blocked: {filename}")
+    return resolved
 
 class TimeoutError(Exception):
     pass
@@ -41,7 +60,9 @@ class EmailIngestion:
     def connect(self):
         print(f"[CONNECT] Connecting to {self.host}...")
         t0 = time.time()
-        self.conn = imaplib.IMAP4_SSL(self.host)
+        # Explicit SSL context — enforce certificate verification (CRIT-02)
+        ctx = ssl.create_default_context()
+        self.conn = imaplib.IMAP4_SSL(self.host, ssl_context=ctx)
         _check_elapsed(t0, CONNECT_TIMEOUT, "SSL connection")
         print(f"[CONNECT] SSL OK ({time.time()-t0:.1f}s), logging in as {self.user}...")
         self.conn.login(self.user, self.password)
@@ -80,10 +101,10 @@ class EmailIngestion:
 
     #archiving emails before manipulation to save content
     def archive_raw(self, raw:bytes) -> Path:
-        archive_dir = Path("data/raw_emails")
+        archive_dir = SAFE_DATA_DIR / "raw_emails"
         archive_dir.mkdir(parents=True , exist_ok=True)
         sha = hashlib.sha256(raw).hexdigest()
-        path = archive_dir / f"{sha}.eml"
+        path = _safe_path(archive_dir, f"{sha}.eml")
         if not path.exists():
             path.write_bytes(raw)
             print(f"[ARCHIVE] Saved {sha[:12]}...eml ({len(raw)} bytes)")
@@ -100,20 +121,51 @@ class EmailIngestion:
         return raw_sha
 
     #idempotency ledger — tracks processed emails with their results
-    LEDGER_PATH = Path("data/processed_ledger.json")
+    LEDGER_PATH = SAFE_DATA_DIR / "processed_ledger.json"
 
     def _load_ledger(self) -> dict:
-        if self.LEDGER_PATH.exists():
-            data = json.loads(self.LEDGER_PATH.read_text())
+        if not self.LEDGER_PATH.exists():
+            return {}
+        try:
+            with open(self.LEDGER_PATH, "r", encoding="utf-8") as f:
+                # Acquire shared lock for reading (Windows: msvcrt)
+                try:
+                    import msvcrt
+                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, max(1, os.path.getsize(self.LEDGER_PATH)))
+                except (ImportError, OSError):
+                    pass  # non-Windows or lock unavailable — proceed without
+                data = json.load(f)
             # migrate old format (list of keys) to new format (dict)
             if isinstance(data, list):
                 return {k: {"status": "recu"} for k in data}
             return data
-        return {}
+        except (json.JSONDecodeError, OSError) as e:
+            # Corrupted ledger = escalate-worthy event, but don't crash
+            print(f"[LEDGER] WARNING: Failed to read ledger: {e} — starting fresh")
+            return {}
 
     def _save_ledger(self, ledger: dict):
         self.LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
-        self.LEDGER_PATH.write_text(json.dumps(ledger, indent=2))
+        # Atomic write: write to temp file, then rename (crash-safe)
+        tmp_path = self.LEDGER_PATH.with_suffix(".tmp")
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(ledger, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())  # ensure data hits disk
+            # Atomic rename (on Windows, need to remove target first)
+            if self.LEDGER_PATH.exists():
+                os.replace(str(tmp_path), str(self.LEDGER_PATH))
+            else:
+                os.rename(str(tmp_path), str(self.LEDGER_PATH))
+        except OSError as e:
+            print(f"[LEDGER] ERROR: Failed to save ledger: {e}")
+            # Clean up temp file on failure
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
 
     def get_cached_result(self, raw: bytes, message_id: str | None) -> dict | None:
         key = self.idempotency_key(raw, message_id)
@@ -232,12 +284,27 @@ class EmailIngestion:
 
             sha = hashlib.sha256(content).hexdigest()
             internal_id = sha #internal identifier
-            print(f"[ATTACHMENT] {filename} ({declared_type}, {len(content)} bytes)")
+
+            # magic-byte type verification — declared type lies (CLAUDE.md rule 7)
+            real_type = None
+            type_mismatch = False
+            if _HAS_MAGIC:
+                try:
+                    real_type = magic.from_buffer(content, mime=True)
+                    if real_type and declared_type != "unknown":
+                        # normalize for comparison (e.g. both should be MIME)
+                        if real_type != declared_type and declared_type != "application/octet-stream":
+                            type_mismatch = True
+                except Exception:
+                    real_type = "detection_failed"
+
+            print(f"[ATTACHMENT] {filename} (declared={declared_type}, real={real_type or 'unverified'}, {len(content)} bytes)"
+                  + (" !! TYPE MISMATCH" if type_mismatch else ""))
 
             #Secure saving of internal ids
-            att_dir = Path("data/attachments")
+            att_dir = SAFE_DATA_DIR / "attachments"
             att_dir.mkdir(parents=True , exist_ok = True)
-            safe_path = att_dir / internal_id
+            safe_path = _safe_path(att_dir, internal_id)
             safe_path.write_bytes(content)
             _check_elapsed(t0, ATTACHMENT_TIMEOUT, f"Attachment {filename}")
 
@@ -245,6 +312,8 @@ class EmailIngestion:
                 "internal_id" : internal_id,
                 "original_name" : filename,
                 "declared_type" : declared_type,
+                "real_type" : real_type,
+                "type_mismatch" : type_mismatch,
                 "size_bytes" : len(content),
                 "sha256" : sha,
                 "stored_path" : str(safe_path),

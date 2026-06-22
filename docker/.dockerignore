@@ -1,0 +1,9 @@
+__pycache__
+*.pyc
+.git
+.env
+data/raw_emails
+data/attachments
+data/processed_ledger.json
+.venv
+node_modules

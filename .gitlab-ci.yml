@@ -24,9 +24,9 @@ lint:
   stage: lint
   <<: *default_job
   script:
-    - pip install flake8 || true
+    - pip install flake8
     - mkdir -p reports
-    - flake8 --exit-zero . > reports/flake8.txt || true
+    - flake8 --exit-zero . > reports/flake8.txt
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -50,8 +50,8 @@ dependency_scan:
   script:
     - pip install pip-audit safety
     - mkdir -p reports
-    - pip-audit -f json > reports/pip_audit.json || true
-    - safety check --json > reports/safety.json || true
+    - pip-audit -f json > reports/pip_audit.json
+    - safety check --json > reports/safety.json
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -61,7 +61,7 @@ sast_bandit:
   script:
     - pip install bandit
     - mkdir -p reports
-    - bandit -r src -f json -o reports/bandit.json || true
+    - bandit -r src -f json -o reports/bandit.json
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -71,7 +71,7 @@ sec_rules:
   script:
     - pip install semgrep
     - mkdir -p reports
-    - semgrep --config=p/ci --json --output=reports/semgrep.json . || true
+    - semgrep --config=p/ci --json --output=reports/semgrep.json .
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -79,13 +79,13 @@ yara_check:
   stage: security
   <<: *default_job
   script:
-    - pip install yara-python || true
+    - pip install yara-python
     - mkdir -p reports
     - python - <<'PY'
 import json,os,subprocess
 # placeholder: run local YARA rules against attachments in data/attachments
 print('[]')
-PY > reports/yara.json || true
+PY > reports/yara.json
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -94,7 +94,7 @@ package:
   <<: *default_job
   script:
     - python -m pip install build
-    - python -m build || true
+    - python -m build
   artifacts:
     paths:
       - dist/
