@@ -1,0 +1,117 @@
+image: python:3.11-slim
+
+stages:
+  - lint
+  - test
+  - security
+  - package
+  - deploy
+
+variables:
+  PIP_EXTRA_INDEX_URL: ""
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+.default_job: &default_job
+  before_script:
+    - python -m pip install --upgrade pip setuptools
+    - pip install -r requirements.txt || true
+  artifacts:
+    expire_in: 1 hour
+    paths:
+      - reports/
+
+lint:
+  stage: lint
+  <<: *default_job
+  script:
+    - pip install flake8 || true
+    - mkdir -p reports
+    - flake8 --exit-zero . > reports/flake8.txt || true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+unit_tests:
+  stage: test
+  <<: *default_job
+  script:
+    - pip install pytest
+    - mkdir -p reports
+    - pytest tests/ -q --junitxml=reports/junit.xml || exit 1
+  artifacts:
+    when: always
+    reports:
+      junit: reports/junit.xml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+dependency_scan:
+  stage: security
+  <<: *default_job
+  script:
+    - pip install pip-audit safety
+    - mkdir -p reports
+    - pip-audit -f json > reports/pip_audit.json || true
+    - safety check --json > reports/safety.json || true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+sast_bandit:
+  stage: security
+  <<: *default_job
+  script:
+    - pip install bandit
+    - mkdir -p reports
+    - bandit -r src -f json -o reports/bandit.json || true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+sec_rules:
+  stage: security
+  <<: *default_job
+  script:
+    - pip install semgrep
+    - mkdir -p reports
+    - semgrep --config=p/ci --json --output=reports/semgrep.json . || true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+yara_check:
+  stage: security
+  <<: *default_job
+  script:
+    - pip install yara-python || true
+    - mkdir -p reports
+    - python - <<'PY'
+import json,os,subprocess
+# placeholder: run local YARA rules against attachments in data/attachments
+print('[]')
+PY > reports/yara.json || true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+package:
+  stage: package
+  <<: *default_job
+  script:
+    - python -m pip install build
+    - python -m build || true
+  artifacts:
+    paths:
+      - dist/
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+deploy_staging:
+  stage: deploy
+  <<: *default_job
+  script:
+    - echo "Deploy step placeholder: ensure manual approval for production"
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+
+# Notes:
+# - Protect sensitive variables in GitLab UI (VIRUSTOTAL_API_KEY, THREATFOX_AUTH_KEY, etc.) and mark as "protected".
+# - Use protected runners for security jobs that require secrets.
+# - Consider adding an MR approval rule requiring SecOps review before merge to main.
+# - Artifacts/reports can be parsed by GitLab to display SAST/Dependency scanning results.
