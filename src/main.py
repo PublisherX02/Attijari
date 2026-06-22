@@ -2,6 +2,7 @@ import os
 import time
 from email import policy
 from email.parser import BytesParser
+from email.utils import parseaddr
 
 from dotenv import load_dotenv
 
@@ -86,10 +87,11 @@ def run_pipeline():
                             if res.get("error"):
                                 errors.append(res.get("error"))
 
-                    # check sender domain
+                    # check sender domain (use parseaddr to extract clean address)
                     sender = parsed.get("headers", {}).get("from")
-                    if sender and "@" in sender:
-                        domain = sender.split("@")[-1].strip().lower()
+                    addr = parseaddr(sender)[1] if sender else ""
+                    if addr and "@" in addr:
+                        domain = addr.split("@")[-1].strip().lower()
                         print(f"[THREATFOX] Querying domain: {domain}")
                         res = check_threatfox(domain, indicator_type="domain")
                         threat_results.append(res)
@@ -124,6 +126,23 @@ def run_pipeline():
                 if found_count > 0:
                     detail = {"rule": "threatfox", "flagged": True, "reason": f"ThreatFox match count={found_count}"}
                     parsed.setdefault("analysis", {}).setdefault("details", []).append(detail)
+
+                # always print ThreatFox summary for operator visibility
+                if threat_results:
+                    print(f"[THREATFOX] Checked {len(threat_results)} indicator(s), matches: {found_count}")
+                    for r in threat_results:
+                        ind = r.get("indicator") or r.get("search_term") or r.get("hash") or r.get("ioc")
+                        itype = r.get("indicator_type") or r.get("ioc_type") or r.get("ioc_type") or "unknown"
+                        if r.get("found"):
+                            print(f"  - {itype}: {ind} -> FOUND")
+                        elif r.get("error"):
+                            print(f"  - {itype}: {ind} -> ERROR: {r.get('error')}")
+                        else:
+                            print(f"  - {itype}: {ind} -> not found")
+                else:
+                    print("[THREATFOX] No indicators checked")
+                if errors:
+                    print(f"[THREATFOX] Errors: {errors}")
 
                 # If ThreatFox matched, skip LLM (deterministic signal)
                 if parsed.get("status") == "escalated":
