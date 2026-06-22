@@ -7,11 +7,7 @@ import json
 import os
 from typing import Any, Dict, Optional
 
-SKILLS_PATHS = [
-    os.path.join(os.path.dirname(__file__), "skills.md"),
-    os.path.join(os.path.dirname(__file__), "..", "skills.md"),
-    os.path.join(os.getcwd(), "skills.md"),
-]
+SKILLS_PATH = os.path.join(os.path.dirname(__file__), "skills.md")
 
 DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_MAX_TOKENS = 1024
@@ -22,15 +18,14 @@ HTTP_RETRIES = 3
 HTTP_BACKOFF = 2.0
 
 
-def _load_skills_prompt(path_candidates: list[str] = SKILLS_PATHS) -> str:
-    for p in path_candidates:
-        try:
-            p = os.path.abspath(p)
-            if os.path.exists(p):
-                with open(p, "r", encoding="utf-8") as fh:
-                    return fh.read()
-        except Exception:
-            continue
+def _load_skills_prompt(path: str = SKILLS_PATH) -> str:
+    try:
+        p = os.path.abspath(path)
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as fh:
+                return fh.read()
+    except Exception:
+        pass
     return ""  # empty system prompt if not found
 
 
@@ -101,7 +96,7 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
     context: optional dict with 'headers' and 'attachments' to aid the model.
     """
     model = model or DEFAULT_MODEL
-    skills = _load_skills_prompt(skills_path_candidates or SKILLS_PATHS)
+    skills = _load_skills_prompt()
 
     # Build context note
     ctx = context or {}

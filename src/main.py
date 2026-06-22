@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from email_extraction import EmailIngestion, TimeoutError
 from rules import RuleEngine
 from analysis import analyze_email_body
+from rules import BLOCKED_SENDER
+from ThreatFoxAPI import check_threatfox
 
 
 def run_pipeline():
@@ -82,6 +84,31 @@ def run_pipeline():
             else:
                 print(f"[RULES] Skipped — email already ESCALATED from parse errors")
 
+            # ThreatFox API: check attachments and sender domain
+            threat_results = []
+            try:
+                # check attachment hashes
+                for att in parsed.get("attachments", []):
+                    sha = att.get("sha256") or att.get("sha")
+                    if sha:
+                        res = check_threatfox(sha, indicator_type="hash")
+                        threat_results.append(res)
+                        if res.get("found"):
+                            parsed["status"] = "escalated"
+                            print(f"[THREATFOX] Attachment {att.get('original_name')} ({sha[:12]}...) flagged")
+                # check sender domain
+                sender = parsed.get("headers", {}).get("from")
+                if sender and "@" in sender:
+                    domain = sender.split("@")[-1].strip().lower()
+                    res = check_threatfox(domain, indicator_type="domain")
+                    threat_results.append(res)
+                    if res.get("found"):
+                        parsed["status"] = "escalated"
+                        print(f"[THREATFOX] Sender domain {domain} flagged")
+            except Exception as e:
+                print(f"[THREATFOX] Lookup failed: {e}")
+            parsed.setdefault("analysis", {})["threatfox"] = threat_results
+
             # record to ledger
             ingestion.mark_processed(parsed["idempotency_key"], parsed)
 
@@ -112,3 +139,7 @@ def run_pipeline():
 
 if __name__ == "__main__":
     run_pipeline()
+
+
+
+#needs to add a function if an email is flagged as "escalate" the sender email and domaon must be bloecked
