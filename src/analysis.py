@@ -112,6 +112,41 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         names = [a.get("original_name") for a in atts if isinstance(a, dict) and a.get("original_name")]
         if names:
             ctx_parts.append("attachments: " + ", ".join(names))
+
+    # Enrichment signals (ThreatFox, AbuseIPDB, domain age, etc.)
+    enr = ctx.get("enrichment") if isinstance(ctx.get("enrichment"), dict) else None
+    if enr:
+        # ThreatFox results
+        tf_results = enr.get("threatfox")
+        if isinstance(tf_results, list):
+            for tf in tf_results:
+                if not isinstance(tf, dict):
+                    continue
+                if tf.get("found"):
+                    ctx_parts.append(
+                        f"THREATFOX-MATCH: indicator={tf.get('indicator', 'unknown')} "
+                        f"type={tf.get('indicator_type', 'unknown')} "
+                        f"malware={tf.get('malware', 'unknown')} "
+                        f"threat_type={tf.get('threat_type', 'unknown')} "
+                        f"confidence={tf.get('confidence_level', 'unknown')}"
+                    )
+                elif tf.get("error"):
+                    ctx_parts.append(f"THREATFOX-ERROR: {tf.get('error')}")
+                else:
+                    ctx_parts.append(
+                        f"THREATFOX-CLEAN: indicator={tf.get('indicator', 'unknown')} "
+                        f"type={tf.get('indicator_type', 'unknown')} no_match"
+                    )
+        # Generic enrichment keys (for future: abuseipdb, domain_age, spf, dkim, etc.)
+        for enr_key, enr_val in enr.items():
+            if enr_key == "threatfox":
+                continue  # already handled above
+            if isinstance(enr_val, dict):
+                summary = " ".join(f"{k}={v}" for k, v in enr_val.items() if v is not None)
+                ctx_parts.append(f"{enr_key.upper()}: {summary}")
+            elif isinstance(enr_val, str):
+                ctx_parts.append(f"{enr_key.upper()}: {enr_val}")
+
     context_note = "\nCONTEXT:\n" + "\n".join(ctx_parts) + "\n\n" if ctx_parts else ""
 
     prompt = (
@@ -133,8 +168,8 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         except Exception:
             model_output = _call_ollama_http(model, prompt)
     except Exception as e:
-        # Model path failed; return 'unavailable' so pipeline doesn't auto-escalate
-        return {"verdict": "unavailable", "reasons": [f"analysis_failed:{e}"], "raw_model_output": None}
+        # Fail-safe: LLM failure must escalate, never accept silently
+        return {"verdict": "escalated", "reasons": [f"analysis_failed:{e}"], "raw_model_output": None}
 
     # Robust JSON extraction: look for 'verdict' key in balanced JSON block, else NDJSON reconstruction
     parsed = None
@@ -219,8 +254,8 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
             else:
                 parsed = json.loads(model_output)
     except Exception:
-        # Parsing failed — mark analysis as unavailable for manual review rather than auto-escalate
-        return {"verdict": "unavailable", "reasons": ["model_output_not_json"], "raw_model_output": model_output}
+        # Fail-safe: unparseable LLM output must escalate for human review
+        return {"verdict": "escalated", "reasons": ["model_output_not_json"], "raw_model_output": model_output}
 
     verdict = parsed.get("verdict", "accepted")
     reasons = parsed.get("reasons", []) or []
