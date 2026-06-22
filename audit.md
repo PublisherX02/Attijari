@@ -88,5 +88,5 @@ Must do next:
 - Fixed LLM delayed time response as it was a resource problem which raised couple of concerns:
   - If the LLM will be hosted in a CPU server, the response time for the analysis for a single email can take up to 3-4 minutes depending on various variables. This won't be that big of a problem since the bank system receives in average 120 emails per today (average an email in 6 minute). But it needs to be discussed a limit of productivity and rapidity  to deliver response.
   - The skills.md needs to be changed regulary in order to stay up to new fishing methods and develop it's capabilities not only in social engineeringa dn AI detection but also the psychology to detect the fishing intent.
-
+- Wired ThreatFox API to the program in order to check hash and ioc indicators giving more capabilities for the pipeline to detect malicious attempts.
 
