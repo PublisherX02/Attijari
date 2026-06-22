@@ -66,48 +66,91 @@ def run_pipeline():
                     flag_marker = "!!" if detail["flagged"] else "ok"
                     print(f"  [{flag_marker}] {detail['rule']}: {detail['reason']}")
 
-                # LLM analysis (Ollama)
+                # Enrichment: ThreatFox runs before LLM and can short-circuit to a deterministic reject
+                # ThreatFox API: check attachments, sender domain, and raw email hash
+                threat_results = []
+                found_count = 0
+                errors = []
                 try:
-                    llm_input = parsed.get("body_text") or ""
-                    context = {"headers": parsed.get("headers", {}), "attachments": parsed.get("attachments", [])}
-                    llm_res = analyze_email_body(llm_input, context=context)
-                    parsed["llm_analysis"] = llm_res
-                    llm_verdict = (llm_res.get("verdict") or "accepted").lower()
-                    print(f"[LLM] Model verdict: {llm_verdict.upper()}")
-                    if llm_res.get("reasons"):
-                        print(f"  Reasons: {llm_res.get('reasons')}")
-                    if parsed["status"] != "escalated" and llm_verdict == "escalated":
-                        parsed["status"] = "escalated"
-                        print(f"[LLM] Model flagged -> ESCALATED")
-                except Exception as e:
-                    print(f"[LLM] Analysis failed: {e}")
-            else:
-                print(f"[RULES] Skipped — email already ESCALATED from parse errors")
+                    # check attachment hashes
+                    for att in parsed.get("attachments", []):
+                        sha = att.get("sha256") or att.get("sha")
+                        if sha:
+                            print(f"[THREATFOX] Querying hash for attachment {att.get('original_name')}: {sha}")
+                            res = check_threatfox(sha, indicator_type="hash")
+                            threat_results.append(res)
+                            if res.get("found"):
+                                found_count += 1
+                                parsed["status"] = "escalated"  # deterministic short-circuit
+                                print(f"[THREATFOX] Attachment {att.get('original_name')} ({sha[:12]}...) flagged")
+                            if res.get("error"):
+                                errors.append(res.get("error"))
 
-            # ThreatFox API: check attachments and sender domain
-            threat_results = []
-            try:
-                # check attachment hashes
-                for att in parsed.get("attachments", []):
-                    sha = att.get("sha256") or att.get("sha")
-                    if sha:
-                        res = check_threatfox(sha, indicator_type="hash")
+                    # check sender domain
+                    sender = parsed.get("headers", {}).get("from")
+                    if sender and "@" in sender:
+                        domain = sender.split("@")[-1].strip().lower()
+                        print(f"[THREATFOX] Querying domain: {domain}")
+                        res = check_threatfox(domain, indicator_type="domain")
                         threat_results.append(res)
                         if res.get("found"):
+                            found_count += 1
                             parsed["status"] = "escalated"
-                            print(f"[THREATFOX] Attachment {att.get('original_name')} ({sha[:12]}...) flagged")
-                # check sender domain
-                sender = parsed.get("headers", {}).get("from")
-                if sender and "@" in sender:
-                    domain = sender.split("@")[-1].strip().lower()
-                    res = check_threatfox(domain, indicator_type="domain")
-                    threat_results.append(res)
-                    if res.get("found"):
-                        parsed["status"] = "escalated"
-                        print(f"[THREATFOX] Sender domain {domain} flagged")
-            except Exception as e:
-                print(f"[THREATFOX] Lookup failed: {e}")
-            parsed.setdefault("analysis", {})["threatfox"] = threat_results
+                            print(f"[THREATFOX] Sender domain {domain} flagged")
+                        if res.get("error"):
+                            errors.append(res.get("error"))
+
+                    # check raw email hash (sha256 of the whole email)
+                    raw_sha = parsed.get("raw_sha256")
+                    if raw_sha:
+                        print(f"[THREATFOX] Querying raw email SHA256: {raw_sha}")
+                        res = check_threatfox(raw_sha, indicator_type="hash")
+                        threat_results.append(res)
+                        if res.get("found"):
+                            found_count += 1
+                            parsed["status"] = "escalated"
+                            print(f"[THREATFOX] Raw email hash {raw_sha[:12]}... flagged")
+                        if res.get("error"):
+                            errors.append(res.get("error"))
+
+                except Exception as e:
+                    err = str(e)
+                    errors.append(err)
+                    print(f"[THREATFOX] Lookup failed: {err}")
+
+                # attach ThreatFox results into analysis so LLM sees them when called
+                parsed.setdefault("analysis", {})["threatfox"] = threat_results
+                # If ThreatFox produced matches, add a deterministic detail entry so rules-treated equally
+                if found_count > 0:
+                    detail = {"rule": "threatfox", "flagged": True, "reason": f"ThreatFox match count={found_count}"}
+                    parsed.setdefault("analysis", {}).setdefault("details", []).append(detail)
+
+                # If ThreatFox matched, skip LLM (deterministic signal)
+                if parsed.get("status") == "escalated":
+                    print("[THREATFOX] Deterministic match -> skipping LLM and proposing reject/escalation")
+                else:
+                    # LLM analysis (Ollama)
+                    try:
+                        llm_input = parsed.get("body_text") or ""
+                        # include threatfox summary in context for the LLM
+                        context = {
+                            "headers": parsed.get("headers", {}),
+                            "attachments": parsed.get("attachments", []),
+                            "enrichment": {"threatfox": threat_results}
+                        }
+                        llm_res = analyze_email_body(llm_input, context=context)
+                        parsed["llm_analysis"] = llm_res
+                        llm_verdict = (llm_res.get("verdict") or "accepted").lower()
+                        print(f"[LLM] Model verdict: {llm_verdict.upper()}")
+                        if llm_res.get("reasons"):
+                            print(f"  Reasons: {llm_res.get('reasons')}")
+                        if parsed["status"] != "escalated" and llm_verdict == "escalated":
+                            parsed["status"] = "escalated"
+                            print(f"[LLM] Model flagged -> ESCALATED")
+                    except Exception as e:
+                        print(f"[LLM] Analysis failed: {e}")
+            else:
+                print(f"[RULES] Skipped — email already ESCALATED from parse errors")
 
             # record to ledger
             ingestion.mark_processed(parsed["idempotency_key"], parsed)
