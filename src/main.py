@@ -130,6 +130,7 @@ def run_pipeline():
                     print("[THREATFOX] Deterministic match -> skipping LLM and proposing reject/escalation")
                 else:
                     # LLM analysis (Ollama)
+                    VALID_LLM_VERDICTS = {"accepted", "escalated"}
                     try:
                         llm_input = parsed.get("body_text") or ""
                         # include threatfox summary in context for the LLM
@@ -140,15 +141,24 @@ def run_pipeline():
                         }
                         llm_res = analyze_email_body(llm_input, context=context)
                         parsed["llm_analysis"] = llm_res
-                        llm_verdict = (llm_res.get("verdict") or "accepted").lower()
-                        print(f"[LLM] Model verdict: {llm_verdict.upper()}")
-                        if llm_res.get("reasons"):
-                            print(f"  Reasons: {llm_res.get('reasons')}")
-                        if parsed["status"] != "escalated" and llm_verdict == "escalated":
+                        llm_verdict = (llm_res.get("verdict") or "").lower().strip()
+
+                        # Fail-safe: unknown or missing verdict → escalate
+                        if llm_verdict not in VALID_LLM_VERDICTS:
                             parsed["status"] = "escalated"
-                            print(f"[LLM] Model flagged -> ESCALATED")
+                            print(f"[LLM] Invalid/unknown verdict '{llm_verdict}' -> ESCALATED (fail-safe)")
+                        else:
+                            print(f"[LLM] Model verdict: {llm_verdict.upper()}")
+                            if llm_res.get("reasons"):
+                                print(f"  Reasons: {llm_res.get('reasons')}")
+                            # LLM can escalate but NEVER override a rules-engine escalation
+                            if parsed["status"] != "escalated" and llm_verdict == "escalated":
+                                parsed["status"] = "escalated"
+                                print(f"[LLM] Model flagged -> ESCALATED")
                     except Exception as e:
-                        print(f"[LLM] Analysis failed: {e}")
+                        # Fail-safe: LLM crash → escalate, never silently accept
+                        parsed["status"] = "escalated"
+                        print(f"[LLM] Analysis failed: {e} -> ESCALATED (fail-safe)")
             else:
                 print(f"[RULES] Skipped — email already ESCALATED from parse errors")
 
