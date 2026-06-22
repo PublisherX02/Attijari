@@ -416,7 +416,6 @@ def run_pipeline():
                     print("[ENRICHMENT] Deterministic match -> skipping LLM and proposing reject/escalation")
                 else:
                     # LLM analysis (Ollama)
-                    VALID_LLM_VERDICTS = {"accepted", "escalated"}
                     try:
                         llm_input = parsed.get("body_text") or ""
                         # Build enrichment context with all signals for LLM
@@ -449,12 +448,19 @@ def run_pipeline():
                         }
                         llm_res = analyze_email_body(llm_input, context=context)
                         parsed["llm_analysis"] = llm_res
-                        llm_verdict = (llm_res.get("verdict") or "").lower().strip()
+                        raw_llm_verdict = (llm_res.get("verdict") or "").lower().strip()
+
+                        # Normalize French LLM outputs to pipeline statuses
+                        llm_verdict = ""
+                        if raw_llm_verdict == "accepter":
+                            llm_verdict = "accepted"
+                        elif raw_llm_verdict in ("rejeter", "escalader"):
+                            llm_verdict = "escalated"
 
                         # Fail-safe: unknown or missing verdict → escalate
-                        if llm_verdict not in VALID_LLM_VERDICTS:
+                        if not llm_verdict:
                             parsed["status"] = "escalated"
-                            print(f"[LLM] Invalid/unknown verdict '{llm_verdict}' -> ESCALATED (fail-safe)")
+                            print(f"[LLM] Invalid/unknown verdict '{raw_llm_verdict}' -> ESCALATED (fail-safe)")
                         else:
                             print(f"[LLM] Model verdict: {llm_verdict.upper()}")
                             if llm_res.get("reasons"):

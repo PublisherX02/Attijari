@@ -107,7 +107,7 @@ class ThreatFeeds:
         if not _URLHAUS_PATH.exists():
             return stats
         try:
-            raw = _URLHAUS_PATH.read_text(encoding="utf-8", errors="ignore")
+            raw = _URLHAUS_PATH.read_text(encoding="utf-8", errors="ignore").replace("\0", "")
             # strip comment lines
             lines = [l for l in raw.splitlines() if l.strip() and not l.startswith("#")]
             reader = csv.reader(io.StringIO("\n".join(lines)))
