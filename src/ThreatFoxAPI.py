@@ -17,6 +17,13 @@ def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str |
     indicator_type: 'hash' | 'domain' | 'ip' | 'url'
     Returns a dict with keys: source, indicator, indicator_type, found (bool), status_code, raw, error (optional)
     """
+    from api_cache import api_cache
+    cache_key = f"threatfox_{indicator_type}_{indicator}"
+    cached = api_cache.get_cached(cache_key)
+    if cached:
+        return cached
+    api_cache.enforce_rate_limit("threatfox", 10)
+
     if not indicator:
         return {"source": "threatfox", "indicator": indicator, "indicator_type": indicator_type, "found": False, "error": "empty indicator"}
 
@@ -73,7 +80,7 @@ def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str |
                 elif data.get("data") and isinstance(data.get("data"), dict) and len(data.get("data")) > 0:
                     found = True
 
-            return {
+            res = {
                 "source": "threatfox",
                 "indicator": indicator,
                 "indicator_type": indicator_type,
@@ -81,6 +88,8 @@ def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str |
                 "status_code": status,
                 "raw": data,
             }
+            api_cache.set_cache(cache_key, res, 86400)
+            return res
 
         except requests.exceptions.RequestException as e:
             # transient network error: retry

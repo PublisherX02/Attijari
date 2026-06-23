@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Whitelist — Attijari SOC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Whitelist Management</h2>
+    <p class="page-subtitle">Whitelisted indicators always override the blocklist</p>
+</div>
+
+<!-- Add entry form -->
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <span class="card-title">Add New Entry</span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="margin-bottom:0; min-width:140px;">
+            <label class="form-label">Type</label>
+            <select class="form-select" id="wl-type">
+                <option value="email">Email</option>
+                <option value="domain">Domain</option>
+                <option value="ip">IP Address</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0; flex:1; min-width:200px;">
+            <label class="form-label">Value</label>
+            <input type="text" class="form-input" id="wl-value" placeholder="e.g. trusted@partner.com">
+        </div>
+        <div class="form-group" style="margin-bottom:0; flex:1; min-width:200px;">
+            <label class="form-label">Reason</label>
+            <input type="text" class="form-input" id="wl-reason" placeholder="Why is this trusted?">
+        </div>
+        <button class="btn btn-success" onclick="addWhitelistEntry()" style="height:42px;">✅ Whitelist</button>
+    </div>
+</div>
+
+<!-- Whitelist table -->
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Value</th>
+                <th>Reason</th>
+                <th>Added</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="whitelist-body">
+            <tr><td colspan="5" class="loading-overlay"><div class="spinner"></div> Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => loadWhitelist());</script>
+{% endblock %}

@@ -33,15 +33,25 @@ URLHAUS_URL = "https://urlhaus.abuse.ch/downloads/csv/"
 # would block ALL legitimate traffic. Only full URLs are checked, not domains.
 WHITELISTED_DOMAINS = {
     # Google
-    "google.com", "googleapis.com", "googleusercontent.com",
+    "google.com", "gmail.com", "googleapis.com", "googleusercontent.com",
+    "gstatic.com", "google.co.uk", "google.fr", "google.tn",
+    "youtube.com", "youtu.be",
     "drive.google.com", "docs.google.com", "sites.google.com",
+    "accounts.google.com", "support.google.com", "mail.google.com",
     "drive.usercontent.google.com", "firebasestorage.googleapis.com",
     # Microsoft
-    "microsoft.com", "outlook.com", "live.com", "office.com",
-    "onedrive.live.com", "sharepoint.com",
+    "microsoft.com", "outlook.com", "live.com", "office.com", "hotmail.com",
+    "onedrive.live.com", "sharepoint.com", "office365.com",
+    "login.microsoftonline.com",
+    # Apple
+    "apple.com", "icloud.com",
+    # LinkedIn
+    "linkedin.com",
     # Other major platforms
     "dropbox.com", "github.com", "amazonaws.com",
     "cloudfront.net", "akamaihd.net",
+    # Yahoo
+    "yahoo.com", "yahoo.fr",
 }
 
 

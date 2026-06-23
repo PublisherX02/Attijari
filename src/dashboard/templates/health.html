@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}System Health — Attijari SOC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>System Health</h2>
+    <p class="page-subtitle">Live status of all system components</p>
+</div>
+
+<div style="margin-bottom: 24px;">
+    <button class="btn btn-outline" onclick="loadHealth()">🔄 Refresh</button>
+</div>
+
+<div class="health-grid" id="health-grid">
+    <div class="loading-overlay"><div class="spinner"></div> Checking…</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => loadHealth());</script>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Reports — Attijari SOC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Admin Reports</h2>
+    <p class="page-subtitle">Structured triage summaries delivered via SMTP, Slack, Teams, or dashboard</p>
+</div>
+
+<div style="margin-bottom: 24px;">
+    <button class="btn btn-primary" onclick="generateReport()">📊 Generate Report Now</button>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Period</th>
+                <th>Summary</th>
+                <th>Delivered Via</th>
+                <th>Generated</th>
+            </tr>
+        </thead>
+        <tbody id="reports-body">
+            <tr><td colspan="5" class="loading-overlay"><div class="spinner"></div> Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => loadReports());</script>
+{% endblock %}

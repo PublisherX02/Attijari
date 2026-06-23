@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Attijari SOC — AI-assisted email security triage dashboard">
+    <title>{% block title %}Attijari SOC{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-brand">
+                <h1>Attijari SOC</h1>
+                <div class="subtitle">Email Security Triage</div>
+            </div>
+            <div class="sidebar-nav">
+                <a href="/" class="nav-link {% if active_page == 'inbox' %}active{% endif %}" id="nav-inbox">
+                    <span class="nav-icon">📥</span>
+                    <span>Inbox Queue</span>
+                    <span class="nav-badge" id="pending-badge">0</span>
+                </a>
+                <a href="/blocklist" class="nav-link {% if active_page == 'blocklist' %}active{% endif %}">
+                    <span class="nav-icon">🚫</span>
+                    <span>Blocklist</span>
+                </a>
+                <a href="/whitelist" class="nav-link {% if active_page == 'whitelist' %}active{% endif %}">
+                    <span class="nav-icon">✅</span>
+                    <span>Whitelist</span>
+                </a>
+                <a href="/reports" class="nav-link {% if active_page == 'reports' %}active{% endif %}">
+                    <span class="nav-icon">📊</span>
+                    <span>Reports</span>
+                </a>
+                <a href="/health" class="nav-link {% if active_page == 'health' %}active{% endif %}">
+                    <span class="nav-icon">💓</span>
+                    <span>System Health</span>
+                </a>
+            </div>
+            <div style="padding: 16px 12px; border-top: 1px solid var(--border-glass);">
+                <a href="/metrics" class="nav-link" target="_blank">
+                    <span class="nav-icon">📈</span>
+                    <span>Prometheus</span>
+                </a>
+            </div>
+        </nav>
+
+        <!-- Main content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Override modal -->
+    <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+            <h3>Override Verdict</h3>
+            <div class="form-group">
+                <label class="form-label">New Status</label>
+                <select class="form-select" id="override-status">
+                    <option value="">Select…</option>
+                    <option value="accepted">Accepted</option>
+                    <option value="escalated">Escalated</option>
+                    <option value="released">Released</option>
+                    <option value="quarantined">Quarantined</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Analyst Notes</label>
+                <textarea class="form-input" id="override-notes" rows="3" placeholder="Reason for override…"></textarea>
+            </div>
+            <div class="btn-group" style="justify-content: flex-end;">
+                <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="overrideEmail(document.getElementById('modal-overlay').dataset.emailId)">Confirm Override</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

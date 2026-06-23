@@ -39,6 +39,31 @@ def is_valid_ip(ip: str) -> bool:
         return False
 
 
+# CLAUDE.md: "never auto-block shared infrastructure IPs (Gmail, Outlook relays)"
+# These are well-known mail relay prefixes whose IPs frequently appear in OTX pulses
+# but should NOT trigger escalation — they serve millions of legitimate senders.
+_SHARED_INFRA_PREFIXES = (
+    # Google / Gmail
+    "74.125.", "209.85.", "172.217.", "142.250.", "108.177.",
+    # Microsoft / Outlook / O365
+    "40.92.", "40.93.", "40.94.", "40.107.", "52.100.", "52.101.",
+    "104.47.",
+    # Amazon SES
+    "54.240.",
+    # SendGrid
+    "167.89.", "198.21.",
+)
+
+
+def is_shared_infrastructure_ip(ip: str) -> bool:
+    """Check if an IP belongs to known shared mail infrastructure.
+
+    These IPs must never trigger escalation or be auto-blocklisted.
+    """
+    ip = (ip or "").strip()
+    return any(ip.startswith(p) for p in _SHARED_INFRA_PREFIXES)
+
+
 def filter_valid_ips(ips: list[str]) -> list[str]:
     """Filter a list of IP strings to only valid, routable addresses."""
     return [ip.strip() for ip in ips if is_valid_ip(ip.strip())]

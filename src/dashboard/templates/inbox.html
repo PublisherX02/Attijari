@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Inbox — Attijari SOC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Inbox Queue</h2>
+    <p class="page-subtitle">Review flagged emails and take action</p>
+</div>
+
+<!-- Stats cards -->
+<div class="stats-grid" id="stats-cards">
+    <div class="stat-card total"><div class="stat-value">—</div><div class="stat-label">Total</div></div>
+    <div class="stat-card accepted"><div class="stat-value">—</div><div class="stat-label">Accepted</div></div>
+    <div class="stat-card escalated"><div class="stat-value">—</div><div class="stat-label">Escalated</div></div>
+    <div class="stat-card quarantined"><div class="stat-value">—</div><div class="stat-label">Quarantined</div></div>
+    <div class="stat-card released"><div class="stat-value">—</div><div class="stat-label">Released</div></div>
+</div>
+
+<!-- Search & Filter -->
+<div class="search-bar">
+    <input type="text" class="form-input" id="search-input" placeholder="Search by sender, subject, or domain…" onkeydown="if(event.key==='Enter')searchEmails()">
+    <button class="btn btn-primary" onclick="searchEmails()">Search</button>
+</div>
+
+<div class="filter-chips">
+    <button class="chip active" data-status="" onclick="filterByStatus('')">All</button>
+    <button class="chip" data-status="escalated" onclick="filterByStatus('escalated')">⚠️ Escalated</button>
+    <button class="chip" data-status="accepted" onclick="filterByStatus('accepted')">✅ Accepted</button>
+    <button class="chip" data-status="quarantined" onclick="filterByStatus('quarantined')">🔴 Quarantined</button>
+    <button class="chip" data-status="released" onclick="filterByStatus('released')">🔵 Released</button>
+    <button class="chip" data-status="recu" onclick="filterByStatus('recu')">🟣 Pending</button>
+</div>
+
+<!-- Email table -->
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Sender</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Attachments</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="email-table-body">
+            <tr><td colspan="6" class="loading-overlay"><div class="spinner"></div> Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div id="pagination" class="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => loadInbox());</script>
+{% endblock %}

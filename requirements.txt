@@ -6,6 +6,9 @@ python-dotenv==1.2.2
 requests==2.34.2
 psycopg2-binary==2.9.12
 
+# Database ORM
+SQLAlchemy==2.0.41
+
 # Email parsing & auth
 dkimpy==1.1.8
 checkdmarc==5.17.1
@@ -36,3 +39,15 @@ google-auth-oauthlib==1.4.0
 
 # LLM runtime
 ollama
+
+# Scheduler
+APScheduler==3.11.0
+
+# Encryption (quarantine vault)
+cryptography==45.0.4
+
+# Templating (dashboard)
+Jinja2==3.1.6
+
+# Metrics
+prometheus-client==0.22.1

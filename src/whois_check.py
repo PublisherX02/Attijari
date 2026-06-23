@@ -42,7 +42,7 @@ def check_domain_age(domain: str, timeout: int = 10) -> dict:
         except Exception:
             pass  # may already be bootstrapped or offline
 
-        data = whoisit.domain(domain, timeout=timeout)
+        data = whoisit.domain(domain)
 
         if not data:
             return {"source": "whois", "domain": domain, "is_new_domain": False,

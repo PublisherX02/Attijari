@@ -39,6 +39,12 @@ def check_hash(sha256: str, api_key: str | None = None,
         return {"source": "virustotal", "sha256": sha256,
                 "detected": False, "error": "invalid_hash"}
 
+    from api_cache import api_cache
+    cache_key = f"vt_{sha256}"
+    cached = api_cache.get_cached(cache_key)
+    if cached:
+        return cached
+
     key = api_key or os.getenv("VIRUSTOTAL_API_KEY")
     if not key:
         return {"source": "virustotal", "sha256": sha256,
@@ -96,7 +102,7 @@ def check_hash(sha256: str, api_key: str | None = None,
                     if len(malware_names) >= 5:
                         break
 
-            return {
+            res = {
                 "source": "virustotal",
                 "sha256": sha256,
                 "detected": detection_count >= DETECTION_THRESHOLD,
@@ -108,6 +114,8 @@ def check_hash(sha256: str, api_key: str | None = None,
                 "meaningful_name": data.get("meaningful_name"),
                 "type_description": data.get("type_description"),
             }
+            api_cache.set_cache(cache_key, res, 86400)
+            return res
 
         except requests.RequestException as e:
             if attempt < retries:

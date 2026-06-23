@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Blocklist — Attijari SOC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Blocklist Management</h2>
+    <p class="page-subtitle">Manage blocked senders, domains, IPs, and file hashes</p>
+</div>
+
+<!-- Add entry form -->
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <span class="card-title">Add New Entry</span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="margin-bottom:0; min-width:140px;">
+            <label class="form-label">Type</label>
+            <select class="form-select" id="bl-type">
+                <option value="email">Email</option>
+                <option value="domain">Domain</option>
+                <option value="ip">IP Address</option>
+                <option value="hash">File Hash</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0; flex:1; min-width:240px;">
+            <label class="form-label">Value</label>
+            <input type="text" class="form-input" id="bl-value" placeholder="e.g. attacker@evil.com or evil.com">
+        </div>
+        <button class="btn btn-danger" onclick="addBlocklistEntry()" style="height:42px;">🚫 Block</button>
+    </div>
+</div>
+
+<!-- Blocklist table -->
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Value</th>
+                <th>Source</th>
+                <th>Added</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="blocklist-body">
+            <tr><td colspan="5" class="loading-overlay"><div class="spinner"></div> Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => loadBlocklist());</script>
+{% endblock %}

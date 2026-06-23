@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Email Detail — Attijari SOC{% endblock %}
+
+{% block content %}
+<div id="email-detail">
+    <div class="loading-overlay"><div class="spinner"></div> Loading email details…</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => loadEmailDetail({{ email_id }}));</script>
+{% endblock %}
