@@ -148,16 +148,9 @@ def run_pipeline():
                     }
                     pending_record = _save_pending(db, pending_data)
                     print(f"[DB] Email #{pending_record.id} saved as PENDING")
-                    try:
-                        import requests
-                        from requests.auth import HTTPBasicAuth
-                        requests.post(
-                            "http://localhost:8000/api/internal/notify", 
-                            timeout=2,
-                            auth=HTTPBasicAuth(os.getenv("DASHBOARD_USER", "admin"), os.getenv("DASHBOARD_PASS", "admin"))
-                        )
-                    except Exception:
-                        pass
+                    # Dashboard refresh is handled by the background poll loop
+                    # No need for an internal HTTP notify call
+                    pass
                 except Exception as e:
                     print(f"[DB] Pending save failed ({e}) — continuing pipeline")
 
@@ -617,16 +610,8 @@ def run_pipeline():
 
                     print(f"[DB] Updated email #{saved.id} -> {parsed['status'].upper()}")
 
-                    try:
-                        import requests
-                        from requests.auth import HTTPBasicAuth
-                        requests.post(
-                            "http://localhost:8000/api/internal/notify",
-                            timeout=2,
-                            auth=HTTPBasicAuth(os.getenv("DASHBOARD_USER", "admin"), os.getenv("DASHBOARD_PASS", "admin"))
-                        )
-                    except Exception:
-                        pass
+                    # Dashboard refresh is handled by the background poll loop
+                    pass
                 except Exception as e:
                     print(f"[DB] Save failed ({e}) — falling back to JSON ledger")
                     ingestion.mark_processed(parsed["idempotency_key"], parsed)

@@ -1,20 +1,25 @@
+import os
 import bcrypt
 import pyotp
 import jwt
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from api_core import templates, get_db_generator, JWT_SECRET, ALGORITHM
 
 auth_router = APIRouter()
+_limiter = Limiter(key_func=get_remote_address)
 
 @auth_router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @auth_router.post("/login")
-async def login_post(username: str = Form(...), password: str = Form(...), totp: str = Form(...), db = Depends(get_db_generator)):
+@_limiter.limit("5/minute")
+async def login_post(request: Request, username: str = Form(...), password: str = Form(...), totp: str = Form(...), db = Depends(get_db_generator)):
     from database import User
     
     user = db.query(User).filter(User.username == username).first()
@@ -33,7 +38,12 @@ async def login_post(username: str = Form(...), password: str = Form(...), totp:
     token = jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)
     
     response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(key="access_token", value=token, httponly=True, samesite="lax", max_age=28800)
+    is_https = os.getenv("FORCE_HTTPS", "").lower() in ("1", "true", "yes")
+    response.set_cookie(
+        key="access_token", value=token,
+        httponly=True, samesite="strict", secure=is_https,
+        path="/", max_age=28800,
+    )
     return response
 
 @auth_router.get("/logout")

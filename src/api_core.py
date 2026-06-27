@@ -52,7 +52,14 @@ ws_manager = ConnectionManager()
 class NotAuthenticatedException(Exception):
     pass
 
-JWT_SECRET = os.getenv("VAULT_ENCRYPTION_KEY", "fallback_secret_change_me")
+_jwt_secret = os.getenv("VAULT_ENCRYPTION_KEY")
+if not _jwt_secret:
+    raise RuntimeError(
+        "VAULT_ENCRYPTION_KEY is not set. "
+        "The API refuses to start without a secure JWT signing key. "
+        "Set it in your .env file."
+    )
+JWT_SECRET = _jwt_secret
 ALGORITHM = "HS256"
 
 def get_db_generator():
@@ -63,7 +70,7 @@ def get_db_generator():
         db.close()
 
 async def verify_auth(request: Request, access_token: Optional[str] = Cookie(None)):
-    if request.url.path in ["/login", "/api/login", "/api/internal/notify"] or request.url.path.startswith("/static"):
+    if request.url.path in ["/login", "/api/login"] or request.url.path.startswith("/static"):
         return None
 
     if not access_token:

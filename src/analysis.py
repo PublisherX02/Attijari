@@ -5,7 +5,43 @@ Robust Ollama analysis helper.
 from __future__ import annotations
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class LLMVerdict(BaseModel):
+    """Pydantic schema to validate and sanitize raw LLM output."""
+    sender_risk: int = Field(default=50, ge=0, le=100)
+    intent_classification: str = Field(default="unknown", max_length=200)
+    social_engineering_indicators: List[str] = Field(default_factory=list)
+    risk_score: int = Field(default=50, ge=0, le=100)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    verdict: str = Field(default="escalated")
+    reasons: List[str] = Field(default_factory=list)
+
+    @field_validator("verdict")
+    @classmethod
+    def validate_verdict(cls, v: str) -> str:
+        allowed = ("accepted", "escalated")
+        v = v.strip().lower()
+        if v not in allowed:
+            return "escalated"  # fail-safe: unknown verdict → escalate
+        return v
+
+    @field_validator("reasons", mode="before")
+    @classmethod
+    def truncate_reasons(cls, v):
+        if not isinstance(v, list):
+            return []
+        return [str(r)[:500] for r in v[:20]]
+
+    @field_validator("social_engineering_indicators", mode="before")
+    @classmethod
+    def truncate_indicators(cls, v):
+        if not isinstance(v, list):
+            return []
+        return [str(i)[:500] for i in v[:20]]
 
 SKILLS_PATH = os.path.join(os.path.dirname(__file__), "skills.md")
 
@@ -446,24 +482,22 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         # Fail-safe: unparseable LLM output must escalate for human review
         return {"verdict": "escalated", "reasons": ["model_output_not_json"], "raw_model_output": model_output}
 
-    verdict = parsed.get("verdict", "escalated")  # fail-safe: missing verdict → escalate
-    reasons = parsed.get("reasons", []) or []
-    confidence = None
-    raw_conf = parsed.get("confidence")
-    if raw_conf is not None:
-        try:
-            confidence = float(raw_conf)
-        except (TypeError, ValueError):
-            confidence = None
+    # Validate and sanitize LLM output through Pydantic schema
+    try:
+        validated = LLMVerdict(**parsed)
+    except Exception:
+        return {"verdict": "escalated", "reasons": ["model_output_failed_validation"], "raw_model_output": model_output}
+
+    verdict = validated.verdict
+    reasons = list(validated.reasons)
+    confidence = validated.confidence
 
     # CRITICAL-02: Low confidence → forced escalation (CLAUDE.md rule)
-    # Only enforce when the LLM actually provided a confidence value
     if confidence is not None and verdict == "accepted" and confidence < CONFIDENCE_THRESHOLD:
         verdict = "escalated"
         reasons.append(f"system_override: low confidence ({confidence:.2f} < {CONFIDENCE_THRESHOLD})")
 
     # Enrichment override: Ensure LLM cannot accept when deterministic signals are present
-    # Check for ALL enrichment hit patterns (CRITICAL-04 fix)
     _enrichment_hit_keywords = ("DETECTED", "MALICIOUS", "FAILURE", "FLAGGED", "TYPOSQUAT", "NEW-DOMAIN", "EXTRACTION-FLAG")
     has_enrichment_hits = any(
         kw in c for c in ctx_parts for kw in _enrichment_hit_keywords
@@ -476,10 +510,10 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         "verdict": verdict,
         "reasons": reasons,
         "confidence": confidence,
-        "risk_score": parsed.get("risk_score"),
-        "sender_risk": parsed.get("sender_risk"),
-        "intent_classification": parsed.get("intent_classification"),
-        "social_engineering_indicators": parsed.get("social_engineering_indicators"),
+        "risk_score": validated.risk_score,
+        "sender_risk": validated.sender_risk,
+        "intent_classification": validated.intent_classification,
+        "social_engineering_indicators": validated.social_engineering_indicators,
         "indicators": parsed.get("indicators"),
         "raw_model_output": model_output,
     }

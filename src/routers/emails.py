@@ -1,15 +1,41 @@
 from typing import Optional
 import asyncio
+import time
 from fastapi import APIRouter, Query, HTTPException, Request
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
-from fastapi.responses import HTMLResponse
-from database import SessionLocal, Email, AuditLog, Blocklist, Whitelist, add_blocklist_entry, get_blocked_set, is_whitelisted, add_audit_entry, utcnow
+from sqlalchemy import text
+from database import (
+    SessionLocal, Email, AuditLog, Blocklist, Whitelist, Report, AnalystFeedback,
+    add_blocklist_entry, get_blocked_set, is_whitelisted, add_audit_entry, utcnow,
+)
 from routing import release_email, quarantine_email, override_verdict
 from reporting import generate_report
-from api_core import ws_manager, mask_pii
+from fastapi import Depends
+from api_core import ws_manager, mask_pii, verify_auth
+from metrics import db_connected, ollama_available, get_metrics_text
 
 emails_router = APIRouter()
 _scan_lock = asyncio.Lock()
+
+
+def _update_gauge_metrics():
+    """Refresh Prometheus gauge metrics from current DB state."""
+    try:
+        db = SessionLocal()
+        from metrics import blocklist_size, emails_in_queue
+        for itype in ("email", "domain", "ip", "hash"):
+            count = db.query(Blocklist).filter(
+                Blocklist.active == True, Blocklist.indicator_type == itype
+            ).count()
+            blocklist_size.labels(indicator_type=itype).set(count)
+        pending = db.query(Email).filter(
+            Email.status.in_(["escalated", "recu", "pending"])
+        ).count()
+        emails_in_queue.set(pending)
+        db.close()
+    except Exception:
+        pass  # metrics are best-effort, never crash the request
 
 def _run_pipeline_sync():
     try:
@@ -18,22 +44,37 @@ def _run_pipeline_sync():
     except Exception as e:
         print(f"[POLL] Pipeline failed: {e}")
 
+from enum import Enum as PyEnum
+from pydantic import Field
+
+class IndicatorType(str, PyEnum):
+    email = "email"
+    domain = "domain"
+    ip = "ip"
+    hash = "hash"
+
 class BlocklistAddRequest(BaseModel):
-    indicator_type: str
-    value: str
-    reason: str = ""
+    indicator_type: IndicatorType
+    value: str = Field(..., min_length=1, max_length=512)
+    reason: str = Field(default="", max_length=1000)
 
 class WhitelistAddRequest(BaseModel):
-    indicator_type: str
-    value: str
-    reason: str = ""
+    indicator_type: IndicatorType
+    value: str = Field(..., min_length=1, max_length=512)
+    reason: str = Field(default="", max_length=1000)
 
 class ActionRequest(BaseModel):
-    reason: str = ""
+    reason: str = Field(default="", max_length=1000)
+
+class VerdictStatus(str, PyEnum):
+    accepted = "accepted"
+    escalated = "escalated"
+    released = "released"
+    quarantined = "quarantined"
 
 class OverrideRequest(BaseModel):
-    status: str
-    notes: str = ""
+    status: VerdictStatus
+    notes: str = Field(default="", max_length=1000)
 
 
 # ---------------------------------------------------------------------------
@@ -64,8 +105,8 @@ async def api_trigger_scan():
 
 @emails_router.get("/api/emails")
 async def api_list_emails(
-    status: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
+    status: Optional[str] = Query(None, max_length=20),
+    search: Optional[str] = Query(None, max_length=200),
     page: int = Query(1, ge=1),
     per_page: int = Query(25, ge=1, le=100),
 ):
@@ -170,10 +211,11 @@ async def api_get_email(email_id: int):
 
 
 @emails_router.post("/api/emails/{email_id}/release")
-async def api_release_email(email_id: int, body: ActionRequest = None):
+async def api_release_email(email_id: int, body: ActionRequest = None, user: str = Depends(verify_auth)):
     """Release an email (analyst action). Auto-whitelists sender domain."""
+    actor = user or "analyst"
     reason = body.reason if body else ""
-    result = release_email(email_id, actor="analyst", reason=reason)
+    result = release_email(email_id, actor=actor, reason=reason)
     _update_gauge_metrics()
     if not result["success"]:
         raise HTTPException(400, result["error"])
@@ -181,10 +223,11 @@ async def api_release_email(email_id: int, body: ActionRequest = None):
 
 
 @emails_router.post("/api/emails/{email_id}/quarantine")
-async def api_quarantine_email(email_id: int, body: ActionRequest = None):
+async def api_quarantine_email(email_id: int, body: ActionRequest = None, user: str = Depends(verify_auth)):
     """Quarantine an email with cascading blocklist + move to Gmail Spam."""
+    actor = user or "analyst"
     reason = body.reason if body else ""
-    result = quarantine_email(email_id, actor="analyst", reason=reason)
+    result = quarantine_email(email_id, actor=actor, reason=reason)
     _update_gauge_metrics()
     if not result["success"]:
         raise HTTPException(400, result["error"])
@@ -192,9 +235,10 @@ async def api_quarantine_email(email_id: int, body: ActionRequest = None):
 
 
 @emails_router.post("/api/emails/{email_id}/override")
-async def api_override_email(email_id: int, body: OverrideRequest):
+async def api_override_email(email_id: int, body: OverrideRequest, user: str = Depends(verify_auth)):
     """Override the pipeline verdict (analyst action with notes)."""
-    result = override_verdict(email_id, body.status, actor="analyst", notes=body.notes)
+    actor = user or "analyst"
+    result = override_verdict(email_id, body.status, actor=actor, notes=body.notes)
     _update_gauge_metrics()
     if not result["success"]:
         raise HTTPException(400, result["error"])
@@ -243,17 +287,18 @@ async def api_list_blocklist(
 
 
 @emails_router.post("/api/blocklist")
-async def api_add_blocklist(body: BlocklistAddRequest):
+async def api_add_blocklist(body: BlocklistAddRequest, user: str = Depends(verify_auth)):
     """Add an indicator to the blocklist."""
+    actor = user or "analyst"
     db = SessionLocal()
     try:
         added = add_blocklist_entry(
             db, body.indicator_type, body.value,
-            source="manual", confirmed_by="analyst",
+            source="manual", confirmed_by=actor,
         )
         if added:
             add_audit_entry(
-                db, action="blocklist_add", actor="analyst",
+                db, action="blocklist_add", actor=actor,
                 details={"indicator_type": body.indicator_type, "value": body.value, "reason": body.reason},
             )
             _update_gauge_metrics()
@@ -264,8 +309,9 @@ async def api_add_blocklist(body: BlocklistAddRequest):
 
 
 @emails_router.delete("/api/blocklist/{entry_id}")
-async def api_remove_blocklist(entry_id: int):
+async def api_remove_blocklist(entry_id: int, user: str = Depends(verify_auth)):
     """Deactivate a blocklist entry."""
+    actor = user or "analyst"
     db = SessionLocal()
     try:
         entry = db.query(Blocklist).filter(Blocklist.id == entry_id).first()
@@ -274,7 +320,7 @@ async def api_remove_blocklist(entry_id: int):
 
         entry.active = False
         add_audit_entry(
-            db, action="blocklist_remove", actor="analyst",
+            db, action="blocklist_remove", actor=actor,
             details={"indicator_type": entry.indicator_type, "value": entry.value},
         )
         db.commit()
@@ -322,8 +368,9 @@ async def api_list_whitelist(
 
 
 @emails_router.post("/api/whitelist")
-async def api_add_whitelist(body: WhitelistAddRequest):
+async def api_add_whitelist(body: WhitelistAddRequest, user: str = Depends(verify_auth)):
     """Add an indicator to the whitelist."""
+    actor = user or "analyst"
     db = SessionLocal()
     try:
         val = body.value.strip().lower()
@@ -343,11 +390,11 @@ async def api_add_whitelist(body: WhitelistAddRequest):
             indicator_type=body.indicator_type,
             value=val,
             reason=body.reason,
-            created_by="analyst",
+            created_by=actor,
         )
         db.add(entry)
         add_audit_entry(
-            db, action="whitelist_add", actor="analyst",
+            db, action="whitelist_add", actor=actor,
             details={"indicator_type": body.indicator_type, "value": val, "reason": body.reason},
         )
         db.commit()
@@ -357,8 +404,9 @@ async def api_add_whitelist(body: WhitelistAddRequest):
 
 
 @emails_router.delete("/api/whitelist/{entry_id}")
-async def api_remove_whitelist(entry_id: int):
+async def api_remove_whitelist(entry_id: int, user: str = Depends(verify_auth)):
     """Deactivate a whitelist entry."""
+    actor = user or "analyst"
     db = SessionLocal()
     try:
         entry = db.query(Whitelist).filter(Whitelist.id == entry_id).first()
@@ -367,7 +415,7 @@ async def api_remove_whitelist(entry_id: int):
 
         entry.active = False
         add_audit_entry(
-            db, action="whitelist_remove", actor="analyst",
+            db, action="whitelist_remove", actor=actor,
             details={"indicator_type": entry.indicator_type, "value": entry.value},
         )
         db.commit()
@@ -454,9 +502,10 @@ async def api_health():
         db_connected.set(1)
         db.close()
     except Exception as e:
-        health["components"]["database"] = {"status": "error", "error": str(e)}
+        health["components"]["database"] = {"status": "error", "error": "connection_failed"}
         health["status"] = "degraded"
         db_connected.set(0)
+        print(f"[HEALTH] Database check failed: {e}")  # full error only in server logs
 
     # Ollama
     try:
@@ -610,4 +659,4 @@ async def prometheus_metrics():
     """Expose metrics in Prometheus text format."""
     _update_gauge_metrics()
     body, content_type = get_metrics_text()
-    return Response(content=body, media_type=content_type)
+    return Response(content=body, media_type=content_type if isinstance(content_type, str) else "text/plain")

@@ -50,10 +50,13 @@ if not audit_logger.handlers:
     handler.setFormatter(logging.Formatter('{"ts": "%(asctime)s", "event": %(message)s}'))
     audit_logger.addHandler(handler)
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/attijari_db",
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set. "
+        "The application refuses to start without a database connection string. "
+        "Set it in your .env file (e.g. DATABASE_URL=postgresql://user:pass@host:5432/dbname)."
+    )
 
 # ---------------------------------------------------------------------------
 # Engine & session factory
@@ -233,10 +236,16 @@ def init_db():
         db = SessionLocal()
         import bcrypt
         import pyotp
+        import secrets
         if db.query(User).count() == 0:
-            default_pass = os.getenv("DASHBOARD_PASS", "admin").encode("utf-8")
-            hashed = bcrypt.hashpw(default_pass, bcrypt.gensalt()).decode("utf-8")
-            # Generate a consistent TOTP secret for the first run, or a random one
+            env_pass = os.getenv("DASHBOARD_PASS")
+            if env_pass:
+                password = env_pass
+                pass_source = "from DASHBOARD_PASS in .env"
+            else:
+                password = secrets.token_urlsafe(16)
+                pass_source = "randomly generated (set DASHBOARD_PASS in .env to override)"
+            hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             totp_secret = pyotp.random_base32()
             admin = User(username=os.getenv("DASHBOARD_USER", "admin"), password_hash=hashed, totp_secret=totp_secret)
             db.add(admin)
@@ -244,10 +253,18 @@ def init_db():
             print(f"\n=======================================================")
             print(f"[ISO 27001] ADMIN CREATED. MFA REQUIRED!")
             print(f"Username: {admin.username}")
-            print(f"Password: (see DASHBOARD_PASS in .env)")
-            print(f"TOTP Secret: {totp_secret}")
-            print(f"Set this up in Google Authenticator!")
+            print(f"Password: {password} ({pass_source})")
+            print(f"TOTP Secret: (configure via secure channel — see data/admin_totp_uri.txt)")
             print(f"=======================================================\n")
+            # Write TOTP provisioning URI to a local file instead of console
+            totp_uri = pyotp.TOTP(totp_secret).provisioning_uri(
+                name=admin.username, issuer_name="Attijari SOC"
+            )
+            totp_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "admin_totp_uri.txt")
+            os.makedirs(os.path.dirname(totp_file), exist_ok=True)
+            with open(totp_file, "w") as f:
+                f.write(f"TOTP URI (import into Google Authenticator):\n{totp_uri}\n")
+            print(f"[ISO 27001] TOTP setup URI written to {totp_file}")
     except Exception as e:
         print(f"[DB] Error initializing admin: {e}")
     finally:

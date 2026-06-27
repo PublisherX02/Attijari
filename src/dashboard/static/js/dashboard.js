@@ -38,7 +38,7 @@ function showToast(message, type = 'success') {
     const icons = { success: '✓', error: '✕', warning: '⚠' };
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = `<span>${icons[type] || '●'}</span><span>${message}</span>`;
+    toast.innerHTML = `<span>${icons[type] || '●'}</span><span>${esc(message)}</span>`;
     container.appendChild(toast);
 
     setTimeout(() => {
@@ -47,6 +47,14 @@ function showToast(message, type = 'success') {
         toast.style.transition = 'all 300ms ease-in';
         setTimeout(() => toast.remove(), 300);
     }, 4000);
+}
+
+/* --- HTML escaping (XSS prevention) --- */
+function esc(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
 }
 
 /* --- Format helpers --- */
@@ -119,20 +127,20 @@ async function loadInbox(page = 1, status = null, search = '') {
         }
 
         container.innerHTML = data.emails.map(e => `
-            <tr onclick="window.location='/email/${e.id}'">
-                <td>${truncate(e.sender, 40)}</td>
-                <td>${truncate(e.subject, 55)}</td>
+            <tr onclick="window.location='/email/${parseInt(e.id)}'">
+                <td>${esc(truncate(e.sender, 40))}</td>
+                <td>${esc(truncate(e.subject, 55))}</td>
                 <td>${statusBadge(e.status)}</td>
-                <td>${e.attachment_count > 0 ? '📎 ' + e.attachment_count : '—'}</td>
+                <td>${e.attachment_count > 0 ? '📎 ' + parseInt(e.attachment_count) : '—'}</td>
                 <td>${formatDate(e.email_date || e.created_at)}</td>
                 <td>
                     ${e.status === 'pending' ? `<span class="badge pending">Scanning…</span>`
                     : e.status === 'escalated' || e.status === 'recu' ? `
                         <div class="btn-group">
-                            <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); releaseEmail(${e.id})">Release</button>
-                            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); quarantineEmail(${e.id})">Quarantine</button>
+                            <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); releaseEmail(${parseInt(e.id)})">Release</button>
+                            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); quarantineEmail(${parseInt(e.id)})">Quarantine</button>
                         </div>
-                    ` : e.analyst_action ? `<span style="color:var(--text-muted)">${e.analyst_action}</span>` : ''}
+                    ` : e.analyst_action ? `<span style="color:var(--text-muted)">${esc(e.analyst_action)}</span>` : ''}
                 </td>
             </tr>
         `).join('');
@@ -146,7 +154,7 @@ async function loadInbox(page = 1, status = null, search = '') {
         });
 
     } catch (err) {
-        container.innerHTML = `<tr><td colspan="6" class="empty-state"><div class="emoji">❌</div><p>Error loading emails: ${err.message}</p></td></tr>`;
+        container.innerHTML = `<tr><td colspan="6" class="empty-state"><div class="emoji">❌</div><p>Error loading emails: ${esc(err.message)}</p></td></tr>`;
         showToast(err.message, 'error');
     }
 }
@@ -298,8 +306,8 @@ async function loadEmailDetail(emailId) {
                 const cls = d.flagged ? 'flagged' : 'clean';
                 signalsHtml += `
                     <div class="signal-card ${cls}">
-                        <div class="signal-name">${d.rule}</div>
-                        <div>${d.reason}</div>
+                        <div class="signal-name">${esc(d.rule)}</div>
+                        <div>${esc(d.reason)}</div>
                     </div>
                 `;
             }
@@ -313,7 +321,7 @@ async function loadEmailDetail(emailId) {
             for (const a of e.audit_history) {
                 auditHtml += `
                     <div class="detail-row">
-                        <span class="detail-label">${a.action} by ${a.actor}</span>
+                        <span class="detail-label">${esc(a.action)} by ${esc(a.actor)}</span>
                         <span class="detail-value">${formatDate(a.created_at)}</span>
                     </div>
                 `;
@@ -324,29 +332,29 @@ async function loadEmailDetail(emailId) {
         container.innerHTML = `
             <div class="page-header">
                 <a href="/" class="btn btn-outline btn-sm" style="margin-bottom:12px">← Back to Inbox</a>
-                <h2>${truncate(e.subject, 80)}</h2>
-                <div class="page-subtitle">From: ${e.sender || 'Unknown'} · ${formatDate(e.email_date || e.created_at)}</div>
+                <h2>${esc(truncate(e.subject, 80))}</h2>
+                <div class="page-subtitle">From: ${esc(e.sender) || 'Unknown'} · ${formatDate(e.email_date || e.created_at)}</div>
             </div>
 
             <div class="detail-grid">
                 <div class="detail-section">
                     <h3>Email Metadata</h3>
                     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(e.status)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Sender</span><span class="detail-value">${e.sender || '—'}</span></div>
-                    <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${e.sender_domain || '—'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Sender</span><span class="detail-value">${esc(e.sender) || '—'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Date Sent</span><span class="detail-value">${formatDate(e.email_date) || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Scanned At</span><span class="detail-value">${formatDate(e.created_at)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">${e.attachment_count}</span></div>
-                    <div class="detail-row"><span class="detail-label">SHA-256</span><span class="detail-value" style="font-family:monospace;font-size:0.75rem">${e.raw_sha256 || '—'}</span></div>
-                    <div class="detail-row"><span class="detail-label">Message-ID</span><span class="detail-value" style="font-size:0.75rem">${truncate(e.message_id, 40)}</span></div>
+                    <div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">${parseInt(e.attachment_count) || 0}</span></div>
+                    <div class="detail-row"><span class="detail-label">SHA-256</span><span class="detail-value" style="font-family:monospace;font-size:0.75rem">${esc(e.raw_sha256) || '—'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Message-ID</span><span class="detail-value" style="font-size:0.75rem">${esc(truncate(e.message_id, 40))}</span></div>
                 </div>
 
                 <div class="detail-section">
                     <h3>Analyst Actions</h3>
-                    <div class="detail-row"><span class="detail-label">Action taken</span><span class="detail-value">${e.analyst_action ? `<span class="badge ${e.analyst_action === 'release' ? 'released' : e.analyst_action === 'quarantine' ? 'quarantined' : 'recu'}">${e.analyst_action}</span>` : '<span style="color:var(--text-muted)">Pending review</span>'}</span></div>
-                    <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${e.analyst_notes || '<span style="color:var(--text-muted)">No notes yet</span>'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Action taken</span><span class="detail-value">${e.analyst_action ? `<span class="badge ${e.analyst_action === 'release' ? 'released' : e.analyst_action === 'quarantine' ? 'quarantined' : 'recu'}">${esc(e.analyst_action)}</span>` : '<span style="color:var(--text-muted)">Pending review</span>'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${e.analyst_notes ? esc(e.analyst_notes) : '<span style="color:var(--text-muted)">No notes yet</span>'}</span></div>
                     ${e.parse_errors && e.parse_errors.length > 0 ? `
-                        <div class="detail-row"><span class="detail-label">Parse Errors</span><span class="detail-value" style="color:var(--color-escalated)">${e.parse_errors.join(', ')}</span></div>
+                        <div class="detail-row"><span class="detail-label">Parse Errors</span><span class="detail-value" style="color:var(--color-escalated)">${esc(e.parse_errors.join(', '))}</span></div>
                     ` : ''}
                 </div>
             </div>
@@ -354,7 +362,7 @@ async function loadEmailDetail(emailId) {
             ${e.llm_reasoning ? `
                 <div class="reasoning-card">
                     <h3>🤖 LLM Reasoning</h3>
-                    <div class="reasoning-text">${e.llm_reasoning}</div>
+                    <div class="reasoning-text">${esc(e.llm_reasoning)}</div>
                 </div>
             ` : ''}
 
@@ -363,16 +371,16 @@ async function loadEmailDetail(emailId) {
             ${auditHtml}
 
             <div class="action-bar">
-                <button class="btn btn-success" onclick="releaseEmail(${e.id})">✓ Release</button>
-                <button class="btn btn-danger" onclick="quarantineEmail(${e.id})">🛡 Quarantine</button>
-                <button class="btn btn-outline" onclick="openOverrideModal(${e.id})">Override Verdict</button>
+                <button class="btn btn-success" onclick="releaseEmail(${parseInt(e.id)})">✓ Release</button>
+                <button class="btn btn-danger" onclick="quarantineEmail(${parseInt(e.id)})">🛡 Quarantine</button>
+                <button class="btn btn-outline" onclick="openOverrideModal(${parseInt(e.id)})">Override Verdict</button>
                 <div style="flex:1"></div>
-                <span style="color:var(--text-muted);font-size:0.8rem">Email #${e.id}</span>
+                <span style="color:var(--text-muted);font-size:0.8rem">Email #${parseInt(e.id)}</span>
             </div>
         `;
 
     } catch (err) {
-        container.innerHTML = `<div class="empty-state"><div class="emoji">❌</div><p>Error: ${err.message}</p></div>`;
+        container.innerHTML = `<div class="empty-state"><div class="emoji">❌</div><p>Error: ${esc(err.message)}</p></div>`;
     }
 }
 
@@ -392,11 +400,11 @@ async function loadBlocklist() {
         }
         container.innerHTML = data.entries.map(e => `
             <tr>
-                <td><span class="badge ${e.indicator_type === 'email' ? 'escalated' : 'recu'}">${e.indicator_type}</span></td>
-                <td style="font-family:monospace">${e.value}</td>
-                <td>${e.source}</td>
+                <td><span class="badge ${e.indicator_type === 'email' ? 'escalated' : 'recu'}">${esc(e.indicator_type)}</span></td>
+                <td style="font-family:monospace">${esc(e.value)}</td>
+                <td>${esc(e.source)}</td>
                 <td>${formatDate(e.created_at)}</td>
-                <td><button class="btn btn-outline btn-sm" onclick="removeBlocklistEntry(${e.id})">Remove</button></td>
+                <td><button class="btn btn-outline btn-sm" onclick="removeBlocklistEntry(${parseInt(e.id)})">Remove</button></td>
             </tr>
         `).join('');
     } catch (err) {
@@ -441,11 +449,11 @@ async function loadWhitelist() {
         }
         container.innerHTML = data.entries.map(e => `
             <tr>
-                <td><span class="badge accepted">${e.indicator_type}</span></td>
-                <td style="font-family:monospace">${e.value}</td>
-                <td>${e.reason || '—'}</td>
+                <td><span class="badge accepted">${esc(e.indicator_type)}</span></td>
+                <td style="font-family:monospace">${esc(e.value)}</td>
+                <td>${esc(e.reason) || '—'}</td>
                 <td>${formatDate(e.created_at)}</td>
-                <td><button class="btn btn-outline btn-sm" onclick="removeWhitelistEntry(${e.id})">Remove</button></td>
+                <td><button class="btn btn-outline btn-sm" onclick="removeWhitelistEntry(${parseInt(e.id)})">Remove</button></td>
             </tr>
         `).join('');
     } catch (err) {
@@ -492,17 +500,17 @@ async function loadHealth() {
         const h = await API.get('/api/health');
         container.innerHTML = Object.entries(h.components).map(([name, c]) => `
             <div class="health-card">
-                <span class="status-dot ${c.status}"></span>
-                <strong>${name.replace(/_/g, ' ').toUpperCase()}</strong>
+                <span class="status-dot ${esc(c.status)}"></span>
+                <strong>${esc(name.replace(/_/g, ' ').toUpperCase())}</strong>
                 <div style="color:var(--text-muted);font-size:0.8rem;margin-top:6px">
-                    Status: ${c.status}
-                    ${c.age_hours ? ` · Age: ${c.age_hours}h` : ''}
-                    ${c.error ? ` · Error: ${c.error}` : ''}
+                    Status: ${esc(c.status)}
+                    ${c.age_hours ? ` · Age: ${parseFloat(c.age_hours)}h` : ''}
+                    ${c.error ? ` · Error: ${esc(c.error)}` : ''}
                 </div>
             </div>
         `).join('');
     } catch (err) {
-        container.innerHTML = `<div class="empty-state"><p>Health check failed: ${err.message}</p></div>`;
+        container.innerHTML = `<div class="empty-state"><p>Health check failed: ${esc(err.message)}</p></div>`;
     }
 }
 
@@ -524,10 +532,10 @@ async function loadReports() {
             const counts = r.data?.counts || {};
             return `
                 <tr>
-                    <td>${r.report_type}</td>
+                    <td>${esc(r.report_type)}</td>
                     <td>${formatDate(r.period_start)} → ${formatDate(r.period_end)}</td>
-                    <td>${counts.total || 0} emails</td>
-                    <td>${(r.delivered_via || []).join(', ') || '—'}</td>
+                    <td>${parseInt(counts.total) || 0} emails</td>
+                    <td>${esc((r.delivered_via || []).join(', ')) || '—'}</td>
                     <td>${formatDate(r.created_at)}</td>
                 </tr>
             `;
@@ -593,7 +601,7 @@ async function loadToolHealth(tool) {
         if (filters && !tool) {
             const tools = Object.keys(summary);
             filters.innerHTML = `<button class="chip active" data-tool="" onclick="filterAuditTool('')">All Tools</button>` +
-                tools.map(t => `<button class="chip" data-tool="${t}" onclick="filterAuditTool('${t}')">${t}</button>`).join('');
+                tools.map(t => `<button class="chip" data-tool="${esc(t)}" onclick="filterAuditTool('${esc(t)}')">${esc(t)}</button>`).join('');
         }
 
         // Update active chip
@@ -608,19 +616,19 @@ async function loadToolHealth(tool) {
         };
 
         grid.innerHTML = Object.entries(summary).map(([name, s]) => `
-            <div class="health-card" onclick="filterAuditTool('${name}')" style="cursor:pointer">
+            <div class="health-card" onclick="filterAuditTool('${esc(name)}')" style="cursor:pointer">
                 <span class="status-dot ${statusColors[s.status] || 'unavailable'}"></span>
-                <strong>${name.toUpperCase()}</strong>
+                <strong>${esc(name.toUpperCase())}</strong>
                 <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:0.8rem;color:var(--text-secondary)">
-                    <div>Calls: <strong style="color:var(--text-primary)">${s.total_calls}</strong></div>
-                    <div>Errors: <strong style="color:${s.failure_count > 0 ? 'var(--danger)' : 'var(--text-primary)'}">${s.failure_count}</strong></div>
-                    <div>Error Rate: <strong style="color:${s.error_rate > 0.3 ? 'var(--danger)' : 'var(--text-primary)'}">${(s.error_rate * 100).toFixed(1)}%</strong></div>
-                    <div>Consec. Fails: <strong style="color:${s.consecutive_failures >= 3 ? 'var(--danger)' : 'var(--text-primary)'}">${s.consecutive_failures}</strong></div>
-                    <div>Avg Latency: <strong>${s.avg_latency_s != null ? s.avg_latency_s.toFixed(2) + 's' : '—'}</strong></div>
-                    <div>P95 Latency: <strong>${s.p95_latency_s != null ? s.p95_latency_s.toFixed(2) + 's' : '—'}</strong></div>
+                    <div>Calls: <strong style="color:var(--text-primary)">${parseInt(s.total_calls) || 0}</strong></div>
+                    <div>Errors: <strong style="color:${s.failure_count > 0 ? 'var(--danger)' : 'var(--text-primary)'}">${parseInt(s.failure_count) || 0}</strong></div>
+                    <div>Error Rate: <strong style="color:${s.error_rate > 0.3 ? 'var(--danger)' : 'var(--text-primary)'}">${(parseFloat(s.error_rate) * 100).toFixed(1)}%</strong></div>
+                    <div>Consec. Fails: <strong style="color:${s.consecutive_failures >= 3 ? 'var(--danger)' : 'var(--text-primary)'}">${parseInt(s.consecutive_failures) || 0}</strong></div>
+                    <div>Avg Latency: <strong>${s.avg_latency_s != null ? parseFloat(s.avg_latency_s).toFixed(2) + 's' : '—'}</strong></div>
+                    <div>P95 Latency: <strong>${s.p95_latency_s != null ? parseFloat(s.p95_latency_s).toFixed(2) + 's' : '—'}</strong></div>
                 </div>
-                ${s.last_error ? `<div style="margin-top:8px;padding:8px;background:rgba(239,68,68,0.1);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--danger);word-break:break-all">Last error: ${s.last_error}</div>` : ''}
-                ${s.recent_errors && s.recent_errors.length > 0 ? `<div style="margin-top:6px;font-size:0.7rem;color:var(--text-muted)">${s.recent_errors.length} recent error(s)</div>` : ''}
+                ${s.last_error ? `<div style="margin-top:8px;padding:8px;background:rgba(239,68,68,0.1);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--danger);word-break:break-all">Last error: ${esc(s.last_error)}</div>` : ''}
+                ${s.recent_errors && s.recent_errors.length > 0 ? `<div style="margin-top:6px;font-size:0.7rem;color:var(--text-muted)">${parseInt(s.recent_errors.length)} recent error(s)</div>` : ''}
             </div>
         `).join('');
 
@@ -628,7 +636,7 @@ async function loadToolHealth(tool) {
             grid.innerHTML = '<div class="empty-state"><p>No tool data available yet</p></div>';
         }
     } catch (err) {
-        grid.innerHTML = `<div class="empty-state"><p>Failed to load: ${err.message}</p></div>`;
+        grid.innerHTML = `<div class="empty-state"><p>Failed to load: ${esc(err.message)}</p></div>`;
     }
 }
 
@@ -652,14 +660,14 @@ async function loadAlertHistory(tool) {
         tbody.innerHTML = alerts.map(a => `
             <tr>
                 <td style="font-size:0.8rem;white-space:nowrap">${formatDate(a.ts)}</td>
-                <td><span class="badge recu">${a.tool || '—'}</span></td>
-                <td style="font-family:monospace;font-size:0.8rem">${a.alert_type || '—'}</td>
-                <td><span style="color:${severityColors[a.severity] || 'var(--text-muted)'};font-weight:600;text-transform:uppercase;font-size:0.75rem">${a.severity || '—'}</span></td>
-                <td style="font-size:0.82rem;max-width:400px;word-break:break-word">${a.message || '—'}</td>
+                <td><span class="badge recu">${esc(a.tool) || '—'}</span></td>
+                <td style="font-family:monospace;font-size:0.8rem">${esc(a.alert_type) || '—'}</td>
+                <td><span style="color:${severityColors[a.severity] || 'var(--text-muted)'};font-weight:600;text-transform:uppercase;font-size:0.75rem">${esc(a.severity) || '—'}</span></td>
+                <td style="font-size:0.82rem;max-width:400px;word-break:break-word">${esc(a.message) || '—'}</td>
             </tr>
         `).join('');
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>Failed: ${err.message}</p></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>Failed: ${esc(err.message)}</p></td></tr>`;
     }
 }
 
@@ -677,18 +685,18 @@ async function loadFeedbackHistory() {
         }
 
         tbody.innerHTML = entries.map(fb => `
-            <tr onclick="window.location='/email/${fb.email_id}'" style="cursor:pointer">
+            <tr onclick="window.location='/email/${parseInt(fb.email_id)}'" style="cursor:pointer">
                 <td style="white-space:nowrap">${formatDate(fb.created_at)}</td>
-                <td>#${fb.email_id}</td>
-                <td><span class="badge ${fb.action === 'release' ? 'released' : 'quarantined'}">${fb.action}</span></td>
-                <td><span class="badge ${fb.pipeline_verdict || 'recu'}">${fb.pipeline_verdict || '—'}</span></td>
-                <td style="font-family:monospace;font-size:0.82rem">${fb.domain || '—'}</td>
-                <td>${fb.indicator_type ? `<span class="badge ${fb.indicator_type === 'whitelist' ? 'accepted' : 'escalated'}">${fb.indicator_type}</span>` : '—'}</td>
-                <td style="max-width:300px;font-size:0.82rem;word-break:break-word">${truncate(fb.reasoning, 80)}</td>
+                <td>#${parseInt(fb.email_id)}</td>
+                <td><span class="badge ${fb.action === 'release' ? 'released' : 'quarantined'}">${esc(fb.action)}</span></td>
+                <td><span class="badge ${fb.pipeline_verdict || 'recu'}">${esc(fb.pipeline_verdict) || '—'}</span></td>
+                <td style="font-family:monospace;font-size:0.82rem">${esc(fb.domain) || '—'}</td>
+                <td>${fb.indicator_type ? `<span class="badge ${fb.indicator_type === 'whitelist' ? 'accepted' : 'escalated'}">${esc(fb.indicator_type)}</span>` : '—'}</td>
+                <td style="max-width:300px;font-size:0.82rem;word-break:break-word">${esc(truncate(fb.reasoning, 80))}</td>
             </tr>
         `).join('');
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p>Failed: ${err.message}</p></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p>Failed: ${esc(err.message)}</p></td></tr>`;
     }
 }
 

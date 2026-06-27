@@ -1,5 +1,5 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from api_core import ws_manager
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from api_core import ws_manager, verify_auth
 
 ws_router = APIRouter()
 
@@ -12,7 +12,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
 
-@ws_router.post("/api/internal/notify")
+@ws_router.post("/api/internal/notify", dependencies=[Depends(verify_auth)])
 async def api_internal_notify():
     await ws_manager.broadcast("refresh")
     return {"status": "ok"}

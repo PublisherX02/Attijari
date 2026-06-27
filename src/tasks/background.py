@@ -62,10 +62,19 @@ async def data_retention_and_backup_task():
             encrypted_file = os.path.join(backup_dir, f"{filename_base}.enc")
             
             try:
+                # Parse credentials from DATABASE_URL instead of hardcoding
+                from urllib.parse import urlparse
+                db_url = os.getenv("DATABASE_URL", "")
+                parsed_url = urlparse(db_url)
+                pg_user = parsed_url.username or "postgres"
+                pg_pass = parsed_url.password or ""
+                pg_host = parsed_url.hostname or "localhost"
+                pg_db = parsed_url.path.lstrip("/") or "attijari_db"
+
                 env = os.environ.copy()
-                env["PGPASSWORD"] = "postgres"
+                env["PGPASSWORD"] = pg_pass
                 subprocess.run(
-                    ["pg_dump", "-U", "postgres", "-h", "localhost", "-d", "attijari_db", "-f", backup_file],
+                    ["pg_dump", "-U", pg_user, "-h", pg_host, "-d", pg_db, "-f", backup_file],
                     env=env, check=True, capture_output=True
                 )
                 

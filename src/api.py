@@ -28,10 +28,16 @@ load_dotenv()
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from database import init_db
 from metrics import api_requests_total, api_request_duration_seconds
 from api_core import verify_auth, NotAuthenticatedException
+
+# Rate limiter — keyed by client IP
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 from routers.auth import auth_router
 from routers.dashboard import dashboard_router
@@ -47,6 +53,8 @@ app = FastAPI(
     version="2.0.0",
     dependencies=[Depends(verify_auth)]
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.exception_handler(NotAuthenticatedException)
 async def auth_exception_handler(request: Request, exc: NotAuthenticatedException):
@@ -67,7 +75,9 @@ async def security_and_metrics_middleware(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
     path = request.url.path
     if not path.startswith("/static") and path != "/metrics":
