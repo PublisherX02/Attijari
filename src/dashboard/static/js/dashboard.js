@@ -94,6 +94,7 @@ async function loadInbox(page = 1, status = null, search = '') {
             const s = stats.by_status || {};
             statsContainer.innerHTML = `
                 <div class="stat-card total"><div class="stat-value">${stats.total_emails || 0}</div><div class="stat-label">Total Emails</div></div>
+                <div class="stat-card pending"><div class="stat-value">${s.pending || 0}</div><div class="stat-label">Scanning</div></div>
                 <div class="stat-card accepted"><div class="stat-value">${s.accepted || 0}</div><div class="stat-label">Accepted</div></div>
                 <div class="stat-card escalated"><div class="stat-value">${s.escalated || 0}</div><div class="stat-label">Escalated</div></div>
                 <div class="stat-card quarantined"><div class="stat-value">${s.quarantined || 0}</div><div class="stat-label">Quarantined</div></div>
@@ -123,9 +124,10 @@ async function loadInbox(page = 1, status = null, search = '') {
                 <td>${truncate(e.subject, 55)}</td>
                 <td>${statusBadge(e.status)}</td>
                 <td>${e.attachment_count > 0 ? '📎 ' + e.attachment_count : '—'}</td>
-                <td>${formatDate(e.created_at)}</td>
+                <td>${formatDate(e.email_date || e.created_at)}</td>
                 <td>
-                    ${e.status === 'escalated' || e.status === 'recu' ? `
+                    ${e.status === 'pending' ? `<span class="badge pending">Scanning…</span>`
+                    : e.status === 'escalated' || e.status === 'recu' ? `
                         <div class="btn-group">
                             <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); releaseEmail(${e.id})">Release</button>
                             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); quarantineEmail(${e.id})">Quarantine</button>
@@ -169,29 +171,93 @@ function searchEmails() {
     if (input) loadInbox(1, currentStatus, input.value.trim());
 }
 
+async function triggerScan() {
+    const btn = document.getElementById('scan-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Scanning…';
+    }
+    try {
+        const res = await API.post('/api/scan');
+        if (res.success) {
+            showToast('Scan started — new emails will appear shortly', 'success');
+        } else {
+            showToast(res.message || 'Scan already in progress', 'warning');
+        }
+    } catch (err) {
+        showToast(`Scan failed: ${err.message}`, 'error');
+    }
+    // Re-enable after a delay (scan runs in background)
+    setTimeout(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🔄 Scan Now';
+        }
+    }, 10000);
+}
+
 /* =========================================================================
    Email actions
    ========================================================================= */
 
 async function releaseEmail(id) {
-    try {
-        await API.post(`/api/emails/${id}/release`);
-        showToast('Email released successfully', 'success');
-        if (typeof loadInbox === 'function') loadInbox(currentPage, currentStatus, currentSearch);
-        if (typeof loadEmailDetail === 'function') loadEmailDetail(id);
-    } catch (err) {
-        showToast(`Release failed: ${err.message}`, 'error');
-    }
+    openReasonModal('release', id);
 }
 
 async function quarantineEmail(id) {
+    openReasonModal('quarantine', id);
+}
+
+function openReasonModal(action, emailId) {
+    const overlay = document.getElementById('reason-modal-overlay');
+    if (!overlay) return;
+    overlay.dataset.action = action;
+    overlay.dataset.emailId = emailId;
+
+    const title = overlay.querySelector('.modal h3');
+    const hint = overlay.querySelector('#reason-hint');
+    if (action === 'release') {
+        title.textContent = 'Release Email — Why is this safe?';
+        hint.textContent = 'The sender domain will be auto-whitelisted so future emails from this domain are accepted.';
+    } else {
+        title.textContent = 'Quarantine Email — Why is this malicious?';
+        hint.textContent = 'The sender will be blocklisted and the email moved to Gmail Spam.';
+    }
+
+    overlay.querySelector('#reason-text').value = '';
+    overlay.classList.add('open');
+}
+
+async function confirmReasonAction() {
+    const overlay = document.getElementById('reason-modal-overlay');
+    if (!overlay) return;
+
+    const action = overlay.dataset.action;
+    const emailId = overlay.dataset.emailId;
+    const reason = overlay.querySelector('#reason-text').value.trim();
+
+    if (!reason) {
+        showToast('Please provide a reason', 'warning');
+        return;
+    }
+
+    overlay.classList.remove('open');
+
     try {
-        await API.post(`/api/emails/${id}/quarantine`);
-        showToast('Email quarantined + sender blocked', 'success');
-        if (typeof loadInbox === 'function') loadInbox(currentPage, currentStatus, currentSearch);
-        if (typeof loadEmailDetail === 'function') loadEmailDetail(id);
+        if (action === 'release') {
+            const result = await API.post(`/api/emails/${emailId}/release`, { reason });
+            const msg = result.whitelisted_domain
+                ? `Released + whitelisted ${result.whitelisted_domain}`
+                : 'Email released';
+            showToast(msg, 'success');
+        } else {
+            await API.post(`/api/emails/${emailId}/quarantine`, { reason });
+            showToast('Quarantined + sender blocked + moved to Spam', 'success');
+        }
+        if (document.getElementById('email-table-body')) loadInbox(currentPage, currentStatus, currentSearch);
+        if (document.getElementById('email-detail')) loadEmailDetail(emailId);
     } catch (err) {
-        showToast(`Quarantine failed: ${err.message}`, 'error');
+        showToast(`${action} failed: ${err.message}`, 'error');
     }
 }
 
@@ -259,7 +325,7 @@ async function loadEmailDetail(emailId) {
             <div class="page-header">
                 <a href="/" class="btn btn-outline btn-sm" style="margin-bottom:12px">← Back to Inbox</a>
                 <h2>${truncate(e.subject, 80)}</h2>
-                <div class="page-subtitle">From: ${e.sender || 'Unknown'} · ${formatDate(e.created_at)}</div>
+                <div class="page-subtitle">From: ${e.sender || 'Unknown'} · ${formatDate(e.email_date || e.created_at)}</div>
             </div>
 
             <div class="detail-grid">
@@ -268,6 +334,8 @@ async function loadEmailDetail(emailId) {
                     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(e.status)}</span></div>
                     <div class="detail-row"><span class="detail-label">Sender</span><span class="detail-value">${e.sender || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${e.sender_domain || '—'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Date Sent</span><span class="detail-value">${formatDate(e.email_date) || '—'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Scanned At</span><span class="detail-value">${formatDate(e.created_at)}</span></div>
                     <div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">${e.attachment_count}</span></div>
                     <div class="detail-row"><span class="detail-label">SHA-256</span><span class="detail-value" style="font-family:monospace;font-size:0.75rem">${e.raw_sha256 || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Message-ID</span><span class="detail-value" style="font-size:0.75rem">${truncate(e.message_id, 40)}</span></div>
@@ -275,20 +343,11 @@ async function loadEmailDetail(emailId) {
 
                 <div class="detail-section">
                     <h3>Analyst Actions</h3>
-                    <div class="detail-row"><span class="detail-label">Action taken</span><span class="detail-value">${e.analyst_action || 'None'}</span></div>
-                    <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${e.analyst_notes || '—'}</span></div>
-                    ${(() => {
-                        const failSafeErrors = (e.parse_errors || []).filter(err => err.startsWith('fail-safe:'));
-                        const normalErrors = (e.parse_errors || []).filter(err => !err.startsWith('fail-safe:'));
-                        let html = '';
-                        if (failSafeErrors.length > 0) {
-                            html += `<div class="detail-row"><span class="detail-label" style="color:var(--color-escalated);font-weight:bold">⚠ Fail-Safe Triggered</span><span class="detail-value" style="color:var(--color-escalated);font-weight:bold">${failSafeErrors.map(err => err.replace('fail-safe: ', '')).join(', ')}</span></div>`;
-                        }
-                        if (normalErrors.length > 0) {
-                            html += `<div class="detail-row"><span class="detail-label">Parse Errors</span><span class="detail-value" style="color:var(--color-escalated)">${normalErrors.join(', ')}</span></div>`;
-                        }
-                        return html;
-                    })()}
+                    <div class="detail-row"><span class="detail-label">Action taken</span><span class="detail-value">${e.analyst_action ? `<span class="badge ${e.analyst_action === 'release' ? 'released' : e.analyst_action === 'quarantine' ? 'quarantined' : 'recu'}">${e.analyst_action}</span>` : '<span style="color:var(--text-muted)">Pending review</span>'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${e.analyst_notes || '<span style="color:var(--text-muted)">No notes yet</span>'}</span></div>
+                    ${e.parse_errors && e.parse_errors.length > 0 ? `
+                        <div class="detail-row"><span class="detail-label">Parse Errors</span><span class="detail-value" style="color:var(--color-escalated)">${e.parse_errors.join(', ')}</span></div>
+                    ` : ''}
                 </div>
             </div>
 
@@ -503,6 +562,138 @@ function openOverrideModal(emailId) {
 function closeModal() {
     const overlay = document.getElementById('modal-overlay');
     if (overlay) overlay.classList.remove('open');
+}
+
+
+/* =========================================================================
+   Admin Audit Panel
+   ========================================================================= */
+
+let currentAuditTool = '';
+
+async function loadAuditPanel(tool = '') {
+    currentAuditTool = tool;
+    await Promise.all([
+        loadToolHealth(tool),
+        loadAlertHistory(tool),
+        loadFeedbackHistory(),
+    ]);
+}
+
+async function loadToolHealth(tool) {
+    const grid = document.getElementById('tool-health-grid');
+    const filters = document.getElementById('tool-filters');
+    if (!grid) return;
+
+    try {
+        const data = await API.get('/api/audit/errors' + (tool ? `?tool=${tool}` : ''));
+        const summary = data.tool_summary || {};
+
+        // Build filter chips
+        if (filters && !tool) {
+            const tools = Object.keys(summary);
+            filters.innerHTML = `<button class="chip active" data-tool="" onclick="filterAuditTool('')">All Tools</button>` +
+                tools.map(t => `<button class="chip" data-tool="${t}" onclick="filterAuditTool('${t}')">${t}</button>`).join('');
+        }
+
+        // Update active chip
+        if (filters) {
+            filters.querySelectorAll('.chip').forEach(c => {
+                c.classList.toggle('active', c.dataset.tool === (tool || ''));
+            });
+        }
+
+        const statusColors = {
+            healthy: 'ok', warning: 'stale', degraded: 'error', critical: 'error', unknown: 'unavailable'
+        };
+
+        grid.innerHTML = Object.entries(summary).map(([name, s]) => `
+            <div class="health-card" onclick="filterAuditTool('${name}')" style="cursor:pointer">
+                <span class="status-dot ${statusColors[s.status] || 'unavailable'}"></span>
+                <strong>${name.toUpperCase()}</strong>
+                <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:0.8rem;color:var(--text-secondary)">
+                    <div>Calls: <strong style="color:var(--text-primary)">${s.total_calls}</strong></div>
+                    <div>Errors: <strong style="color:${s.failure_count > 0 ? 'var(--danger)' : 'var(--text-primary)'}">${s.failure_count}</strong></div>
+                    <div>Error Rate: <strong style="color:${s.error_rate > 0.3 ? 'var(--danger)' : 'var(--text-primary)'}">${(s.error_rate * 100).toFixed(1)}%</strong></div>
+                    <div>Consec. Fails: <strong style="color:${s.consecutive_failures >= 3 ? 'var(--danger)' : 'var(--text-primary)'}">${s.consecutive_failures}</strong></div>
+                    <div>Avg Latency: <strong>${s.avg_latency_s != null ? s.avg_latency_s.toFixed(2) + 's' : '—'}</strong></div>
+                    <div>P95 Latency: <strong>${s.p95_latency_s != null ? s.p95_latency_s.toFixed(2) + 's' : '—'}</strong></div>
+                </div>
+                ${s.last_error ? `<div style="margin-top:8px;padding:8px;background:rgba(239,68,68,0.1);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--danger);word-break:break-all">Last error: ${s.last_error}</div>` : ''}
+                ${s.recent_errors && s.recent_errors.length > 0 ? `<div style="margin-top:6px;font-size:0.7rem;color:var(--text-muted)">${s.recent_errors.length} recent error(s)</div>` : ''}
+            </div>
+        `).join('');
+
+        if (Object.keys(summary).length === 0) {
+            grid.innerHTML = '<div class="empty-state"><p>No tool data available yet</p></div>';
+        }
+    } catch (err) {
+        grid.innerHTML = `<div class="empty-state"><p>Failed to load: ${err.message}</p></div>`;
+    }
+}
+
+async function loadAlertHistory(tool) {
+    const tbody = document.getElementById('alert-table-body');
+    if (!tbody) return;
+
+    try {
+        const data = await API.get('/api/audit/errors' + (tool ? `?tool=${tool}&limit=100` : '?limit=100'));
+        const alerts = data.alerts || [];
+
+        if (alerts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><p>No alerts recorded</p></td></tr>';
+            return;
+        }
+
+        const severityColors = {
+            critical: 'var(--danger)', warning: 'var(--color-escalated)', info: 'var(--color-released)'
+        };
+
+        tbody.innerHTML = alerts.map(a => `
+            <tr>
+                <td style="font-size:0.8rem;white-space:nowrap">${formatDate(a.ts)}</td>
+                <td><span class="badge recu">${a.tool || '—'}</span></td>
+                <td style="font-family:monospace;font-size:0.8rem">${a.alert_type || '—'}</td>
+                <td><span style="color:${severityColors[a.severity] || 'var(--text-muted)'};font-weight:600;text-transform:uppercase;font-size:0.75rem">${a.severity || '—'}</span></td>
+                <td style="font-size:0.82rem;max-width:400px;word-break:break-word">${a.message || '—'}</td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state"><p>Failed: ${err.message}</p></td></tr>`;
+    }
+}
+
+async function loadFeedbackHistory() {
+    const tbody = document.getElementById('feedback-table-body');
+    if (!tbody) return;
+
+    try {
+        const data = await API.get('/api/feedback?per_page=100');
+        const entries = data.entries || [];
+
+        if (entries.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>No feedback yet — release or quarantine emails to generate learning data</p></td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = entries.map(fb => `
+            <tr onclick="window.location='/email/${fb.email_id}'" style="cursor:pointer">
+                <td style="white-space:nowrap">${formatDate(fb.created_at)}</td>
+                <td>#${fb.email_id}</td>
+                <td><span class="badge ${fb.action === 'release' ? 'released' : 'quarantined'}">${fb.action}</span></td>
+                <td><span class="badge ${fb.pipeline_verdict || 'recu'}">${fb.pipeline_verdict || '—'}</span></td>
+                <td style="font-family:monospace;font-size:0.82rem">${fb.domain || '—'}</td>
+                <td>${fb.indicator_type ? `<span class="badge ${fb.indicator_type === 'whitelist' ? 'accepted' : 'escalated'}">${fb.indicator_type}</span>` : '—'}</td>
+                <td style="max-width:300px;font-size:0.82rem;word-break:break-word">${truncate(fb.reasoning, 80)}</td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><p>Failed: ${err.message}</p></td></tr>`;
+    }
+}
+
+function filterAuditTool(tool) {
+    loadAuditPanel(tool);
 }
 
 

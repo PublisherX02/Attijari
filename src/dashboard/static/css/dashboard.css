@@ -31,6 +31,8 @@
     --color-released-bg: rgba(59, 130, 246, 0.12);
     --color-recu: #8b5cf6;
     --color-recu-bg: rgba(139, 92, 246, 0.12);
+    --color-pending: #06b6d4;
+    --color-pending-bg: rgba(6, 182, 212, 0.12);
 
     /* Accent */
     --accent-primary: #6366f1;
@@ -296,6 +298,7 @@ body::before {
 .stat-card.escalated::before { background: var(--color-escalated); }
 .stat-card.quarantined::before { background: var(--color-quarantined); }
 .stat-card.released::before { background: var(--color-released); }
+.stat-card.pending::before { background: var(--color-pending); }
 .stat-card.total::before { background: var(--accent-gradient); }
 
 .stat-card:hover {
@@ -315,6 +318,7 @@ body::before {
 .stat-card.escalated .stat-value { color: var(--color-escalated); }
 .stat-card.quarantined .stat-value { color: var(--color-quarantined); }
 .stat-card.released .stat-value { color: var(--color-released); }
+.stat-card.pending .stat-value { color: var(--color-pending); }
 .stat-card.total .stat-value { color: var(--accent-primary-hover); }
 
 .stat-label {
@@ -386,6 +390,7 @@ tbody td {
 .badge.quarantined { background: var(--color-quarantined-bg); color: var(--color-quarantined); }
 .badge.released { background: var(--color-released-bg); color: var(--color-released); }
 .badge.recu { background: var(--color-recu-bg); color: var(--color-recu); }
+.badge.pending { background: var(--color-pending-bg); color: var(--color-pending); }
 
 .badge::before {
     content: '';
@@ -756,10 +761,15 @@ tbody td {
     margin-right: 8px;
 }
 
-.health-card .status-dot.ok { background: var(--color-accepted); box-shadow: 0 0 8px var(--color-accepted); }
-.health-card .status-dot.error { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
-.health-card .status-dot.stale { background: var(--color-escalated); box-shadow: 0 0 8px var(--color-escalated); }
-.health-card .status-dot.unavailable { background: var(--text-muted); }
+.health-card .status-dot.ok,
+.health-card .status-dot.healthy { background: var(--color-accepted); box-shadow: 0 0 8px var(--color-accepted); }
+.health-card .status-dot.error,
+.health-card .status-dot.critical { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+.health-card .status-dot.stale,
+.health-card .status-dot.warning,
+.health-card .status-dot.degraded { background: var(--color-escalated); box-shadow: 0 0 8px var(--color-escalated); }
+.health-card .status-dot.unavailable,
+.health-card .status-dot.unknown { background: var(--text-muted); }
 
 /* --- Modal --- */
 .modal-overlay {

@@ -2,14 +2,18 @@
 {% block title %}Inbox — Attijari SOC{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h2>Inbox Queue</h2>
-    <p class="page-subtitle">Review flagged emails and take action</p>
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+        <h2>Inbox Queue</h2>
+        <p class="page-subtitle">Review flagged emails and take action</p>
+    </div>
+    <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">🔄 Scan Now</button>
 </div>
 
 <!-- Stats cards -->
 <div class="stats-grid" id="stats-cards">
     <div class="stat-card total"><div class="stat-value">—</div><div class="stat-label">Total</div></div>
+    <div class="stat-card pending"><div class="stat-value">—</div><div class="stat-label">Pending</div></div>
     <div class="stat-card accepted"><div class="stat-value">—</div><div class="stat-label">Accepted</div></div>
     <div class="stat-card escalated"><div class="stat-value">—</div><div class="stat-label">Escalated</div></div>
     <div class="stat-card quarantined"><div class="stat-value">—</div><div class="stat-label">Quarantined</div></div>
@@ -24,11 +28,12 @@
 
 <div class="filter-chips">
     <button class="chip active" data-status="" onclick="filterByStatus('')">All</button>
+    <button class="chip" data-status="pending" onclick="filterByStatus('pending')">⏳ Scanning</button>
     <button class="chip" data-status="escalated" onclick="filterByStatus('escalated')">⚠️ Escalated</button>
     <button class="chip" data-status="accepted" onclick="filterByStatus('accepted')">✅ Accepted</button>
     <button class="chip" data-status="quarantined" onclick="filterByStatus('quarantined')">🔴 Quarantined</button>
     <button class="chip" data-status="released" onclick="filterByStatus('released')">🔵 Released</button>
-    <button class="chip" data-status="recu" onclick="filterByStatus('recu')">🟣 Pending</button>
+    <button class="chip" data-status="recu" onclick="filterByStatus('recu')">🟣 Received</button>
 </div>
 
 <!-- Email table -->

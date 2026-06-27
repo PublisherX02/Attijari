@@ -7,7 +7,7 @@ import ssl
 import time
 from email import policy
 from email.parser import BytesParser
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 try:
@@ -49,6 +49,23 @@ def _check_elapsed(start: float, limit: float, step: str):
     if elapsed > limit:
         raise TimeoutError(f"[TIMEOUT] {step} exceeded {limit}s (took {elapsed:.1f}s)")
 
+def verify_sender_authentication(raw_email_bytes: bytes) -> bool:
+    """
+    Parses the Authentication-Results header to ensure the email 
+    passed DMARC (which implicitly requires SPF or DKIM alignment).
+    """
+    msg = email.message_from_bytes(raw_email_bytes, policy=policy.default)
+    auth_results = msg.get("Authentication-Results", "")
+    
+    if not auth_results:
+        return True # if no gateway is present, bypass the strict check (for local testing)
+        
+    # Strictly enforce DMARC pass if the header exists
+    if "dmarc=pass" not in auth_results.lower():
+        return False
+        
+    return True
+
 class EmailIngestion:
     def __init__(self , host: str , user:str , password: str , folder: str = "INBOX" ):
         self.host = host
@@ -78,19 +95,30 @@ class EmailIngestion:
         print("[DISCONNECT] Done")
 
     #extracting raw email information
-    def fetch_unread(self, limit: int = 5) -> list[bytes]:
-        print(f"[FETCH] Searching for unread emails (limit={limit})...")
+    def fetch_recent(self, since_days: int = 7, limit: int = 50) -> list[bytes]:
+        """Fetch emails from the last `since_days` days (like Gmail inbox view).
+
+        Uses IMAP SINCE date filter instead of UNSEEN, so rebooting the app
+        won't pull in ancient unread emails.  BODY.PEEK[] is used so emails
+        are NOT marked as read on the server — mirrors Gmail behaviour.
+        """
+        since_date = (datetime.now() - timedelta(days=since_days)).strftime("%d-%b-%Y")
+        print(f"[FETCH] Searching for emails since {since_date} (limit={limit})...")
         t0 = time.time()
-        _ , msg_ids = self.conn.search(None, "UNSEEN")
+        _, msg_ids = self.conn.search(None, f'(SINCE "{since_date}")')
         ids = msg_ids[0].split()
         total = len(ids)
-        ids = ids[-limit:]  # keep only the most recent
-        print(f"[FETCH] Found {total} unread, fetching last {len(ids)}")
+        # Process newest-first so new emails are always picked up even when
+        # the window has more than `limit` messages (old ones are skipped
+        # by idempotency anyway).
+        ids = ids[-limit:] if len(ids) > limit else ids
+        print(f"[FETCH] Found {total} in window, fetching last {len(ids)} (newest-first)")
         raw_emails = []
         for i, mid in enumerate(ids, 1):
             _check_elapsed(t0, FETCH_TIMEOUT, f"Fetch batch")
             print(f"[FETCH] Downloading {i}/{len(ids)} (id={mid.decode()})...")
-            _ , data = self.conn.fetch(mid , "(RFC822)")
+            # BODY.PEEK[] fetches without marking as \Seen
+            _, data = self.conn.fetch(mid, "(BODY.PEEK[])")
             raw_byte = data[0][1]
             if len(raw_byte) > MAX_EMAIL_SIZE:
                 print(f"[FETCH] SKIPPED id={mid.decode()} — {len(raw_byte)/1024/1024:.1f} MB exceeds {MAX_EMAIL_SIZE/1024/1024:.0f} MB limit")
@@ -98,6 +126,10 @@ class EmailIngestion:
             raw_emails.append(raw_byte)
         print(f"[FETCH] All downloaded ({time.time()-t0:.1f}s)")
         return raw_emails
+
+    # Backward compat alias
+    def fetch_unread(self, limit: int = 50) -> list[bytes]:
+        return self.fetch_recent(since_days=7, limit=limit)
 
     #archiving emails before manipulation to save content
     def archive_raw(self, raw:bytes) -> Path:
@@ -128,12 +160,6 @@ class EmailIngestion:
             return {}
         try:
             with open(self.LEDGER_PATH, "r", encoding="utf-8") as f:
-                # Acquire shared lock for reading (Windows: msvcrt)
-                try:
-                    import msvcrt
-                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, max(1, os.path.getsize(self.LEDGER_PATH)))
-                except (ImportError, OSError):
-                    pass  # non-Windows or lock unavailable — proceed without
                 data = json.load(f)
             # migrate old format (list of keys) to new format (dict)
             if isinstance(data, list):
@@ -167,22 +193,29 @@ class EmailIngestion:
                 except OSError:
                     pass
 
+    @property
+    def lock(self):
+        from filelock import FileLock
+        return FileLock(str(self.LEDGER_PATH) + ".lock")
+
     def get_cached_result(self, raw: bytes, message_id: str | None) -> dict | None:
         key = self.idempotency_key(raw, message_id)
-        ledger = self._load_ledger()
-        return ledger.get(key)
+        with self.lock:
+            ledger = self._load_ledger()
+            return ledger.get(key)
 
     def mark_processed(self, key: str, result: dict):
-        ledger = self._load_ledger()
-        ledger[key] = {
-            "status": result["status"],
-            "from": result["headers"].get("from"),
-            "subject": result["headers"].get("subject"),
-            "attachments": len(result["attachments"]),
-            "parse_errors": result["parse_errors"],
-            "processed_at": datetime.now().isoformat(),
-        }
-        self._save_ledger(ledger)
+        with self.lock:
+            ledger = self._load_ledger()
+            ledger[key] = {
+                "status": result["status"],
+                "from": result["headers"].get("from"),
+                "subject": result["headers"].get("subject"),
+                "attachments": len(result["attachments"]),
+                "parse_errors": result["parse_errors"],
+                "processed_at": datetime.now().isoformat(),
+            }
+            self._save_ledger(ledger)
 
     #MIME parsing
     def parse_email(self , raw:bytes) ->dict:
@@ -339,7 +372,7 @@ if __name__ == "__main__":
 
     try:
         ingestion.connect()
-        raw_emails = ingestion.fetch_unread()
+        raw_emails = ingestion.fetch_recent(since_days=7)
 
         cached = 0
         for i, raw in enumerate(raw_emails, 1):

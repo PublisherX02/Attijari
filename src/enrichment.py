@@ -21,6 +21,8 @@ from __future__ import annotations
 from email.utils import parseaddr
 from typing import Any
 
+import time as _time
+
 from ThreatFoxAPI import check_threatfox
 from abuseipdb import check_ip as check_abuseipdb
 from virustotal import check_hash as check_virustotal
@@ -32,6 +34,7 @@ from alienvault_otx import (
 from dnstwist_check import is_typosquat
 from whois_check import check_domain_age
 from validators import is_valid_domain, is_valid_sha256, extract_ips_from_text, is_shared_infrastructure_ip
+from health import record_success, record_failure
 
 
 def run_enrichment(parsed: dict) -> dict:
@@ -86,34 +89,55 @@ def run_enrichment(parsed: dict) -> dict:
             sha = att.get("sha256") or att.get("sha")
             if sha and is_valid_sha256(sha):
                 print(f"[THREATFOX] Querying hash for attachment {att.get('original_name')}: {sha}")
-                res = check_threatfox(sha, indicator_type="hash")
+                t0 = _time.time()
+                try:
+                    res = check_threatfox(sha, indicator_type="hash")
+                    record_success("threatfox", _time.time() - t0)
+                except Exception as e:
+                    record_failure("threatfox", str(e), _time.time() - t0)
+                    raise
                 threat_results.append(res)
                 if res.get("found"):
                     found_count += 1
                     _set_reject("THREATFOX", f"Attachment {att.get('original_name')} ({sha[:12]}...) flagged")
                 if res.get("error"):
                     errors.append(res["error"])
+                    record_failure("threatfox", res["error"])
 
         if sender_domain:
             print(f"[THREATFOX] Querying domain: {sender_domain}")
-            res = check_threatfox(sender_domain, indicator_type="domain")
+            t0 = _time.time()
+            try:
+                res = check_threatfox(sender_domain, indicator_type="domain")
+                record_success("threatfox", _time.time() - t0)
+            except Exception as e:
+                record_failure("threatfox", str(e), _time.time() - t0)
+                raise
             threat_results.append(res)
             if res.get("found"):
                 found_count += 1
                 _set_reject("THREATFOX", f"Sender domain {sender_domain} flagged")
             if res.get("error"):
                 errors.append(res["error"])
+                record_failure("threatfox", res["error"])
 
         raw_sha = parsed.get("raw_sha256")
         if raw_sha and is_valid_sha256(raw_sha):
             print(f"[THREATFOX] Querying raw email SHA256: {raw_sha}")
-            res = check_threatfox(raw_sha, indicator_type="hash")
+            t0 = _time.time()
+            try:
+                res = check_threatfox(raw_sha, indicator_type="hash")
+                record_success("threatfox", _time.time() - t0)
+            except Exception as e:
+                record_failure("threatfox", str(e), _time.time() - t0)
+                raise
             threat_results.append(res)
             if res.get("found"):
                 found_count += 1
                 _set_reject("THREATFOX", f"Raw email hash {raw_sha[:12]}... flagged")
             if res.get("error"):
                 errors.append(res["error"])
+                record_failure("threatfox", res["error"])
     except Exception as e:
         errors.append(str(e))
         print(f"[THREATFOX] Lookup failed: {e}")
@@ -146,7 +170,13 @@ def run_enrichment(parsed: dict) -> dict:
             sha = att.get("sha256")
             if sha and is_valid_sha256(sha):
                 print(f"[VIRUSTOTAL] Querying hash: {att.get('original_name')} ({sha[:12]}...)")
-                vt_res = check_virustotal(sha)
+                t0 = _time.time()
+                try:
+                    vt_res = check_virustotal(sha)
+                    record_success("virustotal", _time.time() - t0)
+                except Exception as e:
+                    record_failure("virustotal", str(e), _time.time() - t0)
+                    raise
                 vt_results.append(vt_res)
                 if vt_res.get("detected"):
                     names = ", ".join(vt_res.get("malware_names", [])[:3]) or "unknown"
@@ -154,6 +184,7 @@ def run_enrichment(parsed: dict) -> dict:
                                 f"DETECTED: {vt_res['detection_count']}/{vt_res.get('total_engines', 0)} engines — {names}")
                 elif vt_res.get("error"):
                     print(f"[VIRUSTOTAL] ERROR: {vt_res['error']}")
+                    record_failure("virustotal", vt_res["error"])
                 elif vt_res.get("note") == "hash_not_found_in_vt":
                     print(f"[VIRUSTOTAL] Hash not in database (first seen)")
                 else:
@@ -190,7 +221,13 @@ def run_enrichment(parsed: dict) -> dict:
         if all_ips:
             print(f"[ABUSEIPDB] Checking {len(all_ips)} IP(s)...")
             for ip in all_ips[:10]:
-                res = check_abuseipdb(ip)
+                t0 = _time.time()
+                try:
+                    res = check_abuseipdb(ip)
+                    record_success("abuseipdb", _time.time() - t0)
+                except Exception as e:
+                    record_failure("abuseipdb", str(e), _time.time() - t0)
+                    raise
                 abuseipdb_results.append(res)
                 if res.get("skipped"):
                     continue
@@ -201,6 +238,7 @@ def run_enrichment(parsed: dict) -> dict:
                                 f"isp={res.get('isp')}, country={res.get('country_code')})")
                 elif res.get("error"):
                     print(f"[ABUSEIPDB] {ip} -> ERROR: {res['error']}")
+                    record_failure("abuseipdb", res["error"])
                 else:
                     print(f"[ABUSEIPDB] {ip} -> clean (score={score})")
         else:
@@ -215,7 +253,13 @@ def run_enrichment(parsed: dict) -> dict:
     try:
         if sender_domain:
             print(f"[OTX] Querying domain: {sender_domain}")
-            otx_dom = check_otx_domain(sender_domain)
+            t0 = _time.time()
+            try:
+                otx_dom = check_otx_domain(sender_domain)
+                record_success("otx", _time.time() - t0)
+            except Exception as e:
+                record_failure("otx", str(e), _time.time() - t0)
+                raise
             otx_results.append(otx_dom)
             if otx_dom.get("found"):
                 pulses = otx_dom.get("pulse_count", 0)
@@ -223,12 +267,19 @@ def run_enrichment(parsed: dict) -> dict:
                 _set_reject("OTX", f"Domain {sender_domain} FLAGGED — {pulses} pulse(s), tags: {tags}")
             elif otx_dom.get("error"):
                 print(f"[OTX] Domain {sender_domain} -> ERROR: {otx_dom['error']}")
+                record_failure("otx", otx_dom["error"])
             else:
                 print(f"[OTX] Domain {sender_domain} -> clean")
 
         for ip in all_ips[:10]:
             print(f"[OTX] Querying IP: {ip}")
-            otx_ip = check_otx_ip(ip)
+            t0 = _time.time()
+            try:
+                otx_ip = check_otx_ip(ip)
+                record_success("otx", _time.time() - t0)
+            except Exception as e:
+                record_failure("otx", str(e), _time.time() - t0)
+                raise
             otx_results.append(otx_ip)
             if otx_ip.get("found"):
                 pulses = otx_ip.get("pulse_count", 0)
@@ -236,6 +287,7 @@ def run_enrichment(parsed: dict) -> dict:
                 _set_reject("OTX", f"IP {ip} FLAGGED — {pulses} pulse(s), malware: {families}")
             elif otx_ip.get("error"):
                 print(f"[OTX] IP {ip} -> ERROR: {otx_ip['error']}")
+                record_failure("otx", otx_ip["error"])
             else:
                 print(f"[OTX] IP {ip} -> clean")
 
@@ -243,13 +295,20 @@ def run_enrichment(parsed: dict) -> dict:
             sha = att.get("sha256")
             if sha and is_valid_sha256(sha):
                 print(f"[OTX] Querying hash: {att.get('original_name')} ({sha[:12]}...)")
-                otx_h = check_otx_hash(sha)
+                t0 = _time.time()
+                try:
+                    otx_h = check_otx_hash(sha)
+                    record_success("otx", _time.time() - t0)
+                except Exception as e:
+                    record_failure("otx", str(e), _time.time() - t0)
+                    raise
                 otx_results.append(otx_h)
                 if otx_h.get("found"):
                     families = ", ".join(otx_h.get("malware_families", [])) or "unknown"
                     _set_reject("OTX", f"Hash FLAGGED — {otx_h.get('pulse_count', 0)} pulse(s), malware: {families}")
                 elif otx_h.get("error"):
                     print(f"[OTX] Hash -> ERROR: {otx_h['error']}")
+                    record_failure("otx", otx_h["error"])
                 else:
                     print(f"[OTX] Hash -> clean")
     except Exception as e:
@@ -267,7 +326,13 @@ def run_enrichment(parsed: dict) -> dict:
     try:
         if sender_domain:
             print(f"[DNSTWIST] Checking if {sender_domain} is a typosquat...")
-            dnstwist_result = is_typosquat(sender_domain)
+            t0 = _time.time()
+            try:
+                dnstwist_result = is_typosquat(sender_domain)
+                record_success("dnstwist", _time.time() - t0)
+            except Exception as e:
+                record_failure("dnstwist", str(e), _time.time() - t0)
+                raise
             if dnstwist_result.get("is_typosquat"):
                 _set_reject("DNSTWIST",
                             f"TYPOSQUAT DETECTED — {sender_domain} impersonates {dnstwist_result['impersonates']}")
@@ -288,7 +353,13 @@ def run_enrichment(parsed: dict) -> dict:
     try:
         if sender_domain:
             print(f"[WHOIS] Checking domain age: {sender_domain}")
-            whois_result = check_domain_age(sender_domain)
+            t0 = _time.time()
+            try:
+                whois_result = check_domain_age(sender_domain)
+                record_success("whois", _time.time() - t0)
+            except Exception as e:
+                record_failure("whois", str(e), _time.time() - t0)
+                raise
             age = whois_result.get("domain_age_days")
             if whois_result.get("is_new_domain"):
                 _set_reject("WHOIS", f"NEW DOMAIN — {sender_domain} registered {age} day(s) ago")
@@ -296,7 +367,11 @@ def run_enrichment(parsed: dict) -> dict:
                 print(f"[WHOIS] {sender_domain} -> {age} day(s) old (OK)")
             elif whois_result.get("error"):
                 print(f"[WHOIS] {sender_domain} -> ERROR: {whois_result['error']}")
+                record_failure("whois", whois_result["error"])
             else:
+
+                
+                
                 print(f"[WHOIS] {sender_domain} -> age unknown")
         else:
             print("[WHOIS] No valid sender domain to check")

@@ -20,9 +20,11 @@ load_dotenv()
 from database import (
     SessionLocal,
     Email,
+    Whitelist,
     add_audit_entry,
     add_blocklist_entry,
     is_whitelisted,
+    save_feedback,
 )
 from vault import encrypt_and_store
 from validators import is_valid_domain, is_valid_sha256
@@ -34,11 +36,14 @@ RAW_EMAILS_DIR = _PROJECT_ROOT / "data" / "raw_emails"
 AUTO_RELEASE_CONFIDENCE = float(os.getenv("AUTO_RELEASE_CONFIDENCE", "0.85"))
 
 
-def release_email(email_id: int, actor: str = "analyst") -> dict:
-    """Release an accepted email — mark as released in DB + audit.
+def release_email(email_id: int, actor: str = "analyst",
+                   reason: str = "") -> dict:
+    """Release an email — mark as released, whitelist domain, store feedback.
 
-    In a real deployment this would IMAP-COPY the email back to INBOX.
-    For the POC, we update the status and log the action.
+    When an analyst releases an escalated email (false positive):
+      1. Mark email as released
+      2. Auto-whitelist the sender domain so future emails pass
+      3. Store analyst reasoning as feedback for pipeline learning
     """
     db = SessionLocal()
     try:
@@ -49,17 +54,66 @@ def release_email(email_id: int, actor: str = "analyst") -> dict:
         if email.status not in ("accepted", "escalated", "recu"):
             return {"success": False, "error": f"cannot_release_from_{email.status}"}
 
+        prev_status = email.status
         email.status = "released"
         email.analyst_action = "release"
+        email.analyst_notes = reason or None
+
+        # Auto-whitelist sender domain on release (reward signal)
+        whitelisted_domain = None
+        if email.sender_domain:
+            domain = email.sender_domain.strip().lower()
+            if is_valid_domain(domain):
+                existing = db.query(Whitelist).filter(
+                    Whitelist.indicator_type == "domain",
+                    Whitelist.value == domain,
+                ).first()
+                if existing:
+                    if not existing.active:
+                        existing.active = True
+                        existing.reason = f"Auto-whitelisted on release: {reason}" if reason else "Auto-whitelisted on analyst release"
+                        whitelisted_domain = domain
+                else:
+                    entry = Whitelist(
+                        indicator_type="domain",
+                        value=domain,
+                        reason=f"Auto-whitelisted on release: {reason}" if reason else "Auto-whitelisted on analyst release",
+                        created_by=actor,
+                    )
+                    db.add(entry)
+                    whitelisted_domain = domain
+
+                if whitelisted_domain:
+                    print(f"[ROUTING] Auto-whitelisted domain: {whitelisted_domain}")
+
+        # Save analyst feedback for pipeline learning
+        if reason:
+            save_feedback(
+                db, email_id=email.id, action="release",
+                reasoning=reason, pipeline_verdict=prev_status,
+                domain=email.sender_domain,
+                indicator_type="whitelist" if whitelisted_domain else None,
+                indicator_value=whitelisted_domain,
+            )
+
         add_audit_entry(
             db, action="release", actor=actor,
             email_id=email.id,
-            details={"previous_status": email.status},
+            details={
+                "previous_status": prev_status,
+                "reason": reason,
+                "whitelisted_domain": whitelisted_domain,
+            },
         )
         db.commit()
 
         print(f"[ROUTING] Released email {email.id}: {email.subject}")
-        return {"success": True, "email_id": email.id, "status": "released"}
+        return {
+            "success": True,
+            "email_id": email.id,
+            "status": "released",
+            "whitelisted_domain": whitelisted_domain,
+        }
     except Exception as e:
         db.rollback()
         return {"success": False, "error": str(e)}
@@ -68,15 +122,17 @@ def release_email(email_id: int, actor: str = "analyst") -> dict:
 
 
 def quarantine_email(email_id: int, actor: str = "analyst",
-                     cascade_block: bool = True) -> dict:
-    """Quarantine an escalated email — encrypt into vault + cascade blocklist.
+                     cascade_block: bool = True, reason: str = "") -> dict:
+    """Quarantine an email — encrypt into vault + cascade blocklist + store feedback.
 
     Steps:
       1. Read raw .eml from data/raw_emails/
       2. Encrypt and store in vault
       3. Update status to 'quarantined'
       4. Cascade blocklist: block sender email, domain, IPs, hashes
-      5. Audit log
+      5. Move to Gmail Spam via IMAP
+      6. Store analyst feedback for pipeline learning
+      7. Audit log
     """
     db = SessionLocal()
     try:
@@ -88,6 +144,7 @@ def quarantine_email(email_id: int, actor: str = "analyst",
             return {"success": False, "error": "already_quarantined"}
 
         prev_status = email.status
+        email.analyst_notes = reason or None
 
         # Step 1: Find raw .eml file
         raw_path = RAW_EMAILS_DIR / f"{email.raw_sha256}.eml"
@@ -135,29 +192,25 @@ def quarantine_email(email_id: int, actor: str = "analyst",
         # Step 5: IMAP move to Spam
         imap_moved = False
         if email.message_id:
-            try:
-                ctx = ssl.create_default_context()
-                conn = imaplib.IMAP4_SSL(os.getenv("IMAP_HOST"), ssl_context=ctx)
-                conn.login(os.getenv("IMAP_USER"), os.getenv("IMAP_PASSWORD"))
-                conn.select("INBOX")
-                typ, data = conn.search(None, f'(HEADER Message-ID "{email.message_id}")')
-                if data and data[0]:
-                    for uid in data[0].split():
-                        conn.copy(uid, "[Gmail]/Spam")
-                        conn.store(uid, '+FLAGS', '\\Deleted')
-                    conn.expunge()
-                    imap_moved = True
-                    print(f"[IMAP] Moved message {email.message_id} to Spam")
-                conn.logout()
-            except Exception as e:
-                print(f"[IMAP] Error moving message to Spam: {e}")
+            imap_moved = _imap_move_to_spam(email.message_id)
 
-        # Step 6: Audit
+        # Step 6: Store analyst feedback for pipeline learning
+        if reason:
+            save_feedback(
+                db, email_id=email.id, action="quarantine",
+                reasoning=reason, pipeline_verdict=prev_status,
+                domain=email.sender_domain,
+                indicator_type="blocklist",
+                indicator_value=email.sender_domain,
+            )
+
+        # Step 7: Audit
         add_audit_entry(
             db, action="quarantine", actor=actor,
             email_id=email.id,
             details={
                 "previous_status": prev_status,
+                "reason": reason,
                 "vault_path": str(vault_path) if vault_path else None,
                 "blocked_indicators": blocked_indicators,
                 "imap_moved": imap_moved,
@@ -244,6 +297,77 @@ def auto_route(parsed: dict) -> str:
 
     # Low confidence or ambiguous — leave for analyst
     return status
+
+
+def _imap_move_to_spam(message_id: str) -> bool:
+    """Move an email to Gmail Spam + AI_TRIAGE_SYSTEM label via IMAP.
+
+    Tested against imap.gmail.com. Uses UID operations for reliability.
+    """
+    imap_host = os.getenv("IMAP_HOST")
+    imap_user = os.getenv("IMAP_USER")
+    imap_pass = os.getenv("IMAP_PASSWORD")
+
+    if not all([imap_host, imap_user, imap_pass]):
+        print("[IMAP] Missing IMAP credentials — skipping spam move")
+        return False
+
+    # Clean message_id
+    mid = message_id.strip()
+
+    conn = None
+    try:
+        ctx = ssl.create_default_context()
+        conn = imaplib.IMAP4_SSL(imap_host, ssl_context=ctx)
+        conn.login(imap_user, imap_pass)
+        conn.select("INBOX")
+
+        # Search by Message-ID using UID
+        typ, data = conn.uid("search", None, f'HEADER Message-ID "{mid}"')
+        print(f"[IMAP] UID search for {mid[:60]}... → {typ} uids={data}")
+
+        if typ != "OK" or not data or not data[0] or not data[0].strip():
+            print(f"[IMAP] Message not found in INBOX — may already be moved/deleted")
+            conn.close()
+            conn.logout()
+            return False
+
+        uids = data[0].split()
+        print(f"[IMAP] Found {len(uids)} UID(s): {[u.decode() for u in uids]}")
+
+        moved = False
+        for uid in uids:
+            # Copy to AI_TRIAGE_SYSTEM label
+            typ1, _ = conn.uid("copy", uid, "AI_TRIAGE_SYSTEM")
+            print(f"[IMAP] UID {uid.decode()} → AI_TRIAGE_SYSTEM: {typ1}")
+
+            # Copy to Spam
+            typ2, _ = conn.uid("copy", uid, "[Gmail]/Spam")
+            print(f"[IMAP] UID {uid.decode()} → [Gmail]/Spam: {typ2}")
+
+            if typ2 == "OK":
+                # Mark deleted from inbox
+                conn.uid("store", uid, "+FLAGS", "(\\Deleted)")
+                moved = True
+
+        conn.expunge()
+        conn.close()
+        conn.logout()
+        conn = None
+
+        if moved:
+            print(f"[IMAP] Done — message in Spam + AI_TRIAGE_SYSTEM")
+        return moved
+
+    except Exception as e:
+        print(f"[IMAP] Error: {e}")
+        return False
+    finally:
+        if conn:
+            try:
+                conn.logout()
+            except Exception:
+                pass
 
 
 def _extract_hashes(enrichment: dict) -> list[str]:

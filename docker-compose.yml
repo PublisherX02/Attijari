@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  soc-dashboard:
+    build:
+      context: .
+      dockerfile: docker/base.Dockerfile
+    # For a real deployment, you'd use a more complete Dockerfile for the app.
+    # We mount the source code and run uvicorn locally.
+    command: uvicorn src.api:app --host 0.0.0.0 --port 8000 --workers 4
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://soc_user:soc_pass@postgres:5432/soc_db
+      - JWT_SECRET=${JWT_SECRET:-changeme}
+      - IMAP_HOST=${IMAP_HOST}
+      - IMAP_USER=${IMAP_USER}
+      - IMAP_PASSWORD=${IMAP_PASSWORD}
+      - HF_TOKEN=${HF_TOKEN}
+    depends_on:
+      - postgres
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - soc-dashboard
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=soc_user
+      - POSTGRES_PASSWORD=soc_pass
+      - POSTGRES_DB=soc_db
+    # Enable pgaudit for WORM logging
+    command: >
+      postgres
+      -c shared_preload_libraries=pgaudit
+      -c pgaudit.log='write, ddl'
+      -c pgaudit.log_relation=on
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

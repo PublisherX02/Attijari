@@ -309,10 +309,6 @@ def _run_tool(tool_name: str, content: bytes, stored_path: str,
               filename: str = "file.bin") -> dict:
     """Run a tool via sandbox if available, else local fallback."""
 
-    # Tesseract: always local (installed on host, Tesseract v5.5 confirmed)
-    if tool_name == "tesseract":
-        return _local_tesseract(content)
-
     # Try sandbox first
     if _can_sandbox(tool_name):
         env = {}
@@ -346,6 +342,8 @@ def _run_tool(tool_name: str, content: bytes, stored_path: str,
         return {"tool": "ioc_finder", "status": "unavailable", "note": "use _run_ioc_text"}
     elif tool_name == "markitdown":
         return _local_markitdown(content, filename)
+    elif tool_name == "tesseract":
+        return _local_tesseract(content)
     else:
         return {"tool": tool_name, "status": "unavailable"}
 

@@ -33,8 +33,22 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
+import logging
+from logging.handlers import RotatingFileHandler
+import json
 
 load_dotenv()
+
+# Setup secure audit logger (ISO 27001 Log Segregation)
+AUDIT_LOG_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "audit_secure.log")
+os.makedirs(os.path.dirname(AUDIT_LOG_FILE), exist_ok=True)
+audit_logger = logging.getLogger("iso27001_audit")
+audit_logger.setLevel(logging.INFO)
+# Max 10MB per file, keep 10 backups
+if not audit_logger.handlers:
+    handler = RotatingFileHandler(AUDIT_LOG_FILE, maxBytes=10*1024*1024, backupCount=10)
+    handler.setFormatter(logging.Formatter('{"ts": "%(asctime)s", "event": %(message)s}'))
+    audit_logger.addHandler(handler)
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -83,12 +97,13 @@ class Email(Base):
         nullable=False,
         default="recu",
         index=True,
-    )  # recu, accepted, escalated, quarantined, released
+    )  # pending, recu, accepted, escalated, quarantined, released
     rules_result = Column(JSONB, nullable=True)
     enrichment_result = Column(JSONB, nullable=True)
     llm_result = Column(JSONB, nullable=True)
     llm_reasoning = Column(Text, nullable=True)
     parse_errors = Column(JSONB, nullable=True)
+    email_date = Column(DateTime(timezone=True), nullable=True)  # original Date header from the email
     analyst_action = Column(String(50), nullable=True)
     analyst_notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
@@ -152,6 +167,31 @@ class AuditLog(Base):
     email = relationship("Email", back_populates="audit_entries")
 
 
+class AnalystFeedback(Base):
+    """Analyst feedback on verdicts — used to train the pipeline over time.
+
+    When an analyst releases an escalated email (false positive) or quarantines
+    an accepted one (false negative), they provide reasoning. This feedback
+    drives whitelist/blocklist updates and is available for future LLM prompt
+    enrichment.
+    """
+
+    __tablename__ = "analyst_feedback"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email_id = Column(Integer, ForeignKey("emails.id"), nullable=False)
+    action = Column(String(20), nullable=False)  # release, quarantine
+    pipeline_verdict = Column(String(20), nullable=True)  # what the pipeline said
+    analyst_verdict = Column(String(20), nullable=True)  # what the analyst decided
+    reasoning = Column(Text, nullable=False)  # why the analyst disagrees
+    domain = Column(String(255), nullable=True)  # domain affected
+    indicator_type = Column(String(20), nullable=True)  # whitelist or blocklist
+    indicator_value = Column(String(512), nullable=True)  # value added to list
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    email = relationship("Email")
+
+
 class Report(Base):
     """Generated admin reports stored for dashboard access."""
 
@@ -166,6 +206,19 @@ class Report(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
 
+class User(Base):
+    """System users for the Dashboard (ISO 27001 Access Control)."""
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    totp_secret = Column(String(64), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
 # ---------------------------------------------------------------------------
 # Database initialization
 # ---------------------------------------------------------------------------
@@ -174,6 +227,31 @@ def init_db():
     """Create all tables if they don't exist. Safe to call multiple times."""
     Base.metadata.create_all(bind=engine)
     print("[DB] All tables created / verified.")
+    
+    # Initialize default admin if no users exist
+    try:
+        db = SessionLocal()
+        import bcrypt
+        import pyotp
+        if db.query(User).count() == 0:
+            default_pass = os.getenv("DASHBOARD_PASS", "admin").encode("utf-8")
+            hashed = bcrypt.hashpw(default_pass, bcrypt.gensalt()).decode("utf-8")
+            # Generate a consistent TOTP secret for the first run, or a random one
+            totp_secret = pyotp.random_base32()
+            admin = User(username=os.getenv("DASHBOARD_USER", "admin"), password_hash=hashed, totp_secret=totp_secret)
+            db.add(admin)
+            db.commit()
+            print(f"\n=======================================================")
+            print(f"[ISO 27001] ADMIN CREATED. MFA REQUIRED!")
+            print(f"Username: {admin.username}")
+            print(f"Password: (see DASHBOARD_PASS in .env)")
+            print(f"TOTP Secret: {totp_secret}")
+            print(f"Set this up in Google Authenticator!")
+            print(f"=======================================================\n")
+    except Exception as e:
+        print(f"[DB] Error initializing admin: {e}")
+    finally:
+        db.close()
 
 
 def get_db() -> Session:
@@ -217,6 +295,7 @@ def save_email(db: Session, data: dict) -> Email:
         subject=data.get("subject"),
         attachment_count=data.get("attachment_count", 0),
         status=data.get("status", "recu"),
+        email_date=data.get("email_date"),
         rules_result=data.get("rules_result"),
         enrichment_result=data.get("enrichment_result"),
         llm_result=data.get("llm_result"),
@@ -231,7 +310,8 @@ def save_email(db: Session, data: dict) -> Email:
 
 def add_audit_entry(db: Session, action: str, actor: str = "system",
                     email_id: Optional[int] = None, details: Optional[dict] = None):
-    """Record an action in the audit log."""
+    """Record an action in the audit log and secure file."""
+    # DB Log
     entry = AuditLog(
         email_id=email_id,
         action=action,
@@ -240,6 +320,15 @@ def add_audit_entry(db: Session, action: str, actor: str = "system",
     )
     db.add(entry)
     db.commit()
+    
+    # Secure File Log (ISO 27001 Log Segregation)
+    log_event = {
+        "action": action,
+        "actor": actor,
+        "email_id": email_id,
+        "details": details
+    }
+    audit_logger.info(json.dumps(log_event))
 
 
 def is_blocked(db: Session, indicator_type: str, value: str) -> bool:
@@ -295,6 +384,33 @@ def add_blocklist_entry(db: Session, indicator_type: str, value: str,
     db.add(entry)
     db.commit()
     return True
+
+
+def save_feedback(db: Session, email_id: int, action: str, reasoning: str,
+                   pipeline_verdict: str = None, domain: str = None,
+                   indicator_type: str = None, indicator_value: str = None) -> AnalystFeedback:
+    """Save analyst feedback for pipeline learning."""
+    fb = AnalystFeedback(
+        email_id=email_id,
+        action=action,
+        pipeline_verdict=pipeline_verdict,
+        analyst_verdict=action,
+        reasoning=reasoning,
+        domain=domain,
+        indicator_type=indicator_type,
+        indicator_value=indicator_value,
+    )
+    db.add(fb)
+    db.commit()
+    db.refresh(fb)
+    return fb
+
+
+def get_feedback_for_domain(db: Session, domain: str) -> list[AnalystFeedback]:
+    """Get all analyst feedback for a specific domain (for LLM context)."""
+    return db.query(AnalystFeedback).filter(
+        AnalystFeedback.domain == domain.strip().lower()
+    ).order_by(AnalystFeedback.created_at.desc()).all()
 
 
 def get_all_blocked(db: Session, indicator_type: Optional[str] = None) -> list[Blocklist]:

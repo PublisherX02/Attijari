@@ -2,31 +2,48 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host "         Starting Attijari Stack                  " -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
-# Ensure we are in the script's directory
+# Go to project root (where this script lives)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
-# Check if virtual environment is active or exists, activate it if needed
-if (Test-Path ".venv\Scripts\Activate.ps1") {
-    Write-Host "[INFO] Using virtual environment..." -ForegroundColor Green
-    $PythonCmd = ".venv\Scripts\python.exe"
+# Kill any existing process on port 8000 to avoid error 10048
+$Port = 8000
+try {
+    $existing = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Listen" }
+    if ($existing) {
+        foreach ($conn in $existing) {
+            Write-Host "[CLEANUP] Killing existing process on port $Port (PID $($conn.OwningProcess))..." -ForegroundColor Yellow
+            Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Seconds 2
+    }
+} catch {
+    # Ignore errors from Get-NetTCPConnection
+}
+
+# Activate venv and run from src/
+Set-Location (Join-Path $ScriptDir "src")
+$VenvActivate = Join-Path $ScriptDir ".venv\Scripts\Activate.ps1"
+
+if (Test-Path $VenvActivate) {
+    Write-Host "[INFO] Activating virtual environment..." -ForegroundColor Green
+    & $VenvActivate
 } else {
-    Write-Host "[INFO] No local .venv found, using system Python..." -ForegroundColor Yellow
-    $PythonCmd = "python"
+    Write-Host "[WARN] No .venv found -- using system Python" -ForegroundColor Yellow
 }
 
-if (!(Get-Command $PythonCmd -ErrorAction SilentlyContinue)) {
-    Write-Host "[ERROR] Python is not installed or not in the PATH." -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "`n1. Starting Background Pipeline Daemon..." -ForegroundColor White
-Start-Process $PythonCmd -ArgumentList "src\main.py", "--daemon" -WindowStyle Normal
-
-Write-Host "2. Starting Dashboard API Server..." -ForegroundColor White
-Start-Process $PythonCmd -ArgumentList "src\main.py", "--serve" -WindowStyle Normal
-
-Write-Host "`n==================================================" -ForegroundColor Cyan
-Write-Host "All services started! The daemon and API server" -ForegroundColor Green
-Write-Host "are now running in separate console windows." -ForegroundColor Green
+Write-Host ""
+Write-Host "[START] Dashboard + background IMAP polling" -ForegroundColor Green
+Write-Host "[START] http://localhost:$Port" -ForegroundColor Green
+Write-Host "[START] Press Ctrl+C to stop" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Cyan
+Write-Host ""
+
+python main.py --serve
+
+# Keep window open on crash
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "[ERROR] Exited with code $LASTEXITCODE" -ForegroundColor Red
+    Read-Host "Press Enter to close"
+}

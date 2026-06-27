@@ -30,7 +30,7 @@ def _otx_headers() -> dict:
     return headers
 
 
-def _otx_get(endpoint: str, retries: int = 2, timeout: int = 10) -> dict | None:
+def _otx_get(endpoint: str, retries: int = 2, timeout: int = 20) -> dict | None:
     """Generic OTX GET with retry logic."""
     url = f"{BASE_URL}/{endpoint}"
     attempt = 0
@@ -71,7 +71,10 @@ def check_ip(ip: str) -> dict:
     data = _otx_get(f"indicators/IPv4/{ip}/general")
     if data is None:
         return result
-    if isinstance(data, dict) and data.get("error"):
+    if not isinstance(data, dict):
+        result["error"] = f"unexpected_response_type:{type(data).__name__}"
+        return result
+    if data.get("error"):
         result["error"] = data["error"]
         return result
 
@@ -108,7 +111,10 @@ def check_domain(domain: str) -> dict:
     data = _otx_get(f"indicators/domain/{domain}/general")
     if data is None:
         return result
-    if isinstance(data, dict) and data.get("error"):
+    if not isinstance(data, dict):
+        result["error"] = f"unexpected_response_type:{type(data).__name__}"
+        return result
+    if data.get("error"):
         result["error"] = data["error"]
         return result
 
@@ -123,9 +129,9 @@ def check_domain(domain: str) -> dict:
             tag for p in pulses[:10] for tag in (p.get("tags") or [])
         ))[:10]
 
-    # WHOIS info (bonus)
+    # WHOIS info (bonus — may be a string or dict depending on OTX response)
     whois = data.get("whois")
-    if whois:
+    if isinstance(whois, dict):
         result["registrar"] = whois.get("registrar")
         result["creation_date"] = whois.get("creation_date")
 
@@ -143,7 +149,10 @@ def check_hash(sha256: str) -> dict:
     data = _otx_get(f"indicators/file/{sha256}/general")
     if data is None:
         return result
-    if isinstance(data, dict) and data.get("error"):
+    if not isinstance(data, dict):
+        result["error"] = f"unexpected_response_type:{type(data).__name__}"
+        return result
+    if data.get("error"):
         result["error"] = data["error"]
         return result
 

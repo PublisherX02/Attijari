@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Admin Audit Panel — Attijari SOC{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+        <h2>Admin Audit Panel</h2>
+        <p class="page-subtitle">Component health, error tracking, and analyst feedback history</p>
+    </div>
+    <button class="btn btn-outline" onclick="loadAuditPanel()">Refresh</button>
+</div>
+
+<!-- Tool filter -->
+<div class="filter-chips" id="tool-filters">
+    <button class="chip active" data-tool="" onclick="filterAuditTool('')">All Tools</button>
+</div>
+
+<!-- Tool health cards -->
+<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Component Status</h3>
+<div class="health-grid" id="tool-health-grid">
+    <div class="loading-overlay"><div class="spinner"></div> Loading...</div>
+</div>
+
+<!-- Error log table -->
+<h3 style="margin:28px 0 12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Error & Alert History</h3>
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Tool</th>
+                <th>Alert Type</th>
+                <th>Severity</th>
+                <th>Message</th>
+            </tr>
+        </thead>
+        <tbody id="alert-table-body">
+            <tr><td colspan="5" class="loading-overlay"><div class="spinner"></div> Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Analyst Feedback History -->
+<h3 style="margin:28px 0 12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Analyst Feedback Log</h3>
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Email</th>
+                <th>Action</th>
+                <th>Pipeline Said</th>
+                <th>Domain</th>
+                <th>List Updated</th>
+                <th>Reasoning</th>
+            </tr>
+        </thead>
+        <tbody id="feedback-table-body">
+            <tr><td colspan="7" class="loading-overlay"><div class="spinner"></div> Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => loadAuditPanel());</script>
+{% endblock %}

@@ -35,12 +35,26 @@ def check_domain_age(domain: str, timeout: int = 10) -> dict:
     if not _HAS_WHOISIT:
         return {"source": "whois", "domain": domain, "is_new_domain": False, "error": "whoisit_not_installed"}
 
+    # Strip to root domain — subdomains don't have their own WHOIS records
+    # e.g. m.learn.coursera.org → coursera.org, info.glovoapp.com → glovoapp.com
+    original_domain = domain
+    parts = domain.split(".")
+    # Handle common multi-part TLDs: .com.tn, .co.uk, .com.au etc.
+    _multi_tlds = {"com.tn", "com.au", "co.uk", "org.uk", "com.br", "co.jp", "com.sa"}
+    if len(parts) >= 3 and ".".join(parts[-2:]) in _multi_tlds:
+        domain = ".".join(parts[-3:])  # e.g. attijaribank.com.tn
+    elif len(parts) > 2:
+        domain = ".".join(parts[-2:])  # e.g. coursera.org
+
     try:
-        # Bootstrap RDAP servers (cached after first call)
+        # Bootstrap RDAP servers with overrides for non-standard TLDs (.tn, .co, etc.)
         try:
-            whoisit.bootstrap()
+            whoisit.bootstrap(overrides=True)
         except Exception:
-            pass  # may already be bootstrapped or offline
+            try:
+                whoisit.bootstrap()
+            except Exception:
+                pass
 
         data = whoisit.domain(domain)
 
