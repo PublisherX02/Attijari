@@ -431,6 +431,69 @@ class RuleEngine:
             details.append({"rule": "encrypted_attachment_password", "flagged": False,
                             "reason": "no encrypted attachment + password pattern"})
 
+        # Rule 10 — Thread hijack / BEC supplier fraud detection
+        # External senders referencing bank detail changes with lookalike internal links
+        bec_flagged = False
+        bec_reasons = []
+
+        # Check subject for financial keywords (French + English)
+        subject = (parsed.get("headers", {}).get("subject") or "").lower()
+        _BEC_SUBJECT_KW = (
+            "coordonnees bancaires", "bank details", "changement", "virement",
+            "wire transfer", "rib ", "iban", "payment update", "mise a jour",
+            "modification bancaire", "nouveau rib", "new bank",
+        )
+        subject_has_financial = any(kw in subject for kw in _BEC_SUBJECT_KW)
+
+        # Check if sender is external (not @attijaribank.com.tn)
+        sender_is_external = (
+            signals["sender_domain"] and
+            signals["sender_domain"] != "attijaribank.com.tn" and
+            not signals["sender_domain"].endswith(".attijaribank.com.tn")
+        )
+
+        # Check body URLs for SharePoint/OneDrive lookalikes with evil subdomains
+        _COLLAB_SERVICES = ("sharepoint", "onedrive", "1drv", "googleapis", "teams")
+        _LEGIT_COLLAB_HOSTS = (
+            ".sharepoint.com", ".onedrive.com", ".1drv.com",
+            "googleapis.com", "teams.microsoft.com",
+        )
+        body_urls = signals.get("body_urls", [])
+        spoofed_links = []
+        for url in body_urls:
+            try:
+                host = urlparse(url).hostname or ""
+                host = host.lower()
+                # URL mentions a collab service but NOT on the real domain
+                if any(svc in host for svc in _COLLAB_SERVICES):
+                    if not any(host.endswith(legit) for legit in _LEGIT_COLLAB_HOSTS):
+                        spoofed_links.append(host)
+            except Exception:
+                pass
+
+        # Also check body for bank-detail-change keywords (French + English)
+        _BEC_BODY_KW = (
+            "coordonnees bancaires", "bank details", "rib", "iban",
+            "changement de compte", "new account details", "wire transfer",
+            "virement", "modification bancaire",
+        )
+        body_has_financial = any(kw in body for kw in _BEC_BODY_KW)
+
+        if sender_is_external and spoofed_links:
+            bec_flagged = True
+            bec_reasons.append(f"spoofed collaboration link(s): {', '.join(spoofed_links[:3])}")
+        if sender_is_external and subject_has_financial and body_has_financial:
+            bec_flagged = True
+            bec_reasons.append("external sender with financial subject + body (supplier fraud pattern)")
+
+        if bec_flagged:
+            details.append({"rule": "thread_hijack_bec", "flagged": True,
+                            "reason": f"BEC/thread hijack: {'; '.join(bec_reasons)}"})
+            flags += 1
+        else:
+            details.append({"rule": "thread_hijack_bec", "flagged": False,
+                            "reason": "no thread hijack / BEC pattern detected"})
+
         # Determine verdict severity:
         # - "proposed_reject": deterministic hard-evidence rules fired
         #   (blocklist, bad extension, bad hash, threat feed match)

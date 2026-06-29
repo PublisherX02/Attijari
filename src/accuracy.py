@@ -2799,7 +2799,8 @@ def main():
 
     for i, case in enumerate(cases, 1):
         tag = "MAL" if case["expected"] == "malicious" else "BEN"
-        print(f"[{i:02d}/{len(cases)}] [{tag}] {case['name']}: {case['description'][:60]}")
+        safe_desc = case['description'][:60].encode("ascii", "replace").decode("ascii")
+        print(f"[{i:02d}/{len(cases)}] [{tag}] {case['name']}: {safe_desc}")
 
         t0 = time.time()
         result = run_pipeline_isolated(case["eml"], run_llm=run_llm)

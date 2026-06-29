@@ -373,13 +373,70 @@ _OFFICE_MIMES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
     "application/vnd.ms-excel.sheet.macroEnabled.12",
     "application/vnd.ms-word.document.macroEnabled.12",
+    "application/vnd.ms-powerpoint.slideshow.macroEnabled.12",
 }
+_RTF_MIMES = {"text/rtf", "application/rtf"}
 _PDF_MIMES = {"application/pdf"}
 _IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff", "image/webp"}
 _ARCHIVE_MIMES = {"application/zip", "application/x-rar-compressed", "application/x-7z-compressed",
                    "application/gzip", "application/x-tar"}
+
+
+# =====================================================================
+# PDF URL phishing detection helper
+# =====================================================================
+
+def _check_pdf_urls_for_phishing(urls: list[str]) -> list[str]:
+    """Check extracted PDF URLs for phishing patterns."""
+    from urllib.parse import urlparse
+    flags = []
+    # Bank domain patterns for typosquat detection
+    _BANK_KEYWORDS = ("attijari", "tijari", "attijar", "wafabank", "wafa")
+    # Phishing path keywords
+    _PHISH_PATHS = ("login", "verify", "confirm", "secure", "account", "auth",
+                    "signin", "session", "credential", "password", "update")
+    # Suspicious TLDs / test domains
+    _EVIL_SUFFIXES = (".evil.test", ".evil.com", ".test", ".tk", ".ml", ".ga", ".cf")
+
+    for url in urls[:50]:  # cap
+        try:
+            parsed = urlparse(url)
+            host = (parsed.hostname or "").lower()
+            path = (parsed.path or "").lower()
+            # 1. Typosquat of bank domain
+            if any(kw in host for kw in _BANK_KEYWORDS) and "attijaribank.com.tn" not in host:
+                flags.append(f"pdf_phishing_url: typosquat of bank domain in {host}")
+            # 2. Login/verify path on non-bank domain
+            if any(p in path for p in _PHISH_PATHS) and "attijaribank.com.tn" not in host:
+                if not any(legit in host for legit in (
+                    "google.com", "microsoft.com", "linkedin.com", "github.com",
+                    "apple.com", "adobe.com", "sharepoint.com")):
+                    flags.append(f"pdf_phishing_url: suspicious login path in {url[:120]}")
+            # 3. Known evil/test TLDs
+            if any(host.endswith(s) for s in _EVIL_SUFFIXES):
+                flags.append(f"pdf_phishing_url: evil/test domain {host}")
+        except Exception:
+            continue
+    return flags
+
+
+def _check_image_stego_metadata(content: bytes, filename: str) -> list[str]:
+    """Check image metadata for steganography tool signatures."""
+    flags = []
+    # Very rudimentary check on raw bytes for stego signatures (often left in tEXt/EXIF chunks)
+    stego_keywords = (
+        b"SteganoEncoder", b"steghide", b"OpenStego", 
+        b"Stegosuite", b"SilentEye", b"payload embedded"
+    )
+    # Check first 8KB (headers/metadata)
+    chunk = content[:8192].lower()
+    for kw in stego_keywords:
+        if kw.lower() in chunk:
+            flags.append(f"image_stego_metadata: signature '{kw.decode(errors='ignore')}' found")
+    return flags
 
 
 # =====================================================================
@@ -449,9 +506,10 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
         matches = [m.get("rule", "?") for m in yara_result.get("matches", []) if "rule" in m]
         result["flags"].append(f"yara_match: {', '.join(matches)}")
 
-    # 2. Office files — oletools
-    if effective_mime in _OFFICE_MIMES or filename.lower().endswith(
-            (".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".docm", ".xlsm")):
+    # 2. Office files + RTF — oletools
+    if effective_mime in _OFFICE_MIMES or effective_mime in _RTF_MIMES or filename.lower().endswith(
+            (".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pptm",
+             ".ppsx", ".ppsm", ".docm", ".xlsm", ".rtf")):
         ole_result = _run_tool("oletools", content, stored_path, filename)
         result["tools_run"].append(ole_result)
         if ole_result.get("suspicious"):
@@ -479,6 +537,13 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             text_parts.append(pdf_result["text"])
         if pdf_result.get("links"):
             result["flags"].append(f"pdf_links_found: {len(pdf_result['links'])}")
+            # Check PDF URLs for phishing patterns
+            phish_flags = _check_pdf_urls_for_phishing(pdf_result["links"])
+            if phish_flags:
+                result["suspicious"] = True
+                result["escalate"] = True
+                for pf in phish_flags:
+                    result["flags"].append(pf)
 
     # 4. Images — Tesseract OCR (always local — host has Tesseract v5.5)
     if effective_mime in _IMAGE_MIMES or filename.lower().endswith(
@@ -487,6 +552,14 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
         result["tools_run"].append(ocr_result)
         if ocr_result.get("text"):
             text_parts.append(ocr_result["text"])
+        
+        # Check image metadata for stego signatures
+        stego_flags = _check_image_stego_metadata(content, filename)
+        if stego_flags:
+            result["suspicious"] = True
+            result["escalate"] = True
+            for flag in stego_flags:
+                result["flags"].append(flag)
 
     # 5. MarkItDown — text extraction (complementary, NEVER standalone)
     if effective_mime not in _IMAGE_MIMES and effective_mime not in _ARCHIVE_MIMES:
