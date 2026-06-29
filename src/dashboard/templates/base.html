@@ -45,6 +45,10 @@
                     <span class="nav-icon">🔍</span>
                     <span>Audit Panel</span>
                 </a>
+                <a href="/history" class="nav-link {% if active_page == 'history' %}active{% endif %}">
+                    <span class="nav-icon">📜</span>
+                    <span>Action History</span>
+                </a>
             </div>
             <div style="padding: 16px 12px; border-top: 1px solid var(--border-glass);">
                 <a href="/metrics" class="nav-link" target="_blank">
@@ -56,6 +60,12 @@
 
         <!-- Main content -->
         <main class="main-content">
+            {% if username %}
+            <div class="user-greeting">
+                <span>Hello, <strong>{{ username }}</strong></span>
+                <a href="/logout" class="btn btn-outline btn-sm" style="margin-left:12px;font-size:0.78rem;padding:4px 12px;">Logout</a>
+            </div>
+            {% endif %}
             {% block content %}{% endblock %}
         </main>
     </div>

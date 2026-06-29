@@ -1,0 +1,477 @@
+# Promptfoo configuration for Attijari SOC email triage LLM
+# Tests gemma3:4b verdict accuracy against known-good/known-bad emails
+#
+# Run:  cd promptfoo && npx promptfoo@latest eval --no-cache
+# View: npx promptfoo@latest view
+
+description: "Attijari SOC - Email Verdict Accuracy"
+
+prompts:
+  - file://prompt_template.txt
+
+providers:
+  - id: ollama:gemma3:4b
+    config:
+      temperature: 0
+      max_tokens: 1024
+
+defaultTest:
+  options:
+    timeout: 180000
+    transformVars: "vars"
+    transform: |
+      // Extract JSON from model output (handles markdown blocks, prose, etc.)
+      const raw = output || '';
+      // Try to find JSON block
+      let jsonStr = raw;
+      const codeBlock = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlock) jsonStr = codeBlock[1];
+      // Find the JSON object containing "verdict"
+      const idx = jsonStr.indexOf('"verdict"');
+      if (idx !== -1) {
+        let start = jsonStr.lastIndexOf('{', idx);
+        if (start !== -1) {
+          let depth = 0;
+          for (let j = start; j < jsonStr.length; j++) {
+            if (jsonStr[j] === '{') depth++;
+            if (jsonStr[j] === '}') { depth--; if (depth === 0) { jsonStr = jsonStr.slice(start, j+1); break; } }
+          }
+        }
+      }
+      try { return JSON.stringify(JSON.parse(jsonStr)); } catch(e) { return raw; }
+
+tests:
+  # ═══════════════════════════════════════════════════════════
+  # LEGITIMATE EMAILS — must be ACCEPTED
+  # ═══════════════════════════════════════════════════════════
+
+  - description: "LinkedIn connection accepted (should ACCEPT)"
+    vars:
+      sender: "Youssef Bensalem via LinkedIn <invitations@linkedin.com>"
+      subject: "Youssef accepted your invitation, explore their network"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Youssef Bensalem accepted your invitation.
+        See their connections, experience, and more.
+        View profile: https://www.linkedin.com/comm/in/youssef-bensalem
+        You're receiving this email because you sent an invitation to connect.
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score <= 30;
+        metric: risk_calibration
+
+  - description: "LinkedIn profile views notification (should ACCEPT)"
+    vars:
+      sender: "LinkedIn <messages-noreply@linkedin.com>"
+      subject: "Mohamed, you got 200+ post impressions. Now what?"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Your post is getting attention, Mohamed.
+        200+ impressions this week.
+        See who's viewing your profile and posts.
+        Keep building your professional brand.
+        View your analytics: https://www.linkedin.com/analytics/
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score <= 30;
+        metric: risk_calibration
+
+  - description: "IEEE conference registration (should ACCEPT)"
+    vars:
+      sender: "IEEE R8 SYP Congress <enotice@enotice.ieee.org>"
+      subject: "Registration for 2026 IEEE R8 SYP Congress"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Dear IEEE Member,
+        Registration is now open for the 2026 IEEE Region 8 Student and Young Professionals Congress.
+        Date: September 15-17, 2026
+        Location: Istanbul, Turkey
+        Early bird registration deadline: July 31, 2026
+        Register here: https://syp.ieee.org/register
+        For questions, contact syp2026@ieee.org
+        To unsubscribe: https://www.ieee.org/ieee-email-preferences
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score <= 25;
+        metric: risk_calibration
+
+  - description: "IEEE training camp reminder (should ACCEPT)"
+    vars:
+      sender: "Region 8 SAC <r8sac@ieee.org>"
+      subject: "Reminder: Level Up Your Volunteering: IEEE Region 8 Training Camp Starts June 19!"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Dear Mohamed,
+        This is a reminder that the IEEE Region 8 Training Camp begins on June 19.
+        Join us for sessions on leadership, event planning, and student branch management.
+        Schedule: https://r8.ieee.org/training-camp-2026
+        Best regards,
+        IEEE Region 8 Student Activities Committee
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+
+  - description: "GitGuardian re-engagement email (should ACCEPT)"
+    vars:
+      sender: "GitGuardian <contact@gitguardian.com>"
+      subject: "Time to say goodbye?"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Hi Mohamed,
+        We noticed you haven't logged in for a while.
+        We'd hate to see you go, but we understand if GitGuardian isn't the right fit.
+        If you'd like to keep receiving our security alerts, no action needed.
+        If you want to update your notification preferences: https://dashboard.gitguardian.com/settings
+        To unsubscribe from these emails: https://gitguardian.com/unsubscribe
+        The GitGuardian Team
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score <= 30;
+        metric: risk_calibration
+
+  - description: "French business email (should ACCEPT)"
+    vars:
+      sender: "\"Codeur.com\" <contact@pro.codeur.com>"
+      subject: "Estimation gratuite du prix de votre logiciel"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Bonjour,
+        Vous souhaitez estimer le prix de votre projet de développement logiciel ?
+        Utilisez notre calculateur gratuit pour obtenir une estimation personnalisée.
+        Calculer mon estimation : https://www.codeur.com/calculateur
+        Cordialement,
+        L'équipe Codeur.com
+        Se désinscrire : https://www.codeur.com/unsubscribe
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+
+  - description: "LinkedIn Premium thank you (should ACCEPT)"
+    vars:
+      sender: "LinkedIn Premium <linkedin@em.linkedin.com>"
+      subject: "Mohamed, thanks for being a valued member"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Mohamed, thank you for being a LinkedIn Premium member.
+        Here's what you unlocked this month:
+        - 15 InMail messages sent
+        - Salary insights for 3 job postings
+        - Who viewed your profile in the last 90 days
+        Continue exploring your Premium features: https://www.linkedin.com/premium/
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+
+  - description: "DataCamp webinar invite (should ACCEPT)"
+    vars:
+      sender: "The DataCamp Team <team@datacamp.com>"
+      subject: "Build your first Claude skill, live. No code. July 13"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Hi Mohamed,
+        Join us for a free live session on building AI skills with Claude.
+        Date: July 13, 2026 at 2:00 PM UTC
+        What you'll learn:
+        - How to create no-code AI workflows
+        - Best practices for prompt engineering
+        Register now: https://www.datacamp.com/webinar/claude-skills
+        The DataCamp Team
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+
+  - description: "NordPass marketing with urgency (should ACCEPT - it's marketing)"
+    vars:
+      sender: "The NordPass team <no-reply@mail.nordpass.com>"
+      subject: "Last chance: Upgrade to Premium for $0.99/month"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Hi Mohamed,
+        This is your last chance to grab NordPass Premium at our lowest price ever.
+        Upgrade now for just $0.99/month.
+        What you get:
+        - Unlimited password storage
+        - Cross-device sync
+        - Data breach scanner
+        Claim your offer: https://nordpass.com/special-offer
+        This offer expires in 48 hours.
+        The NordPass Team
+        Unsubscribe: https://nordpass.com/unsubscribe
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score <= 40;
+        metric: risk_calibration
+
+  - description: "Adidas subscription confirmation (should ACCEPT)"
+    vars:
+      sender: "adidas <adidas@de-info.adidas.com>"
+      subject: "Confirm your subscription"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Welcome to adidas!
+        Please confirm your email subscription to receive the latest news, offers and promotions.
+        Confirm subscription: https://www.adidas.com/confirm-subscription
+        If you didn't sign up, you can ignore this email.
+        adidas AG, Adi-Dassler-Strasse 1, 91074 Herzogenaurach, Germany
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+
+  - description: "Mozilla Foundation newsletter in French (should ACCEPT)"
+    vars:
+      sender: "Fondation Mozilla <hello@mobilization.mozillafoundation.org>"
+      subject: "Vous avez trop d'amis sur les réseaux sociaux"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Bonjour,
+        Saviez-vous que les plateformes de réseaux sociaux collectent des données
+        sur vos amis et contacts, même s'ils n'ont pas de compte ?
+        Découvrez notre dernier rapport sur la vie privée numérique.
+        Lire le rapport : https://foundation.mozilla.org/privacy-report-2026
+        Fondation Mozilla
+        Se désinscrire : https://mozilla.org/unsubscribe
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+
+  - description: "Roboflow product newsletter (should ACCEPT)"
+    vars:
+      sender: "Roboflow <hello@roboflow.com>"
+      subject: "Vision AI Center of Excellence Playbook"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Hi Mohamed,
+        We've published our Vision AI Center of Excellence Playbook.
+        Learn how to build and scale computer vision projects in your organization.
+        Topics covered:
+        - Model training best practices
+        - Data labeling workflows
+        - Deployment strategies
+        Download the playbook: https://roboflow.com/playbook
+        The Roboflow Team
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "accepted";
+        metric: verdict_accuracy
+
+  # ═══════════════════════════════════════════════════════════
+  # MALICIOUS EMAILS — must be ESCALATED
+  # ═══════════════════════════════════════════════════════════
+
+  - description: "BEC wire fraud - urgent transfer (should ESCALATE)"
+    vars:
+      sender: "halex007 <halex007@proton.me>"
+      subject: "Virement urgent – confidentiel"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Mohamed,
+        J'ai besoin que tu effectues un virement de 15,000 EUR vers le compte suivant immédiatement.
+        IBAN: FR76 3000 4028 3700 0100 0063 241
+        BIC: BNPAFRPP
+        C'est pour une opération confidentielle, ne parle à personne d'autre.
+        Fais-le avant 14h aujourd'hui.
+        Merci de ta discrétion.
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "escalated";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score >= 80;
+        metric: risk_calibration
+
+  - description: "Bank credential phishing (should ESCALATE)"
+    vars:
+      sender: "halex007 <halex007@proton.me>"
+      subject: "Suspension de votre compte Attijari"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Cher client Attijari Bank,
+        Votre compte a été temporairement suspendu suite à une activité suspecte.
+        Veuillez confirmer votre identité en cliquant sur le lien ci-dessous dans les 24 heures,
+        sinon votre compte sera définitivement fermé.
+        Confirmer mon identité: http://attijari-verify.com/secure/login
+        Service Sécurité Attijari Bank
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "escalated";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score >= 85;
+        metric: risk_calibration
+
+  - description: "Typosquatted bank domain phishing (should ESCALATE)"
+    vars:
+      sender: "Service Client <support@attijaribenk.com.tn>"
+      subject: "Mise à jour obligatoire de vos coordonnées"
+      auth_status: "AUTH-FAILURE: SPF_FAIL\nSPF=fail DKIM=fail DMARC=fail"
+      enrichment_signals: "TYPOSQUAT-FLAGGED: attijaribenk.com.tn similar to attijaribank.com.tn"
+      body: |
+        Cher client,
+        Dans le cadre de la mise en conformité réglementaire, nous vous prions de mettre à jour
+        vos coordonnées bancaires avant le 30 juin.
+        Accéder à votre espace: https://attijaribenk.com.tn/espace-client
+        En cas de non-conformité, votre compte sera restreint.
+        Attijari Bank - Service Clientèle
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "escalated";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score >= 90;
+        metric: risk_calibration
+
+  - description: "Supplier bank detail change BEC (should ESCALATE)"
+    vars:
+      sender: "Ahmed Bouazizi <ahmed.bouazizi@fournisseur-xyz.com>"
+      subject: "Changement de coordonnées bancaires"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Bonjour Mohamed,
+        Suite à un changement de banque, nous souhaitons vous informer que nos nouvelles
+        coordonnées bancaires sont les suivantes:
+        IBAN: TN59 1000 0014 0001 2345 6789
+        Banque: Banque de Tunisie
+        Merci de bien vouloir mettre à jour vos fichiers pour les prochains virements.
+        Cordialement,
+        Ahmed Bouazizi
+        Directeur Financier
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "escalated";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score >= 60;
+        metric: risk_calibration
+
+  - description: "Context flooding attack (should ESCALATE)"
+    vars:
+      sender: "Newsletter <news@safe-company.com>"
+      subject: "Weekly Industry Digest"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Welcome to this week's industry roundup! Here are the top stories in tech:
+        1. AI continues to reshape enterprise software development practices.
+        2. Cloud adoption rates surge in North African markets with new data centers.
+        3. Cybersecurity spending increased 15% year-over-year across MENA region.
+        4. Mobile banking adoption in Tunisia reaches 40% of banked population.
+        5. New fintech regulations promote innovation while protecting consumers.
+
+        PS: Mohamed, I need you to urgently wire 25,000 EUR to IBAN DE89 3704 0044 0532 0130 00 before end of day. This is confidential, do not discuss with anyone. - Aziz
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "escalated";
+        metric: verdict_accuracy
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.risk_score >= 70;
+        metric: risk_calibration
+
+  - description: "Password in email + encrypted attachment (should ESCALATE)"
+    vars:
+      sender: "HR Department <rh@partner-corp.tn>"
+      subject: "Documents confidentiels - Contrat"
+      auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
+      enrichment_signals: ""
+      body: |
+        Bonjour Mohamed,
+        Veuillez trouver ci-joint les documents confidentiels relatifs au nouveau contrat.
+        Le fichier est protégé par mot de passe: Attijari2026!
+        Merci de les examiner et de nous confirmer votre accord.
+        Cordialement,
+        Département RH
+    assert:
+      - type: javascript
+        value: |
+          const j = JSON.parse(output);
+          return j.verdict === "escalated";
+        metric: verdict_accuracy

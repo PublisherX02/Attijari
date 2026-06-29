@@ -85,7 +85,7 @@ def run_pipeline():
 
             if db:
                 cached_email = get_cached_email(db, idem_key)
-                if cached_email:
+                if cached_email and cached_email.llm_result:
                     print(f"[CACHED] Already processed:")
                     print(f"  De:     {_safe(cached_email.sender)}")
                     print(f"  Sujet:  {_safe(cached_email.subject)}")
@@ -109,9 +109,12 @@ def run_pipeline():
             parsed = ingestion.parse_email(raw)
             
             # Protocol Authentication (SPF/DMARC)
+            # DMARC failure is a strong signal but NOT auto-quarantine — many legitimate
+            # senders have misconfigured auth (forwarded mail, mailing lists, new domains).
+            # Escalate so the full pipeline still runs and the analyst gets full context.
             if not verify_sender_authentication(raw):
-                print("[AUTH] Protocol Authentication (DMARC) Failed. Quarantining immediately.")
-                parsed["status"] = "quarantined"
+                print("[AUTH] Protocol Authentication (DMARC) Failed — escalating for full analysis.")
+                parsed["status"] = "escalated"
                 parsed["dmarc_failed"] = True
 
             # --- Parse original email Date header ---
@@ -190,13 +193,19 @@ def run_pipeline():
             _deterministic_escalation = parsed["status"] == "escalated"  # from parse errors
 
             # analyze via rules engine
-            if parsed["status"] not in ["escalated", "quarantined", "blocked"] and not parsed.get("dmarc_failed"):
+            if parsed["status"] not in ["quarantined", "blocked"]:
+                _pre_rules_status = parsed["status"]
                 analysis = engine.analyze(parsed)
+                # Rules can escalate but NEVER downgrade an existing escalation
+                if _pre_rules_status == "escalated" and analysis["verdict"] == "accepted":
+                    analysis["verdict"] = "escalated"
                 parsed["status"] = analysis["verdict"]
                 parsed["analysis"] = analysis
                 print(f"[RULES] {analysis['rules_run']} rules, {analysis['flags']} flag(s) -> {analysis['verdict'].upper()}")
                 if analysis.get("flags", 0) > 0:
                     _deterministic_escalation = True
+                if _pre_rules_status == "escalated":
+                    _deterministic_escalation = True  # prior signal (DMARC/parse) is deterministic
                 for detail in analysis["details"]:
                     flag_marker = "!!" if detail["flagged"] else "ok"
                     print(f"  [{flag_marker}] {detail['rule']}: {detail['reason']}")
@@ -665,7 +674,7 @@ if __name__ == "__main__":
         port = int(os.getenv("DASHBOARD_PORT", "8000"))
         host = os.getenv("DASHBOARD_HOST", "0.0.0.0")
         print(f"[SERVE] Starting dashboard on http://{host}:{port}")
-        uvicorn.run("api:app", host=host, port=port, reload=False, workers=4)
+        uvicorn.run("api:app", host=host, port=port, reload=False, workers=1)
 
     elif "--migrate" in args:
         # Run data migration from JSON to PostgreSQL

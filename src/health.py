@@ -127,6 +127,10 @@ class ToolStats:
         }
 
 
+_STATS_FILE = _DATA_DIR / "health_stats.json"
+_SAVE_INTERVAL = 30  # seconds between disk flushes
+
+
 class HealthMonitor:
     """Singleton health monitor tracking all pipeline tools."""
 
@@ -141,6 +145,61 @@ class HealthMonitor:
         self._lock = threading.Lock()
         self._tools: dict[str, ToolStats] = {name: ToolStats(name=name) for name in self.TOOLS}
         self._started = time.time()
+        self._last_save = 0.0
+        self._load_from_disk()
+
+    def _load_from_disk(self):
+        """Restore persisted stats on startup."""
+        try:
+            if not _STATS_FILE.exists():
+                return
+            data = json.loads(_STATS_FILE.read_text(encoding="utf-8"))
+            for name, saved in data.items():
+                stats = self._tools.get(name)
+                if not stats:
+                    stats = ToolStats(name=name)
+                    self._tools[name] = stats
+                stats.success_count = saved.get("success_count", 0)
+                stats.failure_count = saved.get("failure_count", 0)
+                stats.consecutive_failures = saved.get("consecutive_failures", 0)
+                stats.last_success = saved.get("last_success")
+                stats.last_failure = saved.get("last_failure")
+                stats.last_error = saved.get("last_error")
+                stats.last_latency = saved.get("last_latency")
+                for lat in saved.get("latencies", []):
+                    stats._latencies.append(lat)
+                for err in saved.get("recent_errors", []):
+                    stats._recent_errors.append(err)
+        except Exception:
+            pass  # corrupted file — start fresh
+
+    def _save_to_disk(self):
+        """Persist current stats to JSON file."""
+        data = {}
+        for name, stats in self._tools.items():
+            if stats.total_calls == 0:
+                continue
+            data[name] = {
+                "success_count": stats.success_count,
+                "failure_count": stats.failure_count,
+                "consecutive_failures": stats.consecutive_failures,
+                "last_success": stats.last_success,
+                "last_failure": stats.last_failure,
+                "last_error": stats.last_error,
+                "last_latency": stats.last_latency,
+                "latencies": list(stats._latencies),
+                "recent_errors": list(stats._recent_errors),
+            }
+        try:
+            _STATS_FILE.write_text(json.dumps(data, default=str), encoding="utf-8")
+            self._last_save = time.time()
+        except Exception:
+            pass
+
+    def _maybe_save(self):
+        """Flush to disk if enough time has passed since last save."""
+        if time.time() - self._last_save >= _SAVE_INTERVAL:
+            self._save_to_disk()
 
     def record_success(self, tool: str, latency: float):
         """Record a successful tool call."""
@@ -167,6 +226,8 @@ class HealthMonitor:
                     message=f"{tool} latency spike: {latency:.2f}s (avg: {stats.avg_latency:.2f}s)",
                     data={"latency": latency, "avg": stats.avg_latency},
                 )
+
+            self._maybe_save()
 
     def record_failure(self, tool: str, error: str, latency: float | None = None):
         """Record a failed tool call."""
@@ -208,6 +269,8 @@ class HealthMonitor:
                     message=f"{tool} error rate: {stats.error_rate:.0%} ({stats.failure_count}/{stats.total_calls})",
                     data={"error_rate": stats.error_rate, "total": stats.total_calls},
                 )
+
+            self._maybe_save()
 
     def record_false_negative(self, tool: str, indicator: str, details: str = ""):
         """Record a known false negative — an indicator the tool should have caught."""

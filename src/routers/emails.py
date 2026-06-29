@@ -2,7 +2,7 @@ from typing import Optional
 import asyncio
 import time
 from fastapi import APIRouter, Query, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import text
 from database import (
@@ -604,12 +604,62 @@ async def api_list_feedback(
 
 
 # ---------------------------------------------------------------------------
-# Dashboard page — Admin Audit Panel
+# REST API — Action History (analyst activity feed)
 # ---------------------------------------------------------------------------
 
-@emails_router.get("/audit", response_class=HTMLResponse)
-async def dashboard_audit(request: Request):
-    return templates.TemplateResponse(request, "audit.html", {"request": request})
+@emails_router.get("/api/history")
+async def api_action_history(
+    actor: Optional[str] = Query(None, max_length=100),
+    action: Optional[str] = Query(None, max_length=50),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+):
+    """Full action history with actor names, email context, and notes."""
+    db = SessionLocal()
+    try:
+        q = db.query(AuditLog).order_by(AuditLog.created_at.desc())
+
+        if actor:
+            q = q.filter(AuditLog.actor == actor)
+        if action:
+            q = q.filter(AuditLog.action == action)
+
+        total = q.count()
+        entries = q.offset((page - 1) * per_page).limit(per_page).all()
+
+        # Batch-fetch linked emails for context
+        email_ids = [e.email_id for e in entries if e.email_id]
+        emails_map = {}
+        if email_ids:
+            email_rows = db.query(
+                Email.id, Email.sender, Email.sender_domain, Email.subject
+            ).filter(Email.id.in_(email_ids)).all()
+            emails_map = {r.id: {"sender": mask_pii(r.sender), "sender_domain": r.sender_domain, "subject": r.subject} for r in email_rows}
+
+        # Collect unique actor names for the filter dropdown
+        actors = [r[0] for r in db.query(AuditLog.actor).distinct().all()]
+
+        return {
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": (total + per_page - 1) // per_page,
+            "actors": sorted(actors),
+            "entries": [
+                {
+                    "id": e.id,
+                    "action": e.action,
+                    "actor": e.actor,
+                    "email_id": e.email_id,
+                    "email_context": emails_map.get(e.email_id),
+                    "details": e.details,
+                    "created_at": e.created_at.isoformat() if e.created_at else None,
+                }
+                for e in entries
+            ],
+        }
+    finally:
+        db.close()
 
 
 @emails_router.get("/api/audit/errors")

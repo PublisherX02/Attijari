@@ -331,30 +331,43 @@ class RuleEngine:
         else:
             details.append({"rule": "blocked_hash", "flagged": False, "reason": "no known bad hashes"})
 
-        # Rule 4 — phishing body + invoice-like attachment heuristic
+        # Rule 4 — phishing body heuristic
+        # Requires BOTH coercive urgency AND financial/credential targeting.
+        # "please review the attached invoice" is normal business — only flag when
+        # urgency is paired with requests for credentials, wire transfers, or account changes.
         body = (parsed.get("body_text") or "").lower()
-        suspicious_phrases = [
-            "unusual charge", "transaction details", "please confirm",
-            "please review", "we noticed", "we'll assume",
-            "within 48 hours", "attached file", "unexpected charge",
-        ]
-        invoice_indicators = ["invoice", "bill", "payment", "receipt"]
-        attachment_invoice_like = False
-        for att in signals.get("attachments", []):
-            name = (att.get("original_name") or "").lower()
-            if any(ind in name for ind in invoice_indicators):
-                attachment_invoice_like = True
-            _, ext = os.path.splitext(name)
-            if ext in {".doc", ".docx", ".xls", ".xlsx", ".pdf"}:
-                attachment_invoice_like = True
 
-        body_matches = [p for p in suspicious_phrases if p in body]
-        if body_matches and attachment_invoice_like:
-            reasons = [f"suspicious_phrases: {', '.join(body_matches)}", "invoice_like_attachment"]
+        # Tier 1: coercive urgency with threat of consequence
+        urgency_phrases = [
+            "your account will be", "account has been suspended",
+            "account will be suspended", "account will be closed",
+            "legal action", "unauthorized transaction", "unusual charge",
+            "unexpected charge", "we'll assume", "verify your identity",
+            "confirm your identity", "failure to respond",
+            "within 24 hours", "within 48 hours", "immediate action required",
+            "action required immediately",
+        ]
+
+        # Tier 2: financial or credential targeting
+        targeting_phrases = [
+            "update your payment", "verify your account", "confirm your password",
+            "enter your credentials", "click here to verify", "click here to confirm",
+            "wire transfer", "bank details", "routing number", "iban", "bic",
+            "login immediately", "sign in to verify", "reset your password",
+            "social security", "credit card number", "cvv",
+            "modify bank", "change bank details", "new bank account",
+        ]
+
+        urgency_matches = [p for p in urgency_phrases if p in body]
+        targeting_matches = [p for p in targeting_phrases if p in body]
+
+        if urgency_matches and targeting_matches:
+            reasons = [f"coercive_urgency: {', '.join(urgency_matches[:3])}",
+                       f"financial_targeting: {', '.join(targeting_matches[:3])}"]
             details.append({"rule": "phishy_body", "flagged": True, "reason": ", ".join(reasons)})
             flags += 1
         else:
-            details.append({"rule": "phishy_body", "flagged": False, "reason": "no subtle phishing detected"})
+            details.append({"rule": "phishy_body", "flagged": False, "reason": "no phishing pattern (urgency+targeting) detected"})
 
         # Rule 5 — Threat feed: sender domain in URLhaus/OpenPhish
         if signals["sender_domain"] and self.feeds.check_domain(signals["sender_domain"]):

@@ -15,7 +15,7 @@ _limiter = Limiter(key_func=get_remote_address)
 
 @auth_router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html", {"request": request})
 
 @auth_router.post("/login")
 @_limiter.limit("5/minute")
@@ -24,12 +24,12 @@ async def login_post(request: Request, username: str = Form(...), password: str 
     
     user = db.query(User).filter(User.username == username).first()
     if not user or not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
-        return templates.TemplateResponse("login.html", {"request": {}, "error": "Invalid username or password"})
+        return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Invalid username or password"})
         
     if user.totp_secret:
         totp_obj = pyotp.TOTP(user.totp_secret)
         if not totp_obj.verify(totp):
-            return templates.TemplateResponse("login.html", {"request": {}, "error": "Invalid MFA code"})
+            return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Invalid MFA code"})
             
     payload = {
         "sub": username,

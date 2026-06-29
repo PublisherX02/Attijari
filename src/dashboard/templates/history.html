@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Action History — Attijari SOC{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+        <h2>Action History</h2>
+        <p class="page-subtitle">Complete log of all analyst actions with reasoning</p>
+    </div>
+    <button class="btn btn-outline" onclick="loadHistory()">Refresh</button>
+</div>
+
+<!-- Filters -->
+<div class="filter-chips" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px">
+    <div>
+        <label style="font-size:0.78rem;color:var(--text-muted);margin-right:6px">Actor:</label>
+        <select class="form-select" id="filter-actor" onchange="loadHistory()" style="min-width:140px;padding:6px 10px;font-size:0.85rem">
+            <option value="">All</option>
+        </select>
+    </div>
+    <div>
+        <label style="font-size:0.78rem;color:var(--text-muted);margin-right:6px">Action:</label>
+        <select class="form-select" id="filter-action" onchange="loadHistory()" style="min-width:160px;padding:6px 10px;font-size:0.85rem">
+            <option value="">All</option>
+            <option value="release">Release</option>
+            <option value="quarantine">Quarantine</option>
+            <option value="override">Override</option>
+            <option value="blocklist_add">Blocklist Add</option>
+            <option value="blocklist_remove">Blocklist Remove</option>
+            <option value="whitelist_add">Whitelist Add</option>
+            <option value="whitelist_remove">Whitelist Remove</option>
+        </select>
+    </div>
+</div>
+
+<!-- History timeline -->
+<div id="history-list">
+    <div class="loading-overlay"><div class="spinner"></div> Loading history...</div>
+</div>
+
+<!-- Pagination -->
+<div class="pagination" id="history-pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px"></div>
+
+<style>
+.history-entry {
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+}
+.history-entry:hover {
+    border-color: var(--border-glass-hover);
+}
+.history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.history-actor {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+.history-time {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.history-action-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.history-action-badge.release    { background: var(--color-released-bg); color: var(--color-released); }
+.history-action-badge.quarantine { background: var(--color-quarantined-bg); color: var(--color-quarantined); }
+.history-action-badge.override   { background: var(--color-escalated-bg); color: var(--color-escalated); }
+.history-action-badge.blocklist_add,
+.history-action-badge.blocklist_remove { background: var(--color-quarantined-bg); color: var(--color-quarantined); }
+.history-action-badge.whitelist_add,
+.history-action-badge.whitelist_remove { background: var(--color-accepted-bg); color: var(--color-accepted); }
+.history-summary {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+.history-summary a {
+    color: var(--accent-primary);
+    text-decoration: none;
+}
+.history-summary a:hover {
+    text-decoration: underline;
+}
+.history-notes {
+    margin-top: 8px;
+    padding: 10px 14px;
+    background: var(--bg-glass);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent-primary);
+    color: var(--text-secondary);
+    font-size: 0.84rem;
+    line-height: 1.5;
+    font-style: italic;
+}
+.history-notes strong {
+    color: var(--text-primary);
+    font-style: normal;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.history-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+function actionLabel(action) {
+    const map = {
+        release: 'released',
+        quarantine: 'quarantined',
+        override: 'overrode verdict on',
+        blocklist_add: 'added to blocklist',
+        blocklist_remove: 'removed from blocklist',
+        whitelist_add: 'added to whitelist',
+        whitelist_remove: 'removed from whitelist',
+    };
+    return map[action] || action;
+}
+
+function formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+         + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function buildSummary(entry) {
+    const actor = `<span class="history-actor">${entry.actor}</span>`;
+    const verb = actionLabel(entry.action);
+    let target = '';
+    const details = entry.details || {};
+
+    if (entry.email_id && entry.email_context) {
+        const ctx = entry.email_context;
+        const subj = ctx.subject ? ctx.subject.substring(0, 60) : 'email';
+        target = ` <a href="/email/${entry.email_id}">#${entry.email_id} — ${subj}</a>`;
+        if (ctx.sender_domain) target += ` <span style="color:var(--text-muted)">(${ctx.sender_domain})</span>`;
+    } else if (details.indicator_type && details.value) {
+        target = ` <strong>${details.indicator_type}:</strong> ${details.value}`;
+    } else if (entry.email_id) {
+        target = ` <a href="/email/${entry.email_id}">email #${entry.email_id}</a>`;
+    }
+
+    return `${actor} ${verb}${target}`;
+}
+
+function buildNotes(entry) {
+    const details = entry.details || {};
+    const reason = details.reason || details.notes || '';
+    if (!reason) return '';
+    return `<div class="history-notes"><strong>Notes: </strong>${reason}</div>`;
+}
+
+function buildExtra(entry) {
+    const details = entry.details || {};
+    const parts = [];
+    if (details.whitelisted_domain) parts.push(`Whitelisted domain: <strong>${details.whitelisted_domain}</strong>`);
+    if (details.blocked_indicators && details.blocked_indicators.length) {
+        parts.push(`Blocked: ${details.blocked_indicators.map(i => `<strong>${i}</strong>`).join(', ')}`);
+    }
+    if (details.previous_status) parts.push(`Previous status: ${details.previous_status}`);
+    if (details.new_status) parts.push(`New status: ${details.new_status}`);
+    if (details.vault_path) parts.push(`Vault: ${details.vault_path}`);
+    if (!parts.length) return '';
+    return `<div style="margin-top:6px;font-size:0.8rem;color:var(--text-muted)">${parts.join(' &middot; ')}</div>`;
+}
+
+async function loadHistory(page) {
+    if (page) currentPage = page;
+    const actor = document.getElementById('filter-actor').value;
+    const action = document.getElementById('filter-action').value;
+    const params = new URLSearchParams({ page: currentPage, per_page: 50 });
+    if (actor) params.set('actor', actor);
+    if (action) params.set('action', action);
+
+    const container = document.getElementById('history-list');
+    container.innerHTML = '<div class="loading-overlay"><div class="spinner"></div> Loading...</div>';
+
+    try {
+        const res = await fetch(`/api/history?${params}`);
+        const data = await res.json();
+
+        // Populate actor filter dropdown (preserve selection)
+        const actorSelect = document.getElementById('filter-actor');
+        const prevActor = actorSelect.value;
+        actorSelect.innerHTML = '<option value="">All</option>';
+        (data.actors || []).forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a;
+            opt.textContent = a;
+            if (a === prevActor) opt.selected = true;
+            actorSelect.appendChild(opt);
+        });
+
+        if (!data.entries || !data.entries.length) {
+            container.innerHTML = '<div class="history-empty">No actions recorded yet.</div>';
+            document.getElementById('history-pagination').innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = data.entries.map(e => `
+            <div class="history-entry">
+                <div class="history-header">
+                    <div>
+                        <span class="history-action-badge ${e.action}">${e.action.replace('_', ' ')}</span>
+                    </div>
+                    <span class="history-time">${formatTime(e.created_at)}</span>
+                </div>
+                <div class="history-summary">${buildSummary(e)}</div>
+                ${buildNotes(e)}
+                ${buildExtra(e)}
+            </div>
+        `).join('');
+
+        // Pagination
+        const pagDiv = document.getElementById('history-pagination');
+        if (data.pages > 1) {
+            let html = '';
+            if (currentPage > 1) html += `<button class="btn btn-outline btn-sm" onclick="loadHistory(${currentPage - 1})">Prev</button>`;
+            html += `<span style="color:var(--text-muted);font-size:0.85rem;padding:6px">Page ${data.page} of ${data.pages}</span>`;
+            if (currentPage < data.pages) html += `<button class="btn btn-outline btn-sm" onclick="loadHistory(${currentPage + 1})">Next</button>`;
+            pagDiv.innerHTML = html;
+        } else {
+            pagDiv.innerHTML = '';
+        }
+    } catch (err) {
+        container.innerHTML = `<div class="history-empty" style="color:var(--color-quarantined)">Failed to load history: ${err.message}</div>`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => loadHistory());
+</script>
+{% endblock %}
