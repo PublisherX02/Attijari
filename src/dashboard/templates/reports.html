@@ -30,5 +30,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>document.addEventListener('DOMContentLoaded', () => loadReports());</script>
+<script nonce="{{ csp_nonce }}">document.addEventListener('DOMContentLoaded', () => loadReports());</script>
 {% endblock %}

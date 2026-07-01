@@ -8,5 +8,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>document.addEventListener('DOMContentLoaded', () => loadEmailDetail({{ email_id }}));</script>
+<script nonce="{{ csp_nonce }}">document.addEventListener('DOMContentLoaded', () => loadEmailDetail({{ email_id }}));</script>
 {% endblock %}

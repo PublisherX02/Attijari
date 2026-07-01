@@ -17,5 +17,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>document.addEventListener('DOMContentLoaded', () => loadHealth());</script>
+<script nonce="{{ csp_nonce }}">document.addEventListener('DOMContentLoaded', () => loadHealth());</script>
 {% endblock %}

@@ -53,5 +53,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>document.addEventListener('DOMContentLoaded', () => loadWhitelist());</script>
+<script nonce="{{ csp_nonce }}">document.addEventListener('DOMContentLoaded', () => loadWhitelist());</script>
 {% endblock %}

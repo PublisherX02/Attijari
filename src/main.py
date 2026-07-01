@@ -250,6 +250,10 @@ def run_pipeline():
                         print(f"[VALIDATION] Sender domain '{_dom}' failed validation — skipping external API lookups for domain")
 
                 # Enrichment: ThreatFox runs before LLM and can short-circuit to a deterministic reject
+                # Track pre-enrichment status so we only skip LLM when enrichment itself
+                # found a threat signal — NOT when status was already escalated from AUTH/rules.
+                _pre_enrichment_status = parsed.get("status")
+
                 # ThreatFox API: check attachments, sender domain, and raw email hash
                 threat_results = []
                 found_count = 0
@@ -495,8 +499,13 @@ def run_pipeline():
                               "reason": f"Domain registered {whois_result.get('domain_age_days', '?')} days ago"}
                     parsed.setdefault("analysis", {}).setdefault("details", []).append(detail)
 
-                # If any enrichment source matched, skip LLM (deterministic signal)
-                if parsed.get("status") == "escalated":
+                # Only skip LLM if enrichment itself escalated the email (not prior AUTH/rules).
+                # AUTH failures (DMARC misconfiguration) need LLM reasoning for the analyst.
+                _enrichment_escalated = (
+                    parsed.get("status") == "escalated"
+                    and _pre_enrichment_status != "escalated"
+                )
+                if _enrichment_escalated:
                     _deterministic_escalation = True
                     print("[ENRICHMENT] Deterministic match -> skipping LLM and proposing reject/escalation")
                 else:

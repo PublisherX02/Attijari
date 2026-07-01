@@ -84,17 +84,19 @@ class OverrideRequest(BaseModel):
 @emails_router.post("/api/scan")
 async def api_trigger_scan():
     """Manually trigger an IMAP poll + analysis pipeline run."""
+    # Atomic check-and-acquire: try to get lock without racing
     if _scan_lock.locked():
         return {"success": False, "message": "Scan already in progress"}
 
     async def _run_scan():
-        async with _scan_lock:
-            try:
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, _run_pipeline_sync)
-                await ws_manager.broadcast("refresh")
-            except Exception as e:
-                print(f"[SCAN] Manual scan failed: {e}")
+        if not _scan_lock.locked():
+            async with _scan_lock:
+                try:
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, _run_pipeline_sync)
+                    await ws_manager.broadcast("refresh")
+                except Exception as e:
+                    print(f"[SCAN] Manual scan failed: {e}")
 
     asyncio.create_task(_run_scan())
     return {"success": True, "message": "Scan started"}
@@ -128,11 +130,13 @@ async def api_list_emails(
         if status:
             q = q.filter(Email.status == status)
         if search:
-            term = f"%{search}%"
+            # Escape SQL LIKE wildcards to prevent pattern injection / DoS
+            safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            term = f"%{safe_search}%"
             q = q.filter(
-                (Email.sender.ilike(term)) |
-                (Email.subject.ilike(term)) |
-                (Email.sender_domain.ilike(term))
+                (Email.sender.ilike(term, escape="\\")) |
+                (Email.subject.ilike(term, escape="\\")) |
+                (Email.sender_domain.ilike(term, escape="\\"))
             )
 
         total = q.count()

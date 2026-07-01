@@ -1955,6 +1955,578 @@ def build_malicious_cases() -> list[dict]:
         ),
     })
 
+    # ===================================================================
+    # EXPANDED CORPUS (v3) — 20 additional realistic attack scenarios
+    # ===================================================================
+
+    # --- 40. French SWIFT transfer phishing (Attijari-specific) ---
+    cases.append({
+        "name": "swift_transfer_phish_FR",
+        "description": "French-language phishing impersonating Attijari SWIFT department",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="service.swift@attijari-wafabank.com",
+            to_addr="test@test.com",
+            subject="URGENT: Confirmation virement SWIFT - Ref TN2024-88731",
+            body=(
+                "Cher(e) client(e),\n\n"
+                "Nous avons detecte une tentative de virement SWIFT international "
+                "depuis votre compte professionnel d'un montant de 127,500.00 TND "
+                "vers un beneficiaire en Turquie.\n\n"
+                "Si vous n'etes pas a l'origine de cette operation, veuillez "
+                "confirmer votre identite immediatement en cliquant sur le lien "
+                "ci-dessous afin de bloquer la transaction:\n\n"
+                "https://attijari-wafabank-secure.com/swift/verify?ref=TN2024-88731\n\n"
+                "ATTENTION: Vous disposez de 2 heures pour annuler ce virement. "
+                "Passe ce delai, la transaction sera executee de maniere irrevocable.\n\n"
+                "Service des Virements Internationaux\n"
+                "Attijari Wafa Bank"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 41. Mise a jour coordonnees bancaires (credential harvesting) ---
+    cases.append({
+        "name": "coordonnees_bancaires_phish",
+        "description": "French phishing requesting bank coordinate update via fake portal",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="service-client@attijaribank-tn.net",
+            to_addr="test@test.com",
+            subject="Mise a jour obligatoire de vos coordonnees bancaires",
+            body=(
+                "Cher(e) titulaire de compte,\n\n"
+                "Dans le cadre de la reglementation de la Banque Centrale de Tunisie "
+                "(Circulaire BCT n°2024-03), nous vous informons que la mise a jour "
+                "de vos coordonnees bancaires est obligatoire avant le 15 juillet 2024.\n\n"
+                "Veuillez acceder a votre espace client securise pour mettre a jour "
+                "vos informations:\n"
+                "- Piece d'identite (CIN ou passeport)\n"
+                "- Justificatif de domicile\n"
+                "- Numero de telephone mobile\n\n"
+                "Lien de mise a jour: https://espace-client-attijari.com/maj-coordonnees\n\n"
+                "En cas de non-conformite, votre compte sera temporairement suspendu "
+                "conformement a l'article 42 de la loi bancaire tunisienne.\n\n"
+                "Direction de la Conformite\n"
+                "Attijari Bank Tunisie"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 42. BEC vendor impersonation with IBAN change ---
+    cases.append({
+        "name": "BEC_vendor_IBAN_change",
+        "description": "Vendor impersonation requesting bank detail change for invoice payments",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="comptabilite@societe-generale-tn.com",
+            to_addr="test@test.com",
+            subject="Changement de coordonnees bancaires - Fournisseur REF-4521",
+            body=(
+                "Bonjour,\n\n"
+                "Je me permets de vous contacter concernant un changement de nos "
+                "coordonnees bancaires pour le reglement de nos prochaines factures.\n\n"
+                "Suite a une reorganisation interne, nos paiements doivent desormais "
+                "etre effectues sur le compte suivant:\n\n"
+                "Banque: Societe Generale Tunisie\n"
+                "IBAN: TN59 1000 6035 1835 9847 8831\n"
+                "BIC: SGBTTNTX\n"
+                "Titulaire: STE GENERAL SERVICES SARL\n\n"
+                "Merci de mettre a jour vos fiches fournisseur en consequence. "
+                "La prochaine facture (F-2024-0892, 34,750 TND) sera emise sous 48h.\n\n"
+                "Cordialement,\n"
+                "Mme Sonia Trabelsi\n"
+                "Responsable Comptabilite"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 43. Credential harvesting with fake Microsoft 365 login ---
+    cases.append({
+        "name": "M365_credential_harvest",
+        "description": "Fake Microsoft 365 session expiry with credential harvesting link",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="noreply@microsoftonline-secure.com",
+            to_addr="test@test.com",
+            subject="Action Required: Your Microsoft 365 session has expired",
+            body=(
+                "Microsoft 365 Security Alert\n\n"
+                "Your Microsoft 365 session has expired due to a security policy update. "
+                "All active sessions have been terminated to protect your organization.\n\n"
+                "To restore access to Outlook, Teams, SharePoint and OneDrive, "
+                "please re-authenticate using your corporate credentials:\n\n"
+                "https://login-microsoftonline.secure-auth.com/oauth2/authorize?client_id=attijari\n\n"
+                "If you do not re-authenticate within 4 hours, your account will be "
+                "locked and you will need to contact your IT administrator.\n\n"
+                "This is an automated message from Microsoft 365 Security.\n"
+                "Microsoft Corporation, One Microsoft Way, Redmond, WA 98052"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 44. Invoice fraud with malicious Excel attachment ---
+    cases.append({
+        "name": "invoice_fraud_excel",
+        "description": "Fake overdue invoice with OLE Excel containing VBA macro",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="facturation@import-export-maghreb.com",
+            to_addr="test@test.com",
+            subject="RAPPEL: Facture impayee N° FA-2024-1547 - Echeance depassee",
+            body=(
+                "Madame, Monsieur,\n\n"
+                "Nous vous rappelons que la facture N° FA-2024-1547 d'un montant "
+                "de 18,325.00 TND reste impayee a ce jour. L'echeance etait fixee "
+                "au 15 juin 2024.\n\n"
+                "Veuillez trouver ci-joint le detail de la facture ainsi que les "
+                "penalites de retard applicables conformement a nos conditions generales.\n\n"
+                "Nous vous prions de regulariser cette situation dans les plus brefs "
+                "delais afin d'eviter toute interruption de service.\n\n"
+                "Service Recouvrement\n"
+                "Import Export Maghreb SARL"
+            ),
+            attachments=[("Facture_FA-2024-1547.xls", _ole_vba_document(), "application/vnd.ms-excel")],
+        ),
+    })
+
+    # --- 45. Spear phishing with personal details ---
+    cases.append({
+        "name": "spear_phish_personal",
+        "description": "Targeted spear phishing using personal details from LinkedIn",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="directeur.general@attijari-bank.tn",
+            to_addr="test@test.com",
+            subject="Mohamed - Projet de stage et evaluation de fin de periode",
+            body=(
+                "Bonjour Mohamed,\n\n"
+                "J'espere que votre stage au sein de notre equipe IT Security se passe bien. "
+                "Comme convenu avec M. Aziz, votre encadrant, nous devons proceder "
+                "a l'evaluation de mi-parcours de votre projet de PFE.\n\n"
+                "Pourriez-vous remplir le formulaire d'auto-evaluation ci-dessous "
+                "avec vos identifiants de session Active Directory?\n\n"
+                "https://rh-attijari-evaluation.com/formulaire?stagiaire=mohamed\n\n"
+                "Merci de le completer avant vendredi. C'est important pour la validation "
+                "de votre convention de stage avec l'universite.\n\n"
+                "Bien cordialement,\n"
+                "Direction des Ressources Humaines"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 46. Whaling attack targeting executive ---
+    cases.append({
+        "name": "whaling_board_member",
+        "description": "Whaling attack targeting board member with legal threat",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="cabinet.juridique@bct-regulation.tn",
+            to_addr="test@test.com",
+            subject="CONFIDENTIEL - Notification d'enquete reglementaire BCT",
+            body=(
+                "Monsieur le Directeur General,\n\n"
+                "Par la presente, nous vous notifions l'ouverture d'une enquete "
+                "preliminaire par la Banque Centrale de Tunisie concernant des "
+                "operations suspectes detectees sur les comptes de correspondance "
+                "de votre etablissement.\n\n"
+                "Conformement a l'article 78 de la loi n°2016-48, vous etes tenu "
+                "de fournir les documents suivants sous 48 heures:\n"
+                "- Releves des comptes de correspondance (6 derniers mois)\n"
+                "- Liste des operateurs habilites aux virements SWIFT\n"
+                "- Procedures KYC mises en place\n\n"
+                "Veuillez telecharger le formulaire de reponse officiel:\n"
+                "https://bct-regulation-enquete.com/dossier/attijari-2024\n\n"
+                "Tout defaut de reponse entrainera des sanctions conformement "
+                "au Code Monetaire et Financier.\n\n"
+                "Me Karim Belhaj\n"
+                "Charge de mission - Direction de la Supervision Bancaire\n"
+                "Banque Centrale de Tunisie"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 47. QR code phishing (quishing) with fake 2FA ---
+    cases.append({
+        "name": "quishing_2FA_reset",
+        "description": "QR code phishing disguised as 2FA reconfiguration notice",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="securite@attijari-mobile.com",
+            to_addr="test@test.com",
+            subject="Reconfiguration obligatoire de votre authentification 2FA",
+            body=(
+                "Cher(e) collaborateur(trice),\n\n"
+                "Suite a la migration de notre systeme d'authentification, "
+                "votre configuration 2FA doit etre reinitialiser avant le 5 juillet 2024.\n\n"
+                "Veuillez scanner le QR code ci-joint avec l'application "
+                "Microsoft Authenticator pour reconfigurer votre acces.\n\n"
+                "IMPORTANT: Ne partagez jamais ce QR code. Il est unique et lie "
+                "a votre compte professionnel.\n\n"
+                "Direction des Systemes d'Information\n"
+                "Attijari Bank"
+            ),
+            attachments=[("2FA_QR_Code.png", _qr_code_phishing_png(), "image/png")],
+        ),
+    })
+
+    # --- 48. Supply chain compromise email ---
+    cases.append({
+        "name": "supply_chain_compromise",
+        "description": "Compromised vendor email distributing trojanized software update",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="updates@temenos-banking.com",
+            to_addr="test@test.com",
+            subject="Critical Security Patch - Temenos T24 Core Banking v2024.07",
+            body=(
+                "Dear Attijari Bank IT Team,\n\n"
+                "A critical vulnerability (CVE-2024-38213) has been identified in "
+                "Temenos T24 Core Banking System affecting versions 2023.x and 2024.x. "
+                "This vulnerability allows remote code execution through the payment "
+                "processing module.\n\n"
+                "We strongly recommend applying the attached emergency patch immediately. "
+                "The patch must be executed with administrator privileges on your T24 "
+                "application server.\n\n"
+                "Patch details:\n"
+                "- File: T24_Security_Patch_2024.07.exe\n"
+                "- SHA256: 3a7b9c2d... (verify on our portal)\n"
+                "- Apply before: July 7, 2024\n\n"
+                "For questions, contact your Temenos account manager.\n\n"
+                "Temenos Security Response Team"
+            ),
+            attachments=[("T24_Security_Patch_2024.07.exe", _double_extension_exe(),
+                         "application/octet-stream")],
+            auth_pass=False,
+        ),
+    })
+
+    # --- 49. Tax authority impersonation (Direction Generale des Impots) ---
+    cases.append({
+        "name": "tax_authority_phish_FR",
+        "description": "Impersonation of Tunisian tax authority with penalty threat",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="controle.fiscal@dgi-finances-tn.com",
+            to_addr="test@test.com",
+            subject="Avis de redressement fiscal - Exercice 2023",
+            body=(
+                "Direction Generale des Impots\n"
+                "Republique Tunisienne\n"
+                "Ref: CF/2024/ATT/00847\n\n"
+                "Madame, Monsieur le Responsable Fiscal,\n\n"
+                "Suite au controle fiscal de votre etablissement portant sur l'exercice 2023, "
+                "nous avons releve des irregularites concernant les declarations TVA "
+                "et l'impot sur les societes.\n\n"
+                "Montant du redressement propose: 245,000 TND\n"
+                "Penalites de retard: 36,750 TND\n"
+                "Total: 281,750 TND\n\n"
+                "Vous disposez de 30 jours pour contester cet avis. "
+                "Veuillez telecharger le dossier complet et le formulaire de contestation:\n\n"
+                "https://dgi-finances-tn.com/controle/dossier?ref=CF2024ATT00847\n\n"
+                "Direction du Controle Fiscal\n"
+                "DGI - Ministere des Finances"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 50. Multi-stage phishing (benign-looking initial email) ---
+    cases.append({
+        "name": "multistage_initial_contact",
+        "description": "Initial benign-looking email in multi-stage phishing campaign",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="partenariat@africa-fintech-summit.com",
+            to_addr="test@test.com",
+            subject="Invitation: Africa FinTech Summit 2024 - Partenariat Attijari Bank",
+            body=(
+                "Bonjour,\n\n"
+                "Nous organisons l'Africa FinTech Summit 2024 qui se tiendra a Tunis "
+                "les 15-17 septembre 2024 au Palais des Congres.\n\n"
+                "Attijari Bank a ete selectionnee comme partenaire strategique "
+                "pour cet evenement majeur. Nous souhaitons discuter des modalites "
+                "de votre participation et du package sponsoring.\n\n"
+                "Pourriez-vous nous indiquer vos disponibilites pour un appel "
+                "cette semaine? En attendant, je vous invite a consulter notre "
+                "dossier de presentation:\n\n"
+                "https://africa-fintech-summit-docs.com/partenaires/attijari/dossier.pdf\n\n"
+                "Au plaisir de collaborer avec vous.\n\n"
+                "Mme Fatima Zahra Benali\n"
+                "Directrice des Partenariats\n"
+                "Africa FinTech Summit"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 51. Fake payroll notification with credential harvest ---
+    cases.append({
+        "name": "payroll_credential_harvest",
+        "description": "Fake HR payroll portal login to harvest credentials",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="paie@rh-attijaribank.com",
+            to_addr="test@test.com",
+            subject="Bulletin de paie - Juin 2024 disponible",
+            body=(
+                "Cher(e) collaborateur(trice),\n\n"
+                "Votre bulletin de paie du mois de juin 2024 est desormais "
+                "disponible sur le portail RH.\n\n"
+                "Nous vous informons egalement qu'une prime exceptionnelle "
+                "de performance a ete ajoutee a votre remuneration ce mois-ci. "
+                "Connectez-vous pour consulter le detail:\n\n"
+                "https://portail-rh-attijari.com/paie/juin2024\n\n"
+                "Identifiant: votre adresse email professionnelle\n"
+                "Mot de passe: votre mot de passe habituel\n\n"
+                "Direction des Ressources Humaines\n"
+                "Attijari Bank Tunisie"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 52. Fake DocuSign with malicious attachment ---
+    cases.append({
+        "name": "fake_docusign_malicious",
+        "description": "DocuSign impersonation with HTML smuggling attachment",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="dse@docusign-notifications.com",
+            to_addr="test@test.com",
+            subject="Completed: Contrat de Prestation de Services - Signature requise",
+            body=(
+                "DocuSign\n\n"
+                "Bonjour,\n\n"
+                "M. Ahmed Mansour a envoye un document pour votre signature electronique.\n\n"
+                "Document: Contrat_Prestation_Services_2024.pdf\n"
+                "Expediteur: ahmed.mansour@attijaribank.com.tn\n"
+                "Date d'expiration: 5 juillet 2024\n\n"
+                "Veuillez ouvrir le document ci-joint pour examiner et signer.\n\n"
+                "Ce message contient un document confidentiel destine uniquement "
+                "au destinataire indique. Si vous n'etes pas le destinataire prevu, "
+                "veuillez le supprimer immediatement.\n\n"
+                "Powered by DocuSign"
+            ),
+            attachments=[("Review_Document.html", _html_smuggling_attachment(), "text/html")],
+        ),
+    })
+
+    # --- 53. Fake IT helpdesk with remote access tool ---
+    cases.append({
+        "name": "fake_helpdesk_remote_access",
+        "description": "Fake IT helpdesk distributing remote access trojan as support tool",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="helpdesk@it-support-attijari.com",
+            to_addr="test@test.com",
+            subject="Ticket #INC-4521: Installation outil de support a distance",
+            body=(
+                "Bonjour,\n\n"
+                "Suite a votre ticket d'incident #INC-4521 concernant les problemes "
+                "de lenteur sur votre poste de travail, notre equipe technique doit "
+                "effectuer un diagnostic a distance.\n\n"
+                "Veuillez installer l'outil de support ci-joint et lancer l'application. "
+                "Un technicien se connectera automatiquement a votre session pour "
+                "diagnostiquer le probleme.\n\n"
+                "Instructions:\n"
+                "1. Telecharger le fichier joint\n"
+                "2. Executer en tant qu'administrateur\n"
+                "3. Laisser la fenetre ouverte\n\n"
+                "Note: L'antivirus peut signaler ce logiciel comme suspect. "
+                "C'est un faux positif, veuillez l'autoriser.\n\n"
+                "Support Informatique - Niveau 2\n"
+                "Attijari Bank"
+            ),
+            attachments=[("AttijariSupport_Remote.exe", _pe_disguised_as_pdf(),
+                         "application/octet-stream")],
+            auth_pass=False,
+        ),
+    })
+
+    # --- 54. Callback phishing (vishing setup) ---
+    cases.append({
+        "name": "callback_phishing_vishing",
+        "description": "Fake subscription renewal prompting victim to call attacker phone number",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="billing@geek-squad-renewal.com",
+            to_addr="test@test.com",
+            subject="Renouvellement automatique - 349.99 USD debite de votre compte",
+            body=(
+                "Confirmation de renouvellement\n\n"
+                "Votre abonnement Geek Squad Total Protection a ete renouvele "
+                "automatiquement pour un an.\n\n"
+                "Details de la transaction:\n"
+                "- Service: Geek Squad Total Protection\n"
+                "- Montant: 349.99 USD\n"
+                "- Date de debit: 1er juillet 2024\n"
+                "- Methode de paiement: Carte se terminant par ****7842\n\n"
+                "Si vous ne reconnaissez pas cette transaction ou souhaitez "
+                "annuler et obtenir un remboursement, veuillez contacter "
+                "notre service client au:\n\n"
+                "+1 (888) 742-9931\n\n"
+                "Notre equipe est disponible 24h/24, 7j/7.\n"
+                "Reference: GS-2024-884721\n\n"
+                "Geek Squad - Best Buy"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 55. Lookalike domain with legitimate-looking content ---
+    cases.append({
+        "name": "lookalike_domain_attijari",
+        "description": "Email from attijari lookalike domain with password reset phish",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="noreply@attijari-wafabanque.com",
+            to_addr="test@test.com",
+            subject="Reinitialisation de votre mot de passe - Action requise",
+            body=(
+                "Attijari Wafa Bank - Service en ligne\n\n"
+                "Cher(e) client(e),\n\n"
+                "Nous avons recu une demande de reinitialisation du mot de passe "
+                "associe a votre compte en ligne Attijari.\n\n"
+                "Si vous etes a l'origine de cette demande, cliquez sur le lien "
+                "ci-dessous pour definir un nouveau mot de passe:\n\n"
+                "https://attijari-wafabanque.com/reset-password?token=eyJhbGciOiJIUzI1NiJ9\n\n"
+                "Ce lien expirera dans 30 minutes.\n\n"
+                "Si vous n'avez pas demande cette reinitialisation, veuillez ignorer "
+                "ce message. Votre mot de passe actuel restera inchange.\n\n"
+                "Service Client en Ligne\n"
+                "Attijari Wafa Bank\n"
+                "Tel: 70 010 600"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 56. Malicious calendar invite ---
+    cases.append({
+        "name": "malicious_calendar_invite",
+        "description": "Fake meeting invitation with malicious URL in location field",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="calendrier@reunion-attijari.com",
+            to_addr="test@test.com",
+            subject="Invitation: Comite de Direction - Session extraordinaire",
+            body=(
+                "Vous etes invite(e) a la reunion suivante:\n\n"
+                "Objet: Comite de Direction - Session extraordinaire\n"
+                "Date: Mercredi 3 juillet 2024, 09h00 - 11h00\n"
+                "Lieu: Salle de conference (lien visio ci-dessous)\n\n"
+                "Lien de connexion Teams:\n"
+                "https://teams-meeting-attijari.com/join/19:meeting_OGE2NGVk\n\n"
+                "Ordre du jour:\n"
+                "1. Revue des indicateurs de risque operationnel\n"
+                "2. Point sur l'audit BCT\n"
+                "3. Validation du budget SI 2025\n\n"
+                "Merci de confirmer votre presence.\n\n"
+                "Secretariat General"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 57. Fake antivirus alert with malicious download ---
+    cases.append({
+        "name": "fake_antivirus_alert",
+        "description": "Fake security software alert urging download of malicious cleaner",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="alerte@securite-informatique-attijari.com",
+            to_addr="test@test.com",
+            subject="ALERTE SECURITE: Malware detecte sur votre poste de travail",
+            body=(
+                "ALERTE DE SECURITE INFORMATIQUE\n"
+                "Niveau: CRITIQUE\n\n"
+                "Cher(e) collaborateur(trice),\n\n"
+                "Notre systeme de surveillance a detecte un logiciel malveillant "
+                "sur votre poste de travail (hostname: WS-ATT-2847).\n\n"
+                "Menace identifiee: Trojan.GenericKD.46789123\n"
+                "Fichiers compromis: 14\n"
+                "Risque: Exfiltration de donnees bancaires\n\n"
+                "Action immediate requise:\n"
+                "Telechargez et executez l'outil de nettoyage ci-joint pour "
+                "supprimer la menace avant qu'elle ne se propage au reseau.\n\n"
+                "https://securite-attijari-tools.com/cleanup/ATT2847\n\n"
+                "NE PAS ETEINDRE VOTRE POSTE avant la fin de l'analyse.\n\n"
+                "CERT - Equipe de Reponse aux Incidents\n"
+                "Direction des Systemes d'Information"
+            ),
+            auth_pass=False,
+        ),
+    })
+
+    # --- 58. Thread hijack with legitimate-looking attachment ---
+    cases.append({
+        "name": "thread_hijack_attachment",
+        "description": "Hijacked email thread with malicious PDF attachment replacing legitimate one",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="ahmed.benali@fournisseur-agree.tn",
+            to_addr="test@test.com",
+            subject="Re: Re: Contrat cadre 2024 - Version finale signee",
+            body=(
+                "Bonjour,\n\n"
+                "Suite a notre echange telephonique de ce matin, veuillez trouver "
+                "ci-joint la version finale du contrat cadre signee par notre "
+                "direction generale.\n\n"
+                "Je vous confirme que les modifications demandees par votre service "
+                "juridique ont ete integrees (article 7.2 et annexe 3).\n\n"
+                "Merci de nous retourner un exemplaire contresigne dans les meilleurs delais.\n\n"
+                "Cordialement,\n"
+                "Ahmed Benali\n"
+                "Directeur Commercial\n"
+                "Fournisseur Agree SARL"
+            ),
+            attachments=[("Contrat_Cadre_2024_Signe.pdf", _pdf_with_js(), "application/pdf")],
+            extra_headers={
+                "In-Reply-To": "<thread-contrat-2024@attijaribank.com.tn>",
+                "References": "<original@attijaribank.com.tn> <reply1@fournisseur-agree.tn>",
+            },
+            auth_pass=True,
+        ),
+    })
+
+    # --- 59. Cryptocurrency scam targeting bank employees ---
+    cases.append({
+        "name": "crypto_scam_employee",
+        "description": "Cryptocurrency investment scam targeting bank employees",
+        "expected": "malicious",
+        "eml": _make_eml(
+            from_addr="opportunite@crypto-invest-tunisie.com",
+            to_addr="test@test.com",
+            subject="Opportunite exclusive pour les employes du secteur bancaire",
+            body=(
+                "Cher(e) professionnel(le) du secteur bancaire,\n\n"
+                "En tant qu'expert(e) du monde financier, vous savez mieux que "
+                "quiconque que les investissements traditionnels ne suivent plus "
+                "l'inflation.\n\n"
+                "Notre plateforme de trading algorithmique, deja utilisee par "
+                "des cadres de grandes banques tunisiennes, a genere un rendement "
+                "moyen de 340% en 2023.\n\n"
+                "Nous offrons un acces exclusif aux employes du secteur bancaire:\n"
+                "- Investissement minimum: 500 TND\n"
+                "- Rendement garanti: 15% par mois\n"
+                "- Retrait sous 24h\n\n"
+                "Inscrivez-vous maintenant pour beneficier du bonus de bienvenue "
+                "de 200 TND:\n"
+                "https://crypto-invest-tunisie.com/inscription?ref=BANK2024\n\n"
+                "Nombre de places limitees. Offre valable jusqu'au 10 juillet.\n\n"
+                "L'equipe Crypto Invest Tunisie"
+            ),
+            auth_pass=False,
+        ),
+    })
+
     return cases
 
 
@@ -2120,6 +2692,895 @@ def build_benign_cases() -> list[dict]:
                 "- ML Interview Guide: https://www.datacamp.com/blog/ml-interview\n\n"
                 "Unsubscribe: https://www.datacamp.com/unsubscribe\n"
             ),
+        ),
+    })
+
+    # ===================================================================
+    # EXPANDED BENIGN CORPUS (v3) — 10 additional legitimate scenarios
+    # ===================================================================
+
+    # --- 9. Legitimate Attijari bank correspondence in French ---
+    cases.append({
+        "name": "legit_attijari_correspondence",
+        "description": "Genuine Attijari bank correspondence about account opening",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="service.clientele@attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="Confirmation d'ouverture de compte - Ref CL-2024-08847",
+            body=(
+                "Cher(e) client(e),\n\n"
+                "Nous avons le plaisir de vous confirmer l'ouverture de votre "
+                "compte courant N° 04-780-0012345-67 au sein de notre agence "
+                "Les Berges du Lac.\n\n"
+                "Votre conseiller clientele, M. Slim Bouazizi, reste a votre "
+                "disposition pour toute question relative a la gestion de votre compte.\n\n"
+                "Vous pouvez acceder a vos services en ligne sur "
+                "https://www.attijaribank.com.tn/espace-client\n\n"
+                "Nous vous remercions pour votre confiance.\n\n"
+                "Service Clientele\n"
+                "Attijari Bank - Agence Les Berges du Lac\n"
+                "Tel: 71 861 200"
+            ),
+        ),
+    })
+
+    # --- 10. Automated password reset (legitimate) ---
+    cases.append({
+        "name": "legit_password_reset",
+        "description": "Genuine automated password reset from known service",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="noreply@accounts.google.com",
+            to_addr="test@test.com",
+            subject="Security alert: New sign-in from Windows device",
+            body=(
+                "Google Account\n\n"
+                "New sign-in to your Google Account\n\n"
+                "mohamed.stagiaire@gmail.com\n\n"
+                "Your Google Account was just signed in to from a new "
+                "Windows device. You are receiving this email to make sure "
+                "that it was you.\n\n"
+                "Device: Windows PC\n"
+                "Location: Tunis, Tunisia\n"
+                "Time: July 1, 2024 at 9:15 AM (GMT+1)\n\n"
+                "If this was you, you can disregard this email. If this wasn't you, "
+                "go to https://myaccount.google.com/security to secure your account.\n\n"
+                "Google LLC, 1600 Amphitheatre Pkwy, Mountain View, CA 94043"
+            ),
+        ),
+    })
+
+    # --- 11. Legitimate 2FA setup notification ---
+    cases.append({
+        "name": "legit_2fa_setup",
+        "description": "Genuine Microsoft Authenticator 2FA setup notification",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="msonlineservicesteam@microsoftonline.com",
+            to_addr="test@test.com",
+            subject="Verify your identity",
+            body=(
+                "Microsoft account security info\n\n"
+                "You recently set up the Microsoft Authenticator app as a "
+                "verification method for your account.\n\n"
+                "If you did this, you can safely ignore this email.\n\n"
+                "If you didn't do this, your account may be compromised. "
+                "Please visit https://account.microsoft.com/security to "
+                "review your security settings.\n\n"
+                "Thanks,\n"
+                "The Microsoft account team\n\n"
+                "Microsoft Corporation, One Microsoft Way, Redmond, WA 98052"
+            ),
+        ),
+    })
+
+    # --- 12. Newsletter subscription (French tech) ---
+    cases.append({
+        "name": "legit_french_newsletter",
+        "description": "French-language tech newsletter from Journal du Net",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="newsletter@journaldunet.com",
+            to_addr="test@test.com",
+            subject="JDN - Les tendances tech de la semaine",
+            body=(
+                "Journal du Net - Newsletter Hebdomadaire\n\n"
+                "Bonjour,\n\n"
+                "Voici les articles les plus lus cette semaine:\n\n"
+                "1. Intelligence artificielle: les banques tunisiennes accelerent\n"
+                "   https://www.journaldunet.com/ia-banques-tunisie\n\n"
+                "2. Cybersecurite: le cout moyen d'une violation de donnees en 2024\n"
+                "   https://www.journaldunet.com/cybersecurite-cout-2024\n\n"
+                "3. Cloud souverain: enjeux pour le secteur financier en Afrique\n"
+                "   https://www.journaldunet.com/cloud-souverain-afrique\n\n"
+                "Se desabonner: https://www.journaldunet.com/preferences\n"
+            ),
+        ),
+    })
+
+    # --- 13. Legitimate invoice/receipt email ---
+    cases.append({
+        "name": "legit_receipt_ooredoo",
+        "description": "Genuine Ooredoo Tunisia mobile bill receipt",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="facture@ooredoo.tn",
+            to_addr="test@test.com",
+            subject="Votre facture Ooredoo - Juin 2024",
+            body=(
+                "Ooredoo Tunisie\n\n"
+                "Cher(e) client(e),\n\n"
+                "Votre facture du mois de juin 2024 est disponible.\n\n"
+                "Numero de ligne: 50 XXX XXX\n"
+                "Montant: 47.500 TND\n"
+                "Date d'echeance: 15 juillet 2024\n\n"
+                "Vous pouvez consulter le detail et payer votre facture "
+                "depuis votre espace client:\n"
+                "https://www.ooredoo.tn/espace-client/factures\n\n"
+                "Ou via l'application My Ooredoo.\n\n"
+                "Service Client Ooredoo\n"
+                "Tel: 1100"
+            ),
+            attachments=[("Facture_Ooredoo_Juin2024.pdf",
+                         b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\n"
+                         b"endobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\n"
+                         b"endobj\nxref\n0 3\ntrailer\n<< /Size 3 /Root 1 0 R >>\n"
+                         b"startxref\n0\n%%EOF\n",
+                         "application/pdf")],
+        ),
+    })
+
+    # --- 14. Internal meeting invitation ---
+    cases.append({
+        "name": "legit_meeting_invite",
+        "description": "Genuine internal meeting invitation from colleague",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="slim.bouazizi@attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="Reunion hebdomadaire equipe SI - Mardi 2 juillet 10h00",
+            body=(
+                "Bonjour a tous,\n\n"
+                "Comme chaque semaine, je vous invite a notre reunion d'equipe "
+                "pour faire le point sur les projets en cours.\n\n"
+                "Date: Mardi 2 juillet 2024\n"
+                "Heure: 10h00 - 11h00\n"
+                "Lieu: Salle Carthage, 3eme etage\n"
+                "Lien Teams: https://teams.microsoft.com/l/meetup-join/19:meeting_abc123\n\n"
+                "Ordre du jour:\n"
+                "1. Suivi projet migration serveurs\n"
+                "2. Point securite (incidents semaine passee)\n"
+                "3. Planning conges ete\n\n"
+                "Merci de confirmer votre presence.\n\n"
+                "Cordialement,\n"
+                "Slim Bouazizi\n"
+                "Responsable SI"
+            ),
+        ),
+    })
+
+    # --- 15. Legitimate LinkedIn professional notification ---
+    cases.append({
+        "name": "legit_linkedin_connection",
+        "description": "Genuine LinkedIn connection request from recruiter",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="invitations@linkedin.com",
+            to_addr="test@test.com",
+            subject="Karim Jebali wants to connect on LinkedIn",
+            body=(
+                "LinkedIn\n\n"
+                "Hi Mohamed,\n\n"
+                "Karim Jebali, Senior Security Engineer at Deloitte Tunisia, "
+                "would like to connect with you on LinkedIn.\n\n"
+                "\"Hi Mohamed, I saw your work on email security for the banking "
+                "sector. I'd love to connect and exchange ideas.\"\n\n"
+                "View profile: https://www.linkedin.com/in/karim-jebali\n"
+                "Accept: https://www.linkedin.com/comm/mynetwork/invite-accept/12345\n\n"
+                "You are receiving this email because you have a LinkedIn account.\n"
+                "Unsubscribe: https://www.linkedin.com/comm/settings\n\n"
+                "LinkedIn Corporation, 1000 W Maude Ave, Sunnyvale, CA 94085"
+            ),
+        ),
+    })
+
+    # --- 16. Legitimate automated system report ---
+    cases.append({
+        "name": "legit_system_report",
+        "description": "Automated daily system monitoring report",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="monitoring@infra.attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="[AUTO] Rapport quotidien infrastructure - 01/07/2024",
+            body=(
+                "Rapport de surveillance infrastructure\n"
+                "Date: 01/07/2024 06:00 GMT+1\n"
+                "Genere automatiquement par Nagios/Prometheus\n\n"
+                "Resume:\n"
+                "- Serveurs: 47/48 operationnels (srv-backup-02 en maintenance)\n"
+                "- Uptime moyen: 99.97%\n"
+                "- Espace disque critique: Aucun\n"
+                "- Alertes securite: 0 critique, 2 info\n"
+                "- Certificats SSL: Tous valides (prochain renouvellement: 15/09/2024)\n\n"
+                "Details des alertes info:\n"
+                "- [INFO] Pic CPU srv-app-03 (78%) a 02:15 - normalise\n"
+                "- [INFO] Mise a jour automatique PostgreSQL 15.7 appliquee\n\n"
+                "Aucune action requise.\n\n"
+                "-- Equipe Infrastructure SI"
+            ),
+        ),
+    })
+
+    # --- 17. Legitimate bank regulatory circular ---
+    cases.append({
+        "name": "legit_bct_circular",
+        "description": "Genuine BCT regulatory circular forwarded internally",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="conformite@attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="FW: Circulaire BCT n°2024-07 - Nouvelles exigences reporting",
+            body=(
+                "Bonjour,\n\n"
+                "Je vous transmets pour information la derniere circulaire de la "
+                "Banque Centrale de Tunisie relative aux nouvelles exigences de "
+                "reporting pour les etablissements bancaires.\n\n"
+                "Points cles:\n"
+                "- Nouveau format de reporting des incidents cyber (applicable des septembre 2024)\n"
+                "- Renforcement des controles KYC pour les comptes professionnels\n"
+                "- Mise a jour des seuils de declaration Tracfin\n\n"
+                "Le document complet est disponible sur l'intranet, rubrique "
+                "Conformite > Circulaires BCT.\n\n"
+                "Merci d'en prendre connaissance et de me faire part de vos "
+                "observations eventuelles.\n\n"
+                "Cordialement,\n"
+                "Nadia Hammami\n"
+                "Responsable Conformite"
+            ),
+        ),
+    })
+
+    # --- 18. Legitimate training invitation ---
+    cases.append({
+        "name": "legit_training_invite",
+        "description": "Internal training session invitation for cybersecurity awareness",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="formation@attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="Inscription formation: Sensibilisation cybersecurite - Session juillet",
+            body=(
+                "Direction de la Formation\n"
+                "Attijari Bank Tunisie\n\n"
+                "Cher(e) collaborateur(trice),\n\n"
+                "Dans le cadre de notre programme annuel de formation, nous organisons "
+                "une session de sensibilisation a la cybersecurite ouverte a l'ensemble "
+                "du personnel.\n\n"
+                "Details:\n"
+                "- Date: Jeudi 11 juillet 2024\n"
+                "- Horaire: 14h00 - 16h30\n"
+                "- Lieu: Salle de formation, siege social\n"
+                "- Intervenant: Cabinet EY Tunisie\n\n"
+                "Themes abordes:\n"
+                "1. Reconnaitre les tentatives de phishing\n"
+                "2. Bonnes pratiques de gestion des mots de passe\n"
+                "3. Protection des donnees clients\n"
+                "4. Procedures de signalement d'incident\n\n"
+                "Pour vous inscrire, repondez a ce mail ou connectez-vous sur "
+                "l'intranet > Formation > Catalogue.\n\n"
+                "Places limitees a 30 participants.\n\n"
+                "Cordialement,\n"
+                "Service Formation RH"
+            ),
+        ),
+    })
+
+    # --- 19. Slack workspace notification ---
+    cases.append({
+        "name": "legit_slack_notification",
+        "description": "Standard Slack channel mention notification",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="notification@slack.com",
+            to_addr="test@test.com",
+            subject="New message in #project-alpha",
+            body=(
+                "Karim mentioned you in #project-alpha:\n\n"
+                "\"@Mohamed can you review the API specs before Thursday's sync?\"\n\n"
+                "Reply in Slack: https://attijaribank.slack.com/archives/C05EXAMPLE\n\n"
+                "Manage notifications: https://slack.com/account/notifications\n"
+                "Unsubscribe from email notifications: https://slack.com/account/settings"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 20. Jira ticket assignment ---
+    cases.append({
+        "name": "legit_jira_assignment",
+        "description": "Jira issue assignment notification from Atlassian",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="jira@attijaribank.atlassian.net",
+            to_addr="test@test.com",
+            subject="[JIRA] (SEC-412) Assigned to you: Update firewall rules for DMZ segment",
+            body=(
+                "Karim Bouazizi assigned SEC-412 to you:\n\n"
+                "Summary: Update firewall rules for DMZ segment\n"
+                "Priority: Medium\n"
+                "Due: 2024-07-15\n\n"
+                "Description:\n"
+                "Please review and update the iptables rules for the DMZ network "
+                "segment as per the Q3 security hardening plan. Reference document "
+                "attached in Confluence: https://attijaribank.atlassian.net/wiki/spaces/SEC/pages/123456\n\n"
+                "View issue: https://attijaribank.atlassian.net/browse/SEC-412"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 21. Google Workspace admin alert ---
+    cases.append({
+        "name": "legit_google_admin_alert",
+        "description": "Google Workspace admin security alert for suspicious login (legitimate)",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="no-reply@accounts.google.com",
+            to_addr="test@test.com",
+            subject="Security alert: New sign-in from Windows",
+            body=(
+                "Google\n\n"
+                "New sign-in to your Google Account\n\n"
+                "Mohamed Ben Ali\nmoham@attijaribank.com.tn\n\n"
+                "A new sign-in on Windows\n"
+                "We noticed a new sign-in to your Google Account on a Windows device. "
+                "If this was you, you don't need to do anything. If not, we'll help "
+                "you secure your account.\n\n"
+                "Check activity: https://myaccount.google.com/notifications\n\n"
+                "You can also see security activity at "
+                "https://myaccount.google.com/security-checkup\n\n"
+                "You received this email to let you know about important changes "
+                "to your Google Account and services.\n"
+                "Google LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 22. AWS billing notification ---
+    cases.append({
+        "name": "legit_aws_billing",
+        "description": "AWS monthly billing notification with amount",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="no-reply@amazonaws.com",
+            to_addr="test@test.com",
+            subject="Your AWS bill for June 2024 is available",
+            body=(
+                "Amazon Web Services\n\n"
+                "Hello,\n\n"
+                "Your AWS bill for the billing period June 1 - June 30, 2024 "
+                "is now available on your AWS account.\n\n"
+                "Total: $342.17 USD\n\n"
+                "To view your bill, sign in to the AWS Billing Console:\n"
+                "https://console.aws.amazon.com/billing/home\n\n"
+                "If you have questions about your bill, visit AWS Support:\n"
+                "https://aws.amazon.com/support\n\n"
+                "Thank you for using Amazon Web Services.\n"
+                "Amazon Web Services, Inc."
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 23. Microsoft Teams meeting recap ---
+    cases.append({
+        "name": "legit_teams_recap",
+        "description": "Microsoft Teams meeting recap notification",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="noreply@email.teams.microsoft.com",
+            to_addr="test@test.com",
+            subject="Meeting recap: Weekly Security Standup - June 28",
+            body=(
+                "Microsoft Teams\n\n"
+                "Meeting recap\n"
+                "Weekly Security Standup\n"
+                "Friday, June 28, 2024 | 10:00 AM - 10:30 AM\n\n"
+                "Attendees: Karim B., Sana M., Mohamed B.\n\n"
+                "Action items:\n"
+                "- Mohamed: Complete penetration test report by July 3\n"
+                "- Karim: Review vendor security questionnaire\n"
+                "- Sana: Update incident response playbook\n\n"
+                "Recording: Available in Teams channel\n"
+                "Chat: https://teams.microsoft.com/l/message/\n\n"
+                "Microsoft Corporation, One Microsoft Way, Redmond, WA 98052"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 24. Datacamp course completion ---
+    cases.append({
+        "name": "legit_datacamp_certificate",
+        "description": "DataCamp course completion certificate email",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="no-reply@datacamp.com",
+            to_addr="test@test.com",
+            subject="Congratulations! You completed Introduction to Deep Learning in Python",
+            body=(
+                "DataCamp\n\n"
+                "Congratulations Mohamed!\n\n"
+                "You've successfully completed the course:\n"
+                "Introduction to Deep Learning in Python\n\n"
+                "Course stats:\n"
+                "- Duration: 4 hours\n"
+                "- Exercises: 15/15 completed\n"
+                "- XP earned: 5,500\n\n"
+                "View your certificate: https://www.datacamp.com/certificate/DS-00123456\n"
+                "Share on LinkedIn: https://www.datacamp.com/certificate/share/DS-00123456\n\n"
+                "Keep learning! Your next recommended course:\n"
+                "Convolutional Neural Networks for Image Processing\n"
+                "https://www.datacamp.com/courses/cnn-image-processing\n\n"
+                "Unsubscribe: https://www.datacamp.com/preferences"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 25. Tunisian government circular ---
+    cases.append({
+        "name": "legit_tunisian_gov_circular",
+        "description": "Tunisian government official circular about banking regulations",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="circulaire@bct.gov.tn",
+            to_addr="test@test.com",
+            subject="Circulaire BCT n 2024-12: Mise a jour des exigences de reporting",
+            body=(
+                "Banque Centrale de Tunisie\n"
+                "Direction Generale de la Supervision Bancaire\n\n"
+                "Circulaire aux etablissements de credit\n"
+                "N 2024-12 du 25 juin 2024\n\n"
+                "Objet: Mise a jour des exigences de reporting prudentiel\n\n"
+                "Mesdames, Messieurs les Directeurs Generaux,\n\n"
+                "La presente circulaire a pour objet de preciser les nouvelles "
+                "modalites de transmission des rapports prudentiels trimestriels "
+                "conformement aux dispositions de la loi n 2016-48.\n\n"
+                "Les etablissements de credit sont tenus de transmettre les "
+                "documents vises en annexe selon le calendrier suivant:\n"
+                "- T3 2024: au plus tard le 15 octobre 2024\n"
+                "- T4 2024: au plus tard le 15 janvier 2025\n\n"
+                "Pour toute question, veuillez contacter la DGSB au "
+                "+216 71 254 000 poste 2145.\n\n"
+                "Le Gouverneur,\n"
+                "Fethi Zouhair Nouri"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 26. Supplier payment confirmation (French) ---
+    cases.append({
+        "name": "legit_supplier_payment_fr",
+        "description": "Legitimate supplier confirming receipt of payment in French",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="comptabilite@steg.com.tn",
+            to_addr="test@test.com",
+            subject="Confirmation de reception de paiement - Facture F-2024-06789",
+            body=(
+                "STEG - Societe Tunisienne de l'Electricite et du Gaz\n"
+                "Service Comptabilite Clients\n\n"
+                "Madame, Monsieur,\n\n"
+                "Nous accusons reception de votre virement bancaire en reglement "
+                "de la facture F-2024-06789 d'un montant de 12,450.000 TND.\n\n"
+                "Details du paiement:\n"
+                "- Numero de facture: F-2024-06789\n"
+                "- Montant: 12,450.000 TND\n"
+                "- Date de reception: 26/06/2024\n"
+                "- Reference virement: VIR-ATB-20240626-001\n\n"
+                "Votre compte est desormais a jour.\n\n"
+                "Pour toute question relative a votre compte, veuillez "
+                "contacter notre service clientele au 71 839 200.\n\n"
+                "Cordialement,\n"
+                "Direction de la Comptabilite\n"
+                "STEG"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 27. HR onboarding email ---
+    cases.append({
+        "name": "legit_hr_onboarding",
+        "description": "Internal HR onboarding checklist for new employee",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="rh@attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="Bienvenue chez Attijari Bank - Documents d'integration",
+            body=(
+                "Direction des Ressources Humaines\n"
+                "Attijari Bank Tunisie\n\n"
+                "Cher(e) Mohamed,\n\n"
+                "Bienvenue au sein de l'equipe Attijari Bank!\n\n"
+                "Veuillez trouver ci-dessous la liste des documents a fournir "
+                "pour completer votre dossier d'integration:\n\n"
+                "1. Copie CIN (recto/verso)\n"
+                "2. RIB bancaire\n"
+                "3. Diplomes certifies conformes\n"
+                "4. 2 photos d'identite\n"
+                "5. Extrait de naissance\n\n"
+                "Merci de transmettre ces documents au bureau RH (3eme etage) "
+                "avant le vendredi 5 juillet.\n\n"
+                "Votre badge d'acces sera pret lundi matin a l'accueil.\n\n"
+                "Cordialement,\n"
+                "Sana Meddeb\n"
+                "Chargee de recrutement"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 28. Apple receipt (purchase confirmation) ---
+    cases.append({
+        "name": "legit_apple_receipt",
+        "description": "Apple App Store purchase receipt",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="no_reply@email.apple.com",
+            to_addr="test@test.com",
+            subject="Your receipt from Apple",
+            body=(
+                "Apple\n\n"
+                "Receipt\n\n"
+                "App Store\n"
+                "Order ID: MLKG4H2JXR\n"
+                "Document No: 1234567890\n\n"
+                "Billed to: Visa ****4521\n\n"
+                "iCloud+ 50GB              $0.99\n"
+                "Subscription Renewal\n"
+                "Jun 28, 2024 - Jul 28, 2024\n\n"
+                "Total:                     $0.99\n\n"
+                "If you didn't authorize this purchase, visit "
+                "https://reportaproblem.apple.com\n\n"
+                "Apple ID: moham@gmail.com\n"
+                "Learn more about your subscription:\n"
+                "https://support.apple.com/HT202039\n\n"
+                "Apple Inc., One Apple Park Way, Cupertino, CA 95014, USA"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 29. Plain-text colleague coordination ---
+    cases.append({
+        "name": "legit_colleague_plain",
+        "description": "Simple plain-text email from colleague about meeting",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="karim.bouazizi@attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="Re: point demain matin",
+            body=(
+                "Salut Mohamed,\n\n"
+                "OK pour 9h30 demain dans la salle Carthage.\n"
+                "Je vais preparer les slides sur l'avancement du POC.\n\n"
+                "Tu peux ramener les specs du cahier des charges?\n\n"
+                "A demain,\n"
+                "Karim"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 30. University alumni newsletter ---
+    cases.append({
+        "name": "legit_alumni_newsletter",
+        "description": "University alumni newsletter with event announcements",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="alumni@ensi.tn",
+            to_addr="test@test.com",
+            subject="ENSI Alumni Newsletter - Juin 2024",
+            body=(
+                "Association des Anciens de l'ENSI\n"
+                "Newsletter mensuelle - Juin 2024\n\n"
+                "Chers Alumni,\n\n"
+                "Evenements a venir:\n"
+                "- 12 juillet: Journee portes ouvertes (campus Manouba)\n"
+                "- 20 juillet: Afterwork networking au Cafe des Sciences\n"
+                "- 5 aout: Hackathon IA pour le bien social\n\n"
+                "Opportunites:\n"
+                "- Stage PFE disponible chez Vermeg (Big Data)\n"
+                "- Poste senior dev chez Sofrecom Tunisie\n\n"
+                "Actualites:\n"
+                "L'ENSI est classee 2eme ecole d'ingenieurs en Tunisie "
+                "selon le classement Webometrics 2024.\n\n"
+                "Pour soumettre une annonce: alumni@ensi.tn\n"
+                "Se desinscrire: https://alumni.ensi.tn/preferences\n\n"
+                "Le Bureau de l'Association"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 31. Glovo delivery update ---
+    cases.append({
+        "name": "legit_glovo_delivery",
+        "description": "Glovo food delivery order confirmation",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="info@glovoapp.com",
+            to_addr="test@test.com",
+            subject="Your Glovo order is on its way!",
+            body=(
+                "Glovo\n\n"
+                "Your order is being prepared!\n\n"
+                "Order #GL-TUN-284571\n"
+                "From: Cafe Saf Saf, Marsa\n\n"
+                "1x Kafteji complet          7.500 TND\n"
+                "1x Citronnade                3.000 TND\n"
+                "Delivery fee                 2.500 TND\n"
+                "Total:                      13.000 TND\n\n"
+                "Estimated delivery: 25-35 minutes\n"
+                "Track your order: https://glovoapp.com/track/GL-TUN-284571\n\n"
+                "Need help? https://glovoapp.com/help\n"
+                "Unsubscribe: https://glovoapp.com/preferences"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 32. IEEE paper acceptance ---
+    cases.append({
+        "name": "legit_ieee_acceptance",
+        "description": "IEEE conference paper acceptance notification",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="notifications@ieee.org",
+            to_addr="test@test.com",
+            subject="[IEEE SaTML 2025] Paper #142: Notification of Acceptance",
+            body=(
+                "Dear Mohamed Ben Ali,\n\n"
+                "We are pleased to inform you that your paper:\n\n"
+                "Title: Trust No Email: A Deterministic Pipeline for LLM-Assisted "
+                "Phishing Detection\n"
+                "Paper ID: 142\n\n"
+                "has been ACCEPTED for presentation at IEEE SaTML 2025.\n\n"
+                "Reviews are attached below. Please address the reviewers' comments "
+                "in your camera-ready version.\n\n"
+                "Camera-ready deadline: September 15, 2024\n"
+                "Upload portal: https://edas.info/N31234\n\n"
+                "Registration: https://satml.org/registration\n"
+                "At least one author must register by August 30.\n\n"
+                "Congratulations!\n"
+                "IEEE SaTML 2025 Program Committee"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 33. Tunisie Telecom bill ---
+    cases.append({
+        "name": "legit_tunisie_telecom_bill",
+        "description": "Tunisie Telecom monthly phone bill notification",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="facture@tunisietelecom.tn",
+            to_addr="test@test.com",
+            subject="Votre facture Tunisie Telecom - Juin 2024",
+            body=(
+                "Tunisie Telecom\n\n"
+                "Bonjour,\n\n"
+                "Votre facture du mois de juin 2024 est disponible.\n\n"
+                "Numero de ligne: 22 XXX XXX\n"
+                "Montant: 45.750 TND\n"
+                "Date limite de paiement: 15/07/2024\n\n"
+                "Modes de paiement:\n"
+                "- En ligne: https://www.tunisietelecom.tn/espace-client\n"
+                "- Agence: presentez-vous avec votre CIN\n"
+                "- Virement bancaire: RIB 07 040 0123456789 12\n\n"
+                "Pour toute reclamation: 1298 (appel gratuit)\n\n"
+                "Cordialement,\n"
+                "Service Clientele Tunisie Telecom"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 34. Zoom meeting invitation ---
+    cases.append({
+        "name": "legit_zoom_invite",
+        "description": "Zoom meeting invitation from colleague",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="no-reply@zoom.us",
+            to_addr="test@test.com",
+            subject="Sana Meddeb has invited you to a scheduled Zoom meeting",
+            body=(
+                "Sana Meddeb is inviting you to a scheduled Zoom meeting.\n\n"
+                "Topic: Revue trimestrielle securite SI\n"
+                "Time: Jul 3, 2024 02:00 PM Tunis\n\n"
+                "Join Zoom Meeting:\n"
+                "https://zoom.us/j/91234567890?pwd=a1B2c3D4e5F6g7H8\n\n"
+                "Meeting ID: 912 3456 7890\n"
+                "Passcode: 654321\n\n"
+                "One tap mobile:\n"
+                "+12532158782,,91234567890#,,654321# US\n\n"
+                "If you cannot join, please let the host know.\n"
+                "Download Zoom: https://zoom.us/download"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 35. DocuSign legitimate signing request ---
+    cases.append({
+        "name": "legit_docusign_real",
+        "description": "Legitimate DocuSign envelope from known internal sender",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="dse_na4@docusign.net",
+            to_addr="test@test.com",
+            subject="Sana Meddeb sent you a document to review and sign",
+            body=(
+                "DocuSign\n\n"
+                "Sana Meddeb sent you a document to review and sign.\n\n"
+                "REVIEW DOCUMENT\n"
+                "https://app.docusign.com/documents/details/abc123-def456\n\n"
+                "Document: Convention_de_stage_2024.pdf\n\n"
+                "Message from Sana Meddeb:\n"
+                "\"Mohamed, merci de signer la convention de stage avant vendredi. "
+                "Le document a deja ete vise par le service juridique.\"\n\n"
+                "Do Not Share This Email\n"
+                "This email contains a secure link to DocuSign. Please do not "
+                "share this email or link with others.\n\n"
+                "About DocuSign: Sign documents electronically in just minutes.\n"
+                "Questions? Visit https://support.docusign.com"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 36. OVH server monitoring alert ---
+    cases.append({
+        "name": "legit_ovh_monitoring",
+        "description": "OVH cloud server monitoring alert (CPU spike)",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="noreply@ovh.com",
+            to_addr="test@test.com",
+            subject="[OVH Monitoring] Alert: CPU usage above 90% on vps-abc123",
+            body=(
+                "OVH Monitoring Alert\n\n"
+                "Server: vps-abc123.runabove.io\n"
+                "Alert: CPU usage exceeded threshold\n\n"
+                "Current value: 94.2%\n"
+                "Threshold: 90%\n"
+                "Duration: 15 minutes\n"
+                "Time: 2024-06-28 14:32:00 UTC\n\n"
+                "Recommended actions:\n"
+                "- Check running processes via SSH\n"
+                "- Review recent deployments\n"
+                "- Consider upgrading your plan if this is expected load\n\n"
+                "Dashboard: https://www.ovh.com/manager/cloud/#/pci/projects\n"
+                "Manage alerts: https://www.ovh.com/manager/dedicated/#/monitoring\n\n"
+                "OVH SAS, 2 rue Kellermann, 59100 Roubaix, France"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 37. Arabic newsletter from Tunisian media ---
+    cases.append({
+        "name": "legit_arabic_newsletter",
+        "description": "Arabic newsletter from Tunisian news outlet",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="newsletter@assabah.com.tn",
+            to_addr="test@test.com",
+            subject="النشرة اليومية - الصباح نيوز",
+            body=(
+                "الصباح نيوز\n"
+                "النشرة الإخبارية اليومية\n\n"
+                "أبرز عناوين اليوم:\n\n"
+                "١. البنك المركزي التونسي يعلن عن إجراءات جديدة لدعم الاقتصاد\n"
+                "٢. افتتاح المنتدى الاقتصادي التونسي في قصر المؤتمرات\n"
+                "٣. تونس تحتل المرتبة الأولى مغاربياً في مؤشر الابتكار\n\n"
+                "للمزيد: https://www.assabah.com.tn\n\n"
+                "لإلغاء الاشتراك: https://www.assabah.com.tn/unsubscribe\n\n"
+                "الصباح نيوز - جريدة يومية مستقلة"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 38. GitHub Actions CI notification ---
+    cases.append({
+        "name": "legit_github_ci",
+        "description": "GitHub Actions CI workflow failure notification",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="notifications@github.com",
+            to_addr="test@test.com",
+            subject="[attijari/email-security] Run failed: CI Pipeline - main (abc1234)",
+            body=(
+                "Run failed: CI Pipeline\n\n"
+                "Repository: attijari/email-security\n"
+                "Branch: main\n"
+                "Commit: abc1234 - Fix extraction timeout handling\n"
+                "Author: PublisherX02\n\n"
+                "Job: test (Python 3.12)\n"
+                "Status: Failed\n"
+                "Duration: 2m 34s\n\n"
+                "Error: test_yara_scanning FAILED\n"
+                "AssertionError: Expected 3 matches, got 2\n\n"
+                "View workflow run:\n"
+                "https://github.com/attijari/email-security/actions/runs/123456789\n\n"
+                "View commit:\n"
+                "https://github.com/attijari/email-security/commit/abc1234\n\n"
+                "Unsubscribe: https://github.com/settings/notifications"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 39. Stripe payment receipt ---
+    cases.append({
+        "name": "legit_stripe_receipt",
+        "description": "Stripe payment receipt for SaaS subscription",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="receipts@stripe.com",
+            to_addr="test@test.com",
+            subject="Your receipt from DigitalOcean",
+            body=(
+                "Receipt from DigitalOcean\n"
+                "Receipt #1234-5678\n\n"
+                "Amount paid: $24.00 USD\n"
+                "Date paid: June 28, 2024\n"
+                "Payment method: Visa - 4521\n\n"
+                "Description                     Amount\n"
+                "DigitalOcean Droplet (s-2vcpu)  $18.00\n"
+                "Managed Database (PostgreSQL)    $6.00\n"
+                "Total                           $24.00\n\n"
+                "If you have any questions, contact DigitalOcean support at "
+                "https://cloud.digitalocean.com/support\n\n"
+                "Stripe, 354 Oyster Point Blvd, South San Francisco, CA 94080"
+            ),
+            auth_pass=True,
+        ),
+    })
+
+    # --- 40. Derija/French mix from colleague (realistic Tunisian email) ---
+    cases.append({
+        "name": "legit_derija_mix",
+        "description": "Tunisian Derija/French code-switched email from colleague — tests multilingual handling",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="ahmed.gharbi@attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="Re: el rapport mta3 el audit",
+            body=(
+                "Salam Mohamed,\n\n"
+                "El rapport mta3 el audit lezem yousel avant vendredi. "
+                "Ena kammalt el partie technique w baatht'ha lel Karim bech yrevisiha.\n\n"
+                "Tnajem t'accedi lel fichier 3al SharePoint:\n"
+                "https://attijaribank.sharepoint.com/sites/audit-si/rapport-q2-2024\n\n"
+                "Famma quelques points lezem nreviewouhom ensemble:\n"
+                "- El config mta3 el firewall (section 3.2)\n"
+                "- Les recommandations mta3 el penetration test\n"
+                "- El plan de remediation\n\n"
+                "Nshallah demain matin 3andi disponibilite.\n\n"
+                "Tahiyyeti,\n"
+                "Ahmed"
+            ),
+            auth_pass=True,
         ),
     })
 

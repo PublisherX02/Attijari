@@ -250,21 +250,30 @@ def init_db():
             admin = User(username=os.getenv("DASHBOARD_USER", "admin"), password_hash=hashed, totp_secret=totp_secret)
             db.add(admin)
             db.commit()
-            print(f"\n=======================================================")
-            print(f"[ISO 27001] ADMIN CREATED. MFA REQUIRED!")
-            print(f"Username: {admin.username}")
-            print(f"Password: {password} ({pass_source})")
-            print(f"TOTP Secret: (configure via secure channel — see data/admin_totp_uri.txt)")
-            print(f"=======================================================\n")
-            # Write TOTP provisioning URI to a local file instead of console
+            # Write credentials to a secure local file — NEVER print to console/logs
             totp_uri = pyotp.TOTP(totp_secret).provisioning_uri(
                 name=admin.username, issuer_name="Attijari SOC"
             )
-            totp_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "admin_totp_uri.txt")
-            os.makedirs(os.path.dirname(totp_file), exist_ok=True)
-            with open(totp_file, "w") as f:
+            creds_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "admin_credentials.txt")
+            os.makedirs(os.path.dirname(creds_file), exist_ok=True)
+            with open(creds_file, "w") as f:
+                f.write(f"Username: {admin.username}\n")
+                if not env_pass:
+                    f.write(f"Password: {password}\n")
+                else:
+                    f.write(f"Password: (set via DASHBOARD_PASS env var)\n")
                 f.write(f"TOTP URI (import into Google Authenticator):\n{totp_uri}\n")
-            print(f"[ISO 27001] TOTP setup URI written to {totp_file}")
+            # Restrict file permissions (best-effort on Windows)
+            try:
+                os.chmod(creds_file, 0o600)
+            except OSError:
+                pass
+            print(f"\n=======================================================")
+            print(f"[ISO 27001] ADMIN CREATED. MFA REQUIRED!")
+            print(f"Username: {admin.username}")
+            print(f"Credentials written to: {creds_file}")
+            print(f"READ AND DELETE THIS FILE IMMEDIATELY AFTER SETUP.")
+            print(f"=======================================================\n")
     except Exception as e:
         print(f"[DB] Error initializing admin: {e}")
     finally:

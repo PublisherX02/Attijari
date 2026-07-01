@@ -124,7 +124,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 let currentPage = 1;
 
 function actionLabel(action) {

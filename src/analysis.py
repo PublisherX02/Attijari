@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from signal_scoring import compute_signal_score, SignalScoreResult
+
 
 class LLMVerdict(BaseModel):
     """Pydantic schema to validate and sanitize raw LLM output."""
@@ -301,6 +303,16 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
             elif isinstance(enr_val, str):
                 ctx_parts.append(f"{enr_key.upper()}: {enr_val}")
 
+    # ── DETERMINISTIC SIGNAL SCORING ──
+    # Compute weighted pre-LLM score from enrichment signals (professor requirement)
+    signal_score_result = compute_signal_score(enr or {}, ctx_parts)
+
+    # Inject deterministic score into context for LLM grounding
+    ctx_parts.append(f"DETERMINISTIC_SIGNAL_SCORE: {signal_score_result.summary()}")
+    if signal_score_result.confidence_hint > 0:
+        ctx_parts.append(f"CONFIDENCE_FLOOR: {signal_score_result.confidence_hint:.2f} "
+                         f"(your confidence should be at least this high when threat signals are present)")
+
     # Analyst feedback context — prior decisions on this domain (pipeline learning)
     feedback_parts = []
     sender_domain = None
@@ -373,7 +385,9 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
             model_output = _call_ollama_http(model, prompt)
     except Exception as e:
         # Fail-safe: LLM failure must escalate, never accept silently
-        return {"verdict": "escalated", "reasons": [f"analysis_failed:{e}"], "raw_model_output": None}
+        import logging
+        logging.getLogger("analysis").error("LLM analysis failed: %s", e)
+        return {"verdict": "escalated", "reasons": ["analysis_failed:internal_error"], "raw_model_output": None}
 
     # Robust JSON extraction: look for 'verdict' key in balanced JSON block, else NDJSON reconstruction
     parsed = None
@@ -477,6 +491,29 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
     reasons = list(validated.reasons)
     confidence = validated.confidence
 
+    # ── POST-LLM SIGNAL SCORE VALIDATION ──
+    # Constrain the LLM's risk_score against the deterministic weighted score.
+    # If the deterministic score is high but the LLM scored low, override upward.
+    # This prevents the LLM from "washing" confirmed threat signals.
+    det_score = signal_score_result.composite_score
+    llm_risk = validated.risk_score
+    MAX_DIVERGENCE = 25  # LLM can deviate at most 25 points below the deterministic score
+
+    if det_score > 0 and llm_risk < (det_score - MAX_DIVERGENCE):
+        corrected_risk = det_score - MAX_DIVERGENCE
+        reasons.append(
+            f"risk_score_corrected: LLM={llm_risk} < floor({det_score}-{MAX_DIVERGENCE}={corrected_risk}), "
+            f"adjusted to {corrected_risk} (deterministic signals: {signal_score_result.active_signal_count})"
+        )
+        llm_risk = corrected_risk
+
+    # If deterministic score suggests threat, enforce minimum confidence
+    if signal_score_result.confidence_hint > 0 and confidence < signal_score_result.confidence_hint:
+        reasons.append(
+            f"confidence_floor_applied: LLM={confidence:.2f} < signal_floor={signal_score_result.confidence_hint:.2f}"
+        )
+        confidence = signal_score_result.confidence_hint
+
     # CRITICAL-02: Low confidence → forced escalation (CLAUDE.md rule)
     if confidence is not None and verdict == "accepted" and confidence < CONFIDENCE_THRESHOLD:
         verdict = "escalated"
@@ -499,12 +536,14 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         "verdict": verdict,
         "reasons": reasons,
         "confidence": confidence,
-        "risk_score": validated.risk_score,
+        "risk_score": llm_risk,
         "sender_risk": validated.sender_risk,
         "intent_classification": validated.intent_classification,
         "social_engineering_indicators": validated.social_engineering_indicators,
         "indicators": parsed.get("indicators"),
         "raw_model_output": model_output,
+        "signal_score": det_score,
+        "signal_breakdown": signal_score_result.breakdown(),
     }
 
 

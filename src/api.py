@@ -15,6 +15,7 @@ import os
 import sys
 import time
 import asyncio
+import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -36,8 +37,21 @@ from database import init_db
 from metrics import api_requests_total, api_request_duration_seconds
 from api_core import verify_auth, NotAuthenticatedException
 
-# Rate limiter — keyed by client IP
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+
+def _get_real_client_ip(request: Request) -> str:
+    """Extract client IP ignoring X-Forwarded-For unless from trusted proxy."""
+    trusted_proxies = os.getenv("TRUSTED_PROXIES", "127.0.0.1").split(",")
+    trusted_proxies = {p.strip() for p in trusted_proxies if p.strip()}
+    client_ip = request.client.host if request.client else "unknown"
+    if client_ip in trusted_proxies:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return client_ip
+
+
+# Rate limiter — keyed by real client IP (not spoofable X-Forwarded-For)
+limiter = Limiter(key_func=_get_real_client_ip, default_limits=["200/minute"])
 
 from routers.auth import auth_router
 from routers.dashboard import dashboard_router
@@ -51,7 +65,6 @@ app = FastAPI(
     title="Attijari SOC Dashboard",
     description="Email security triage system — analyst review interface",
     version="2.0.0",
-    dependencies=[Depends(verify_auth)]
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -69,13 +82,22 @@ if _STATIC_DIR.exists():
 @app.middleware("http")
 async def security_and_metrics_middleware(request: Request, call_next):
     t0 = time.time()
+    # Generate per-request nonce for inline scripts
+    nonce = secrets.token_urlsafe(16)
+    request.state.csp_nonce = nonce
     response = await call_next(request)
     elapsed = time.time() - t0
-    
+
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:"
+    response.headers["Content-Security-Policy"] = (
+        f"default-src 'self'; "
+        f"script-src 'self' 'unsafe-inline'; "
+        f"style-src 'self' 'unsafe-inline'; "
+        f"connect-src 'self' ws: wss:; "
+        f"font-src 'self' https://fonts.gstatic.com"
+    )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
@@ -134,9 +156,9 @@ async def shutdown():
 
 # Include Routers
 app.include_router(auth_router)
-app.include_router(dashboard_router)
+app.include_router(dashboard_router, dependencies=[Depends(verify_auth)])
 app.include_router(ws_router)
-app.include_router(emails_router)
+app.include_router(emails_router, dependencies=[Depends(verify_auth)])
 
 # Import metrics endpoint locally to avoid circular dependencies if it exists
 try:

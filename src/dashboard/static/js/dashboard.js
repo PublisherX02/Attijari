@@ -711,7 +711,10 @@ function filterAuditTool(tool) {
 
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = protocol + '//' + window.location.host + '/ws';
+    // Get WS token from meta tag (set server-side, separate from httponly cookie)
+    const wsMeta = document.querySelector('meta[name="ws-token"]');
+    const wsToken = wsMeta ? wsMeta.content : '';
+    const wsUrl = protocol + '//' + window.location.host + '/ws?token=' + encodeURIComponent(wsToken);
     const ws = new WebSocket(wsUrl);
 
     ws.onmessage = (event) => {
