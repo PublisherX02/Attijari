@@ -1,15 +1,18 @@
 from typing import Optional
 import asyncio
+import csv
+import io
 import time
 from fastapi import APIRouter, Query, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 from database import (
-    SessionLocal, Email, AuditLog, Blocklist, Whitelist, Report, AnalystFeedback,
-    add_blocklist_entry, get_blocked_set, is_whitelisted, add_audit_entry, utcnow,
+    SessionLocal, Email, AuditLog, Alert, Blocklist, Whitelist, Report, AnalystFeedback,
+    add_blocklist_entry, get_blocked_set, is_blocked, is_whitelisted, add_audit_entry, utcnow,
 )
-from routing import release_email, quarantine_email, override_verdict
+from routing import release_email, quarantine_email, override_verdict, revert_action
+from rules import is_shared_email_domain
 from reporting import generate_report
 from fastapi import Depends
 from api_core import ws_manager, mask_pii, verify_auth
@@ -57,6 +60,9 @@ class BlocklistAddRequest(BaseModel):
     indicator_type: IndicatorType
     value: str = Field(..., min_length=1, max_length=512)
     reason: str = Field(default="", max_length=1000)
+    # Optional TTL in days. NULL (default) means never expires.
+    # Analyst-added entries keep no expiration for backward compatibility.
+    ttl_days: Optional[int] = Field(default=None, ge=1, le=3650)
 
 class WhitelistAddRequest(BaseModel):
     indicator_type: IndicatorType
@@ -64,6 +70,10 @@ class WhitelistAddRequest(BaseModel):
     reason: str = Field(default="", max_length=1000)
 
 class ActionRequest(BaseModel):
+    reason: str = Field(default="", max_length=1000)
+
+class BulkActionRequest(BaseModel):
+    email_ids: list[int] = Field(..., min_length=1, max_length=200)
     reason: str = Field(default="", max_length=1000)
 
 class VerdictStatus(str, PyEnum):
@@ -180,6 +190,13 @@ async def api_get_email(email_id: int):
             AuditLog.email_id == email_id
         ).order_by(AuditLog.created_at.desc()).all()
 
+        # Check for whitelist/blocklist conflict on the sender domain so the
+        # dashboard can warn the analyst when a released email's domain is also
+        # blocklisted (meaning a different confirmed-malicious sender shared it).
+        _d = (email.sender_domain or "").strip().lower()
+        domain_in_blocklist = is_blocked(db, "domain", _d) if _d else False
+        domain_in_whitelist = is_whitelisted(db, "domain", _d) if _d else False
+
         return {
             "id": email.id,
             "idempotency_key": email.idempotency_key,
@@ -200,6 +217,8 @@ async def api_get_email(email_id: int):
             "email_date": email.email_date.isoformat() if email.email_date else None,
             "created_at": email.created_at.isoformat() if email.created_at else None,
             "updated_at": email.updated_at.isoformat() if email.updated_at else None,
+            "domain_in_blocklist": domain_in_blocklist,
+            "domain_in_whitelist": domain_in_whitelist,
             "audit_history": [
                 {
                     "action": a.action,
@@ -249,6 +268,50 @@ async def api_override_email(email_id: int, body: OverrideRequest, user: str = D
     return result
 
 
+@emails_router.post("/api/emails/{email_id}/revert")
+async def api_revert_action(email_id: int, user: str = Depends(verify_auth)):
+    """Revert the last analyst action (quarantine or release) on an email.
+
+    Restores the email to 'escalated' status for re-review. If the original
+    action was a quarantine, cascade-blocked indicators from that action are
+    deactivated. If it was a release, the auto-whitelisted domain is removed.
+    """
+    actor = user or "analyst"
+    result = revert_action(email_id, actor=actor)
+    _update_gauge_metrics()
+    if not result["success"]:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@emails_router.post("/api/emails/bulk/release")
+async def api_bulk_release(body: BulkActionRequest, user: str = Depends(verify_auth)):
+    """Release multiple emails at once."""
+    actor = user or "analyst"
+    results = []
+    for email_id in body.email_ids:
+        result = release_email(email_id, actor=actor, reason=body.reason)
+        results.append({"email_id": email_id, "success": result["success"],
+                        "error": result.get("error")})
+    _update_gauge_metrics()
+    succeeded = sum(1 for r in results if r["success"])
+    return {"succeeded": succeeded, "failed": len(results) - succeeded, "results": results}
+
+
+@emails_router.post("/api/emails/bulk/quarantine")
+async def api_bulk_quarantine(body: BulkActionRequest, user: str = Depends(verify_auth)):
+    """Quarantine multiple emails at once."""
+    actor = user or "analyst"
+    results = []
+    for email_id in body.email_ids:
+        result = quarantine_email(email_id, actor=actor, reason=body.reason)
+        results.append({"email_id": email_id, "success": result["success"],
+                        "error": result.get("error")})
+    _update_gauge_metrics()
+    succeeded = sum(1 for r in results if r["success"])
+    return {"succeeded": succeeded, "failed": len(results) - succeeded, "results": results}
+
+
 # ---------------------------------------------------------------------------
 # REST API — Blocklist
 # ---------------------------------------------------------------------------
@@ -281,6 +344,7 @@ async def api_list_blocklist(
                     "value": e.value,
                     "source": e.source,
                     "confirmed_by": e.confirmed_by,
+                    "expires_at": e.expires_at.isoformat() if e.expires_at else None,
                     "created_at": e.created_at.isoformat() if e.created_at else None,
                 }
                 for e in entries
@@ -292,18 +356,37 @@ async def api_list_blocklist(
 
 @emails_router.post("/api/blocklist")
 async def api_add_blocklist(body: BlocklistAddRequest, user: str = Depends(verify_auth)):
-    """Add an indicator to the blocklist."""
+    """Add an indicator to the blocklist.
+
+    ttl_days is optional. Omit it (or pass null) for a permanent entry.
+    Analyst-added entries default to no expiration for backward compatibility.
+    """
     actor = user or "analyst"
+    if body.indicator_type == "domain" and is_shared_email_domain(body.value):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"'{body.value}' is a shared multi-tenant domain. "
+                "Blocking it would affect all users on that provider. "
+                "Block the specific sender email address instead."
+            ),
+        )
     db = SessionLocal()
     try:
         added = add_blocklist_entry(
             db, body.indicator_type, body.value,
             source="manual", confirmed_by=actor,
+            ttl_days=body.ttl_days,
         )
         if added:
             add_audit_entry(
                 db, action="blocklist_add", actor=actor,
-                details={"indicator_type": body.indicator_type, "value": body.value, "reason": body.reason},
+                details={
+                    "indicator_type": body.indicator_type,
+                    "value": body.value,
+                    "reason": body.reason,
+                    "ttl_days": body.ttl_days,
+                },
             )
             _update_gauge_metrics()
             return {"success": True, "message": f"Added {body.indicator_type}:{body.value}"}
@@ -432,32 +515,183 @@ async def api_remove_whitelist(entry_id: int, user: str = Depends(verify_auth)):
 # REST API — Stats & Reports
 # ---------------------------------------------------------------------------
 
+def _safe_divide(numerator: int, denominator: int) -> float:
+    """Return numerator/denominator rounded to 4 dp, or 0.0 when denominator is zero."""
+    return round(numerator / denominator, 4) if denominator else 0.0
+
+
+def _csv_sanitize(value: object) -> str:
+    """Prevent CSV formula injection: prefix cells starting with =, +, -, @ with a quote."""
+    s = "" if value is None else str(value)
+    if s and s[0] in ("=", "+", "-", "@"):
+        s = "'" + s
+    return s
+
+
 @emails_router.get("/api/stats")
 async def api_stats():
-    """Dashboard summary statistics."""
+    """Dashboard summary statistics including compliance metrics (last 30 days)."""
     db = SessionLocal()
     try:
         from sqlalchemy import func
+        from datetime import timedelta
 
-        # Count by status
+        # All-time counts per status (for the overview cards)
         status_counts = dict(
             db.query(Email.status, func.count(Email.id))
             .group_by(Email.status).all()
         )
-
         total = sum(status_counts.values())
 
-        # Recent activity (last 24h)
-        from datetime import timedelta
-        cutoff = utcnow() - timedelta(hours=24)
-        recent = db.query(Email).filter(Email.created_at >= cutoff).count()
+        # Recent activity — last 24 h
+        cutoff_24h = utcnow() - timedelta(hours=24)
+        recent = db.query(Email).filter(Email.created_at >= cutoff_24h).count()
+
+        # --- Compliance metrics: rolling 30-day window ---
+        cutoff_30d = utcnow() - timedelta(days=30)
+        base_q = db.query(Email).filter(Email.created_at >= cutoff_30d)
+
+        # Emails ever flagged (still escalated, or resolved as released/quarantined)
+        total_escalated_30d = base_q.filter(
+            Email.status.in_(["escalated", "released", "quarantined"])
+        ).count()
+
+        # False positives: analyst released an escalated email (pipeline was overcautious)
+        false_positive_count = base_q.filter(
+            Email.status == "released",
+            Email.analyst_action == "release",
+        ).count()
+
+        # True positives: analyst confirmed quarantine (pipeline correctly flagged)
+        true_positive_count = base_q.filter(
+            Email.status == "quarantined",
+            Email.analyst_action == "quarantine",
+        ).count()
+
+        # Auto-quarantined by rules/blocklist — no analyst action recorded yet
+        auto_quarantine_count = base_q.filter(
+            Email.status == "quarantined",
+            Email.analyst_action.is_(None),
+        ).count()
+
+        # Average LLM confidence — requires llm_result JSONB with 'confiance' key
+        avg_conf_row = db.execute(
+            text(
+                "SELECT AVG((llm_result->>'confiance')::float) "
+                "FROM emails "
+                "WHERE created_at >= :cutoff "
+                "AND llm_result IS NOT NULL "
+                "AND llm_result->>'confiance' IS NOT NULL"
+            ),
+            {"cutoff": cutoff_30d},
+        ).scalar()
+        avg_confidence = round(float(avg_conf_row), 4) if avg_conf_row is not None else None
+
+        # Pipeline accuracy: (auto-accepted + confirmed auto-quarantines) / total 30d
+        correct_auto_accepts = base_q.filter(
+            Email.status == "accepted",
+            Email.analyst_action.is_(None),
+        ).count()
+        total_30d = base_q.count()
+        pipeline_accuracy = _safe_divide(
+            correct_auto_accepts + auto_quarantine_count, total_30d
+        )
 
         return {
             "total_emails": total,
             "by_status": status_counts,
             "recent_24h": recent,
-            "pending_review": status_counts.get("escalated", 0) + status_counts.get("recu", 0) + status_counts.get("pending", 0),
+            "pending_review": (
+                status_counts.get("escalated", 0)
+                + status_counts.get("recu", 0)
+                + status_counts.get("pending", 0)
+            ),
+            # Compliance metrics — 30-day rolling window
+            "compliance_30d": {
+                "false_positive_rate": _safe_divide(false_positive_count, total_escalated_30d),
+                "true_positive_rate": _safe_divide(true_positive_count, total_escalated_30d),
+                "auto_quarantine_count": auto_quarantine_count,
+                "avg_confidence": avg_confidence,
+                "pipeline_accuracy": pipeline_accuracy,
+                "total_escalated": total_escalated_30d,
+                "false_positive_count": false_positive_count,
+                "true_positive_count": true_positive_count,
+            },
         }
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# CSV Export
+# ---------------------------------------------------------------------------
+
+_CSV_COLUMNS = [
+    "id", "date", "sender", "subject", "status",
+    "analyst_action", "confidence", "risk_score",
+]
+
+
+def _build_csv_row(email: Email) -> list:
+    """Extract one sanitized CSV row from an Email ORM instance."""
+    confidence = None
+    risk_score = None
+    if email.llm_result:
+        confidence = email.llm_result.get("confiance")
+        risk_score = email.llm_result.get("score_risque")
+
+    date_val = (
+        email.email_date.isoformat() if email.email_date
+        else email.created_at.isoformat() if email.created_at
+        else ""
+    )
+    return [
+        _csv_sanitize(email.id),
+        _csv_sanitize(date_val),
+        _csv_sanitize(email.sender),
+        _csv_sanitize(email.subject),
+        _csv_sanitize(email.status),
+        _csv_sanitize(email.analyst_action),
+        _csv_sanitize(confidence),
+        _csv_sanitize(risk_score),
+    ]
+
+
+@emails_router.get("/api/emails/export")
+async def api_export_emails(
+    status: Optional[str] = Query(None, max_length=20),
+    days: int = Query(30, ge=1, le=365),
+    user: str = Depends(verify_auth),
+):
+    """Export emails as a compliance CSV (max 10 000 rows, filtered by status and date range)."""
+    from datetime import timedelta
+
+    db = SessionLocal()
+    try:
+        cutoff = utcnow() - timedelta(days=days)
+        q = db.query(Email).filter(Email.created_at >= cutoff).order_by(Email.created_at.desc())
+
+        if status:
+            q = q.filter(Email.status == status)
+
+        emails = q.limit(10_000).all()
+
+        buf = io.StringIO()
+        writer = csv.writer(buf, quoting=csv.QUOTE_ALL, lineterminator="\r\n")
+        writer.writerow(_CSV_COLUMNS)
+        for email in emails:
+            writer.writerow(_build_csv_row(email))
+
+        slug = f"attijari_emails_{days}d"
+        if status:
+            slug += f"_{status}"
+        filename = slug + ".csv"
+
+        return StreamingResponse(
+            iter([buf.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
     finally:
         db.close()
 
@@ -714,3 +948,56 @@ async def prometheus_metrics():
     _update_gauge_metrics()
     body, content_type = get_metrics_text()
     return Response(content=body, media_type=content_type if isinstance(content_type, str) else "text/plain")
+
+
+# ---------------------------------------------------------------------------
+# REST API — Security Alerts
+# ---------------------------------------------------------------------------
+
+@emails_router.get("/api/alerts")
+async def api_list_alerts(
+    level: Optional[str] = Query(None, max_length=20),
+    acknowledged: Optional[bool] = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """List recent security alerts, newest first."""
+    db = SessionLocal()
+    try:
+        q = db.query(Alert).order_by(Alert.created_at.desc())
+        if level:
+            q = q.filter(Alert.level == level.lower())
+        if acknowledged is not None:
+            q = q.filter(Alert.acknowledged == acknowledged)
+        entries = q.limit(limit).all()
+        return {
+            "total": len(entries),
+            "alerts": [
+                {
+                    "id": a.id,
+                    "level": a.level,
+                    "title": a.title,
+                    "details": a.details,
+                    "source": a.source,
+                    "acknowledged": a.acknowledged,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                }
+                for a in entries
+            ],
+        }
+    finally:
+        db.close()
+
+
+@emails_router.post("/api/alerts/{alert_id}/acknowledge")
+async def api_acknowledge_alert(alert_id: int, user: str = Depends(verify_auth)):
+    """Mark an alert as acknowledged by an analyst."""
+    db = SessionLocal()
+    try:
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        if not alert:
+            raise HTTPException(404, "Alert not found")
+        alert.acknowledged = True
+        db.commit()
+        return {"success": True, "alert_id": alert_id, "acknowledged_by": user}
+    finally:
+        db.close()

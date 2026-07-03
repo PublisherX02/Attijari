@@ -210,6 +210,72 @@ def run_pipeline():
                     flag_marker = "!!" if detail["flagged"] else "ok"
                     print(f"  [{flag_marker}] {detail['rule']}: {detail['reason']}")
 
+                # Auto-quarantine: blocklisted sender already confirmed malicious by analyst.
+                # No need to re-analyze or wait for review — go straight to quarantine + spam.
+                _blocklist_hit = any(
+                    d["flagged"] and d["rule"] == "blocklist_domain"
+                    for d in analysis.get("details", [])
+                )
+                if _blocklist_hit:
+                    parsed["status"] = "quarantined"
+                    parsed["auto_quarantine_reason"] = "blocklisted_sender"
+                    print("[AUTO-QUARANTINE] Sender on blocklist (analyst-confirmed) — skipping pipeline, moving to spam")
+                    try:
+                        from alerts import send_alert, AlertLevel
+                        send_alert(
+                            AlertLevel.INFO,
+                            "Auto-quarantined blocklisted sender",
+                            {
+                                "sender": parsed.get("headers", {}).get("from", ""),
+                                "subject": parsed.get("headers", {}).get("subject", ""),
+                                "idempotency_key": parsed.get("idempotency_key"),
+                            },
+                        )
+                    except Exception:
+                        pass
+                    from routing import _imap_move_to_spam
+                    _msg_id = parsed.get("headers", {}).get("message-id", "")
+                    if _msg_id:
+                        _imap_move_to_spam(_msg_id)
+                    # Save to DB and skip remaining pipeline
+                    _auto_q_sender = parsed.get("headers", {}).get("from", "")
+                    _, _auto_q_addr = parseaddr(_auto_q_sender)
+                    _auto_q_domain = None
+                    if _auto_q_addr and "@" in _auto_q_addr:
+                        _auto_q_domain = _auto_q_addr.split("@")[-1].strip().lower()
+
+                    if db:
+                        try:
+                            save_email(db, {
+                                "idempotency_key": parsed["idempotency_key"],
+                                "message_id": parsed["headers"].get("message-id"),
+                                "raw_sha256": parsed.get("raw_sha256", ""),
+                                "sender": _auto_q_sender,
+                                "sender_domain": _auto_q_domain,
+                                "subject": parsed["headers"].get("subject"),
+                                "attachment_count": len(parsed["attachments"]),
+                                "status": "quarantined",
+                                "email_date": _email_date,
+                                "rules_result": parsed.get("analysis"),
+                                "llm_result": None,
+                                "llm_reasoning": "Auto-quarantined: sender on analyst-confirmed blocklist",
+                                "parse_errors": parsed.get("parse_errors"),
+                            })
+                            print(f"[DB] Auto-quarantined email from {_auto_q_addr}")
+                            # Audit trail
+                            try:
+                                add_audit_entry(db, action="auto_quarantine", actor="system",
+                                    details={"reason": "blocklisted_sender", "sender": _auto_q_addr,
+                                             "domain": _auto_q_domain})
+                            except Exception:
+                                pass
+                        except Exception as e:
+                            print(f"[DB] Auto-quarantine save failed: {e}")
+                    print(f"  De:     {_safe(parsed['headers']['from'])}")
+                    print(f"  Sujet:  {_safe(parsed['headers']['subject'])}")
+                    print(f"  Statut: quarantined (auto)")
+                    continue  # skip extraction/enrichment/LLM
+
                 # Stage 3: Isolated extraction — security analysis of all attachments
                 if parsed.get("attachments") and parsed["status"] != "escalated":
                     print(f"[EXTRACTION] Running isolated security extraction on {len(parsed['attachments'])} attachment(s)...")
@@ -567,6 +633,20 @@ def run_pipeline():
                         # Fail-safe: LLM crash → escalate, never silently accept
                         parsed["status"] = "escalated"
                         print(f"[LLM] Analysis failed: {e} -> ESCALATED (fail-safe)")
+                        try:
+                            from alerts import send_alert, AlertLevel
+                            send_alert(
+                                AlertLevel.WARNING,
+                                "LLM analysis failed",
+                                {
+                                    "error": str(e),
+                                    "sender": parsed.get("headers", {}).get("from", ""),
+                                    "subject": parsed.get("headers", {}).get("subject", ""),
+                                    "idempotency_key": parsed.get("idempotency_key"),
+                                },
+                            )
+                        except Exception:
+                            pass
             else:
                 print(f"[RULES] Skipped — email already ESCALATED from parse errors")
 

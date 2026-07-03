@@ -623,6 +623,58 @@ class RuleEngine:
             details.append({"rule": "vishing_callback", "flagged": False,
                             "reason": "no vishing/callback pattern"})
 
+        # Rule 13 — Internal domain spoofing detection
+        # If sender claims @attijaribank.com.tn but authentication fails,
+        # this is a spoofed internal email. Catches ICS/phishing from
+        # attackers impersonating internal staff.
+        spoof_flagged = False
+        if not sender_is_external:
+            # Sender claims to be internal — verify authentication
+            auth_results = (parsed.get("headers", {}).get("authentication-results")
+                           or parsed.get("headers", {}).get("Authentication-Results") or "")
+            if isinstance(auth_results, list):
+                auth_results = " ".join(str(r) for r in auth_results)
+            auth_lower = auth_results.lower()
+            # If auth header exists and shows failures, it's spoofed
+            has_auth_header = bool(auth_results.strip())
+            spf_fail = "spf=fail" in auth_lower or "spf=softfail" in auth_lower or "spf=none" in auth_lower
+            dkim_fail = "dkim=fail" in auth_lower or "dkim=none" in auth_lower
+            dmarc_fail = "dmarc=fail" in auth_lower or "dmarc=none" in auth_lower
+            if has_auth_header and (spf_fail or dkim_fail or dmarc_fail):
+                spoof_flagged = True
+
+        if spoof_flagged:
+            details.append({"rule": "internal_domain_spoof", "flagged": True,
+                            "reason": "sender claims internal domain but authentication fails — likely spoofed"})
+            flags += 1
+        else:
+            details.append({"rule": "internal_domain_spoof", "flagged": False,
+                            "reason": "no internal domain spoofing detected"})
+
+        # Rule 14 — HTML script/smuggling detection
+        # Scan body_html for <script> tags, javascript: URIs, and blob creation
+        # patterns used in HTML smuggling attacks.
+        html_smuggle_flagged = False
+        body_html = (parsed.get("body_html") or "").lower()
+        if body_html:
+            _HTML_DANGER_PATTERNS = (
+                "<script", "javascript:", "vbscript:",
+                "createobjecturl", "new blob(", "new blob (",
+                "uint8array", "atob(", "btoa(",
+                "mhtml:", "data:application",
+            )
+            html_matches = [p for p in _HTML_DANGER_PATTERNS if p in body_html]
+            if html_matches:
+                html_smuggle_flagged = True
+
+        if html_smuggle_flagged:
+            details.append({"rule": "html_smuggling", "flagged": True,
+                            "reason": f"HTML part contains dangerous patterns: {', '.join(html_matches[:3])}"})
+            flags += 1
+        else:
+            details.append({"rule": "html_smuggling", "flagged": False,
+                            "reason": "no HTML smuggling patterns detected"})
+
         # Determine verdict severity:
         # - "proposed_reject": deterministic hard-evidence rules fired
         #   (blocklist, bad extension, bad hash, threat feed match)
@@ -636,6 +688,8 @@ class RuleEngine:
             "feed_malicious_domain", "feed_malicious_ip",
             "encrypted_attachment_password",
             "ics_calendar_external",
+            "internal_domain_spoof",
+            "html_smuggling",
         }
         hard_flags = [d for d in details if d["flagged"] and d["rule"] in HARD_EVIDENCE_RULES]
 

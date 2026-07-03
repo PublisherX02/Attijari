@@ -84,6 +84,72 @@ let currentPage = 1;
 let currentStatus = null;
 let currentSearch = '';
 
+/** Set of currently selected email IDs (integers). */
+const selectedEmailIds = new Set();
+
+function updateBulkBar() {
+    const bar = document.getElementById('bulk-action-bar');
+    if (!bar) return;
+    const count = selectedEmailIds.size;
+    if (count === 0) {
+        bar.style.display = 'none';
+        return;
+    }
+    bar.style.display = 'flex';
+    const label = document.getElementById('bulk-count-label');
+    if (label) label.textContent = `${count} email${count !== 1 ? 's' : ''} selected`;
+    const releaseBtn = document.getElementById('bulk-release-btn');
+    const quarantineBtn = document.getElementById('bulk-quarantine-btn');
+    if (releaseBtn) releaseBtn.textContent = `Release Selected (${count})`;
+    if (quarantineBtn) quarantineBtn.textContent = `Quarantine Selected (${count})`;
+}
+
+function toggleEmailSelection(id, checked) {
+    if (checked) {
+        selectedEmailIds.add(id);
+    } else {
+        selectedEmailIds.delete(id);
+    }
+    updateSelectAllCheckbox();
+    updateBulkBar();
+}
+
+function toggleSelectAll(checked) {
+    document.querySelectorAll('.row-checkbox').forEach(cb => {
+        const id = parseInt(cb.dataset.id);
+        cb.checked = checked;
+        if (checked) selectedEmailIds.add(id); else selectedEmailIds.delete(id);
+    });
+    updateBulkBar();
+}
+
+function updateSelectAllCheckbox() {
+    const allCbs = document.querySelectorAll('.row-checkbox');
+    const headerCb = document.getElementById('select-all-checkbox');
+    if (!headerCb || allCbs.length === 0) return;
+    const checkedCount = Array.from(allCbs).filter(cb => cb.checked).length;
+    headerCb.indeterminate = checkedCount > 0 && checkedCount < allCbs.length;
+    headerCb.checked = checkedCount === allCbs.length;
+}
+
+async function executeBulkAction(action) {
+    if (selectedEmailIds.size === 0) return;
+    const ids = Array.from(selectedEmailIds);
+    const reason = prompt(`Reason for bulk ${action} of ${ids.length} email(s):`);
+    if (reason === null) return; // cancelled
+    if (!reason.trim()) { showToast('Please provide a reason', 'warning'); return; }
+
+    try {
+        const result = await API.post(`/api/emails/bulk/${action}`, { email_ids: ids, reason: reason.trim() });
+        const msg = `${action}: ${result.succeeded} succeeded, ${result.failed} failed`;
+        showToast(msg, result.failed > 0 ? 'warning' : 'success');
+        selectedEmailIds.clear();
+        loadInbox(currentPage, currentStatus, currentSearch);
+    } catch (err) {
+        showToast(`Bulk ${action} failed: ${err.message}`, 'error');
+    }
+}
+
 async function loadInbox(page = 1, status = null, search = '') {
     currentPage = page;
     currentStatus = status;
@@ -93,7 +159,11 @@ async function loadInbox(page = 1, status = null, search = '') {
     const statsContainer = document.getElementById('stats-cards');
     if (!container) return;
 
-    container.innerHTML = '<tr><td colspan="6" class="loading-overlay"><div class="spinner"></div> Loading…</td></tr>';
+    // Clear stale selections whenever the inbox reloads
+    selectedEmailIds.clear();
+    updateBulkBar();
+
+    container.innerHTML = '<tr><td colspan="7" class="loading-overlay"><div class="spinner"></div> Loading…</td></tr>';
 
     try {
         // Load stats
@@ -122,12 +192,16 @@ async function loadInbox(page = 1, status = null, search = '') {
         const data = await API.get(url);
 
         if (data.emails.length === 0) {
-            container.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="emoji">📭</div><p>No emails found</p></td></tr>';
+            container.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="emoji">📭</div><p>No emails found</p></td></tr>';
             return;
         }
 
         container.innerHTML = data.emails.map(e => `
             <tr onclick="window.location='/email/${parseInt(e.id)}'">
+                <td onclick="event.stopPropagation()">
+                    <input type="checkbox" class="row-checkbox" data-id="${parseInt(e.id)}"
+                        onchange="toggleEmailSelection(${parseInt(e.id)}, this.checked)">
+                </td>
                 <td>${esc(truncate(e.sender, 40))}</td>
                 <td>${esc(truncate(e.subject, 55))}</td>
                 <td>${statusBadge(e.status)}</td>
@@ -140,7 +214,12 @@ async function loadInbox(page = 1, status = null, search = '') {
                             <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); releaseEmail(${parseInt(e.id)})">Release</button>
                             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); quarantineEmail(${parseInt(e.id)})">Quarantine</button>
                         </div>
-                    ` : e.analyst_action ? `<span style="color:var(--text-muted)">${esc(e.analyst_action)}</span>` : ''}
+                    ` : e.analyst_action ? `
+                        <div class="btn-group">
+                            <span style="color:var(--text-muted)">${esc(e.analyst_action)}</span>
+                            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); revertAction(${parseInt(e.id)})" title="Undo — return to escalated for re-review">Undo</button>
+                        </div>
+                    ` : ''}
                 </td>
             </tr>
         `).join('');
@@ -154,7 +233,7 @@ async function loadInbox(page = 1, status = null, search = '') {
         });
 
     } catch (err) {
-        container.innerHTML = `<tr><td colspan="6" class="empty-state"><div class="emoji">❌</div><p>Error loading emails: ${esc(err.message)}</p></td></tr>`;
+        container.innerHTML = `<tr><td colspan="7" class="empty-state"><div class="emoji">❌</div><p>Error loading emails: ${esc(err.message)}</p></td></tr>`;
         showToast(err.message, 'error');
     }
 }
@@ -226,7 +305,7 @@ function openReasonModal(action, emailId) {
     const hint = overlay.querySelector('#reason-hint');
     if (action === 'release') {
         title.textContent = 'Release Email — Why is this safe?';
-        hint.textContent = 'The sender domain will be auto-whitelisted so future emails from this domain are accepted.';
+        hint.textContent = 'The sender will be whitelisted. If the domain is already blocklisted, only the specific sender address is whitelisted — the domain block remains in place for other senders.';
     } else {
         title.textContent = 'Quarantine Email — Why is this malicious?';
         hint.textContent = 'The sender will be blocklisted and the email moved to Gmail Spam.';
@@ -254,9 +333,12 @@ async function confirmReasonAction() {
     try {
         if (action === 'release') {
             const result = await API.post(`/api/emails/${emailId}/release`, { reason });
-            const msg = result.whitelisted_domain
-                ? `Released + whitelisted ${result.whitelisted_domain}`
-                : 'Email released';
+            let msg = 'Email released';
+            if (result.whitelisted_domain) {
+                msg = `Released + whitelisted domain ${result.whitelisted_domain}`;
+            } else if (result.whitelisted_email) {
+                msg = `Released + whitelisted sender only (domain is blocklisted)`;
+            }
             showToast(msg, 'success');
         } else {
             await API.post(`/api/emails/${emailId}/quarantine`, { reason });
@@ -281,6 +363,27 @@ async function overrideEmail(id) {
         loadEmailDetail(id);
     } catch (err) {
         showToast(`Override failed: ${err.message}`, 'error');
+    }
+}
+
+async function revertAction(id) {
+    if (!confirm('Undo this action? The email will return to escalated status for re-review.')) return;
+
+    try {
+        const result = await API.post(`/api/emails/${id}/revert`);
+        const msgs = [];
+        if (result.unblocked_indicators && result.unblocked_indicators.length > 0) {
+            msgs.push(`${result.unblocked_indicators.length} blocklist entry(s) removed`);
+        }
+        if (result.removed_whitelist_domain) {
+            msgs.push(`whitelist removed for ${result.removed_whitelist_domain}`);
+        }
+        const detail = msgs.length > 0 ? ` (${msgs.join(', ')})` : '';
+        showToast(`Reverted ${result.reverted_action} — email back to escalated${detail}`, 'success');
+        if (document.getElementById('email-table-body')) loadInbox(currentPage, currentStatus, currentSearch);
+        if (document.getElementById('email-detail')) loadEmailDetail(id);
+    } catch (err) {
+        showToast(`Revert failed: ${err.message}`, 'error');
     }
 }
 
@@ -329,6 +432,33 @@ async function loadEmailDetail(emailId) {
             auditHtml += '</div>';
         }
 
+        // Domain conflict warning: shown when domain appears in BOTH blocklist and whitelist.
+        // This means a previous quarantine blocked the domain, but a release whitelisted
+        // a specific sender on that domain — the conflict is expected but must be visible.
+        const domainConflictHtml = (e.domain_in_blocklist && e.domain_in_whitelist)
+            ? `<div style="
+                    background:rgba(234,179,8,0.12);
+                    border:1px solid rgba(234,179,8,0.5);
+                    border-radius:var(--radius);
+                    padding:12px 16px;
+                    margin-bottom:16px;
+                    display:flex;
+                    align-items:flex-start;
+                    gap:10px;
+                    font-size:0.85rem;
+                    color:var(--color-escalated,#f59e0b)">
+                <span style="font-size:1.1rem;line-height:1.4">&#9888;</span>
+                <span>
+                    <strong>Domain conflict detected:</strong>
+                    <code style="margin:0 4px">${esc(e.sender_domain)}</code>
+                    is in both the blocklist and the whitelist.
+                    A previous quarantine blocked this domain, but a release whitelisted a specific sender on it.
+                    The domain remains blocked for other senders. Review the
+                    <a href="/blocklist" style="color:inherit;text-decoration:underline">blocklist</a> if this is unexpected.
+                </span>
+              </div>`
+            : '';
+
         container.innerHTML = `
             <div class="page-header">
                 <a href="/" class="btn btn-outline btn-sm" style="margin-bottom:12px">← Back to Inbox</a>
@@ -336,12 +466,14 @@ async function loadEmailDetail(emailId) {
                 <div class="page-subtitle">From: ${esc(e.sender) || 'Unknown'} · ${formatDate(e.email_date || e.created_at)}</div>
             </div>
 
+            ${domainConflictHtml}
+
             <div class="detail-grid">
                 <div class="detail-section">
                     <h3>Email Metadata</h3>
                     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(e.status)}</span></div>
                     <div class="detail-row"><span class="detail-label">Sender</span><span class="detail-value">${esc(e.sender) || '—'}</span></div>
-                    <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}</span></div>
+                    <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}${e.domain_in_blocklist ? ' <span class="badge quarantined" style="font-size:0.7rem">blocklisted</span>' : ''}${e.domain_in_whitelist ? ' <span class="badge accepted" style="font-size:0.7rem">whitelisted</span>' : ''}</span></div>
                     <div class="detail-row"><span class="detail-label">Date Sent</span><span class="detail-value">${formatDate(e.email_date) || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Scanned At</span><span class="detail-value">${formatDate(e.created_at)}</span></div>
                     <div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">${parseInt(e.attachment_count) || 0}</span></div>
@@ -374,6 +506,7 @@ async function loadEmailDetail(emailId) {
                 <button class="btn btn-success" onclick="releaseEmail(${parseInt(e.id)})">✓ Release</button>
                 <button class="btn btn-danger" onclick="quarantineEmail(${parseInt(e.id)})">🛡 Quarantine</button>
                 <button class="btn btn-outline" onclick="openOverrideModal(${parseInt(e.id)})">Override Verdict</button>
+                ${e.analyst_action ? `<button class="btn btn-outline" onclick="revertAction(${parseInt(e.id)})" title="Undo ${esc(e.analyst_action)} — return to escalated for re-review">Undo ${esc(e.analyst_action)}</button>` : ''}
                 <div style="flex:1"></div>
                 <span style="color:var(--text-muted);font-size:0.8rem">Email #${parseInt(e.id)}</span>
             </div>

@@ -546,12 +546,28 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
                             except Exception:
                                 pass
 
-                    if nesting_depth >= 2 or ratio > 50:
+                    # Check for dangerous file extensions inside the archive
+                    _DANGEROUS_EXTS = (".js", ".vbs", ".exe", ".scr", ".bat",
+                                       ".ps1", ".hta", ".cmd", ".com", ".msi",
+                                       ".jar", ".wsf", ".lnk")
+                    dangerous_files = [
+                        m.filename for m in zf.infolist()
+                        if any(m.filename.lower().endswith(ext) for ext in _DANGEROUS_EXTS)
+                    ]
+
+                    if nesting_depth >= 1 or ratio > 50:
                         result["suspicious"] = True
                         result["escalate"] = True
                         result["flags"].append(
                             f"archive_bomb_suspected: nesting_depth={nesting_depth} "
                             f"compression_ratio={ratio:.0f}x — possible zip bomb"
+                        )
+                    if dangerous_files:
+                        result["suspicious"] = True
+                        result["escalate"] = True
+                        names = ", ".join(dangerous_files[:5])
+                        result["flags"].append(
+                            f"archive_dangerous_content: executable file(s) inside archive: {names}"
                         )
         except Exception:
             pass  # archive check is best-effort
@@ -583,7 +599,9 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
                 with _zf.ZipFile(zf_buf, "r") as zf:
                     _DDE_PATTERNS = (b"DDEAUTO", b"DDE ", b"instrText", b"fldChar")
                     _DDE_DANGEROUS = (b"cmd", b"powershell", b"mshta", b"wscript",
-                                      b"cscript", b"certutil", b"bitsadmin")
+                                      b"cscript", b"certutil", b"bitsadmin",
+                                      b"rundll32", b"regsvr32", b"msiexec",
+                                      b"forfiles", b"pcalua", b"mshtml")
                     for name in zf.namelist():
                         if name.endswith(".xml") or name.endswith(".rels"):
                             try:

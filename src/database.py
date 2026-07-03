@@ -12,7 +12,7 @@ All tables use timezone-aware timestamps.  Connection is pooled (pool_size=5).
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -129,6 +129,11 @@ class Blocklist(Base):
     source = Column(String(20), nullable=False, default="auto")  # manual, auto, cascade
     confirmed_by = Column(String(255), nullable=True)
     active = Column(Boolean, default=True, index=True)
+    # NULL means the entry never expires. Set via ttl_days in add_blocklist_entry().
+    # A background cleanup job could periodically DELETE expired rows, but the
+    # 60-second cache refresh in rules._refresh_blocklist_cache() already filters
+    # them out, so no job is required for correctness.
+    expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     __table_args__ = (
@@ -193,6 +198,20 @@ class AnalystFeedback(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     email = relationship("Email")
+
+
+class Alert(Base):
+    """Security alert — raised by pipeline events, visible in the dashboard."""
+
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    level = Column(String(20), nullable=False)       # info, warning, critical
+    title = Column(String(255), nullable=False)
+    details = Column(JSONB, nullable=True)
+    source = Column(String(100), nullable=False, default="system")
+    created_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+    acknowledged = Column(Boolean, default=False)
 
 
 class Report(Base):
@@ -378,8 +397,15 @@ def is_whitelisted(db: Session, indicator_type: str, value: str) -> bool:
 
 
 def add_blocklist_entry(db: Session, indicator_type: str, value: str,
-                        source: str = "auto", confirmed_by: Optional[str] = None) -> bool:
-    """Add an indicator to the blocklist. Returns True if newly added."""
+                        source: str = "auto", confirmed_by: Optional[str] = None,
+                        ttl_days: Optional[int] = None) -> bool:
+    """Add an indicator to the blocklist. Returns True if newly added.
+
+    Args:
+        ttl_days: If provided, the entry expires after this many days.
+                  NULL (default) means the entry never expires.
+                  Auto-cascade entries should use ttl_days=90.
+    """
     val = value.strip().lower()
     if not val:
         return False
@@ -389,6 +415,8 @@ def add_blocklist_entry(db: Session, indicator_type: str, value: str,
         print(f"[BLOCKLIST] Skipped {indicator_type}:{val} — whitelisted")
         return False
 
+    expires_at = utcnow() + timedelta(days=ttl_days) if ttl_days is not None else None
+
     existing = db.query(Blocklist).filter(
         Blocklist.indicator_type == indicator_type,
         Blocklist.value == val,
@@ -397,6 +425,7 @@ def add_blocklist_entry(db: Session, indicator_type: str, value: str,
     if existing:
         if not existing.active:
             existing.active = True
+            existing.expires_at = expires_at
             db.commit()
             return True
         return False
@@ -406,6 +435,7 @@ def add_blocklist_entry(db: Session, indicator_type: str, value: str,
         value=val,
         source=source,
         confirmed_by=confirmed_by,
+        expires_at=expires_at,
     )
     db.add(entry)
     db.commit()
