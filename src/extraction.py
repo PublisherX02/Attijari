@@ -506,6 +506,56 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
         matches = [m.get("rule", "?") for m in yara_result.get("matches", []) if "rule" in m]
         result["flags"].append(f"yara_match: {', '.join(matches)}")
 
+    # 1b. Archive bomb detection — nested ZIPs and high compression ratios
+    # ZIP bombs overwhelm extraction with decompression work. The test corpus
+    # zip bomb is too small to hit the 60s timeout, so detect structurally.
+    if effective_mime in _ARCHIVE_MIMES or filename.lower().endswith((".zip", ".rar", ".7z", ".gz")):
+        try:
+            import zipfile as _zf
+            import io as _io
+            zf_buf = _io.BytesIO(content)
+            if _zf.is_zipfile(zf_buf):
+                zf_buf.seek(0)
+                with _zf.ZipFile(zf_buf, "r") as zf:
+                    # Check compression ratio (decompressed / compressed)
+                    total_compressed = sum(i.compress_size for i in zf.infolist() if i.compress_size > 0)
+                    total_decompressed = sum(i.file_size for i in zf.infolist())
+                    ratio = total_decompressed / total_compressed if total_compressed > 0 else 0
+
+                    # Check nesting: any member is itself a ZIP?
+                    nesting_depth = 0
+                    for member in zf.infolist():
+                        if member.file_size > 0:
+                            try:
+                                inner = zf.read(member.filename)
+                                inner_buf = _io.BytesIO(inner)
+                                if _zf.is_zipfile(inner_buf):
+                                    nesting_depth += 1
+                                    # Check second level
+                                    inner_buf.seek(0)
+                                    with _zf.ZipFile(inner_buf, "r") as zf2:
+                                        for m2 in zf2.infolist():
+                                            try:
+                                                inner2 = zf2.read(m2.filename)
+                                                if _zf.is_zipfile(_io.BytesIO(inner2)):
+                                                    nesting_depth += 1
+                                                    break
+                                            except Exception:
+                                                pass
+                                    break  # found nested ZIP, stop scanning
+                            except Exception:
+                                pass
+
+                    if nesting_depth >= 2 or ratio > 50:
+                        result["suspicious"] = True
+                        result["escalate"] = True
+                        result["flags"].append(
+                            f"archive_bomb_suspected: nesting_depth={nesting_depth} "
+                            f"compression_ratio={ratio:.0f}x — possible zip bomb"
+                        )
+        except Exception:
+            pass  # archive check is best-effort
+
     # 2. Office files + RTF — oletools
     if effective_mime in _OFFICE_MIMES or effective_mime in _RTF_MIMES or filename.lower().endswith(
             (".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pptm",
@@ -519,6 +569,39 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             for macro in ole_result.get("macros", []):
                 if macro.get("code_preview"):
                     text_parts.append(macro["code_preview"])
+
+    # 2b. OOXML DDE detection — oletools catches VBA but NOT DDE fields.
+    # DDE (Dynamic Data Exchange) executes commands without macro warnings.
+    # Scan ZIP-based OOXML for DDEAUTO/DDE instrText fields.
+    if filename.lower().endswith((".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm")):
+        try:
+            import zipfile as _zf
+            import io as _io
+            zf_buf = _io.BytesIO(content)
+            if _zf.is_zipfile(zf_buf):
+                zf_buf.seek(0)
+                with _zf.ZipFile(zf_buf, "r") as zf:
+                    _DDE_PATTERNS = (b"DDEAUTO", b"DDE ", b"instrText", b"fldChar")
+                    _DDE_DANGEROUS = (b"cmd", b"powershell", b"mshta", b"wscript",
+                                      b"cscript", b"certutil", b"bitsadmin")
+                    for name in zf.namelist():
+                        if name.endswith(".xml") or name.endswith(".rels"):
+                            try:
+                                xml_content = zf.read(name)
+                                has_dde = any(p in xml_content for p in _DDE_PATTERNS)
+                                has_dangerous = any(p in xml_content.lower() for p in _DDE_DANGEROUS)
+                                if has_dde and has_dangerous:
+                                    result["suspicious"] = True
+                                    result["escalate"] = True
+                                    result["flags"].append(
+                                        f"dde_field_detected: DDE command execution in {name} "
+                                        f"— no macro warning shown to user"
+                                    )
+                                    break
+                            except Exception:
+                                pass
+        except Exception:
+            pass  # DDE check is best-effort; other tools still run
 
     # 3. PDF — pdfid + pymupdf
     if effective_mime in _PDF_MIMES or filename.lower().endswith(".pdf"):

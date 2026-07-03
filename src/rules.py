@@ -33,22 +33,37 @@ _BLOCKLIST_CACHE_TTL = 60.0  # seconds
 
 
 def _refresh_blocklist_cache():
-    """Reload the blocklist from PostgreSQL into an in-memory set."""
+    """Reload the blocklist from PostgreSQL into an in-memory set.
+
+    Only includes entries where expires_at IS NULL or expires_at > now().
+    The 60-second cache TTL means expired entries are evicted within one minute
+    without needing a background cleanup job.
+    """
     global _blocklist_cache, _blocklist_cache_time, BLOCKED_HASH
     now = time.time()
     if now - _blocklist_cache_time < _BLOCKLIST_CACHE_TTL and _blocklist_cache:
         return  # cache is fresh
 
     try:
-        from database import SessionLocal, get_blocked_set
+        from datetime import datetime, timezone
+        from database import SessionLocal, Blocklist
         db = SessionLocal()
-        emails = get_blocked_set(db, "email")
-        domains = get_blocked_set(db, "domain")
+        current_utc = datetime.now(timezone.utc)
+
+        def _get_active_set(indicator_type: str) -> set:
+            rows = db.query(Blocklist.value).filter(
+                Blocklist.indicator_type == indicator_type,
+                Blocklist.active == True,
+                (Blocklist.expires_at == None) | (Blocklist.expires_at > current_utc),
+            ).all()
+            return {r[0] for r in rows}
+
+        emails = _get_active_set("email")
+        domains = _get_active_set("domain")
         _blocklist_cache = emails | domains
-        # Also load blocked hashes from DB
+        # Also load blocked hashes from DB, respecting TTL
         try:
-            hashes = get_blocked_set(db, "hash")
-            BLOCKED_HASH = hashes
+            BLOCKED_HASH = _get_active_set("hash")
         except Exception:
             pass  # hash type may not exist yet in DB
         _blocklist_cache_time = now
@@ -114,6 +129,44 @@ def is_shared_infrastructure_ip(ip: str) -> bool:
     return any(ip.startswith(prefix) for prefix in SHARED_INFRA_PREFIXES)
 
 
+# ---------------------------------------------------------------------------
+# Shared email domains — CLAUDE.md: "never auto-block shared infrastructure."
+# These are multi-tenant providers where blocking the domain would block ALL
+# users, not just the malicious sender. Block the sender address only.
+# ---------------------------------------------------------------------------
+SHARED_EMAIL_DOMAINS = {
+    # Consumer webmail
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.fr", "yahoo.co.uk",
+    "outlook.com", "hotmail.com", "hotmail.fr", "live.com", "msn.com",
+    "aol.com", "icloud.com", "me.com", "mac.com", "mail.com",
+    "protonmail.com", "proton.me", "tutanota.com", "zoho.com",
+    "gmx.com", "gmx.fr", "gmx.de", "yandex.com", "yandex.ru",
+    # Tunisian ISPs / webmail
+    "topnet.tn", "planet.tn", "orange.tn", "tunisietelecom.tn",
+    "gnet.tn", "hexabyte.tn",
+    # French ISPs
+    "orange.fr", "free.fr", "sfr.fr", "laposte.net", "wanadoo.fr",
+    # Education (generic patterns handled by suffix check below)
+    # Business platforms
+    "linkedin.com", "facebook.com", "twitter.com",
+}
+
+# Academic domain suffixes — any .edu, .ac.*, .edu.* domain is shared
+SHARED_DOMAIN_SUFFIXES = (".edu", ".ac.", ".edu.", ".gov", ".gouv.")
+
+
+def is_shared_email_domain(domain: str) -> bool:
+    """Check if a domain is a shared multi-tenant provider.
+
+    Blocking these domains would affect all users, not just the attacker.
+    For shared domains, only the specific sender address should be blocked.
+    """
+    domain = (domain or "").strip().lower()
+    if domain in SHARED_EMAIL_DOMAINS:
+        return True
+    return any(domain.endswith(suffix) for suffix in SHARED_DOMAIN_SUFFIXES)
+
+
 def add_to_blocklist(sender: str):
     """Add a sender to the persistent blocklist (DB + cache)."""
     if not sender:
@@ -171,9 +224,11 @@ def cascade_blocklist(sender_email: str, sender_domain: str | None,
                 added_count += 1
                 print(f"[CASCADE] Blocked email: {sender_email}")
 
-        # 2. Block sender domain
+        # 2. Block sender domain (skip shared/multi-tenant providers)
         if sender_domain:
-            if add_blocklist_entry(db, "domain", sender_domain, source="cascade"):
+            if is_shared_email_domain(sender_domain):
+                print(f"[CASCADE] Skipped domain {sender_domain} — shared provider (blocked sender only)")
+            elif add_blocklist_entry(db, "domain", sender_domain, source="cascade"):
                 _blocklist_cache.add(sender_domain.strip().lower())
                 added_count += 1
                 print(f"[CASCADE] Blocked domain: {sender_domain}")
@@ -285,30 +340,35 @@ class RuleEngine:
         # Refresh blocklist cache from DB
         blocked = get_blocked_senders()
 
-        # Rule 1 — blocklist domain (from DB)
-        sender_blocked = False
-        if signals["sender_domain"] and signals["sender_domain"] in blocked:
-            sender_blocked = True
-        if signals["sender_address"] and signals["sender_address"].lower() in blocked:
-            sender_blocked = True
+        # Rule 1 — blocklist check (from DB)
+        # Track WHY the sender is blocked: domain-level vs sender-level.
+        # A domain whitelist should NOT override a specific sender block.
+        _domain_blocked = bool(signals["sender_domain"] and signals["sender_domain"] in blocked)
+        _sender_blocked = bool(signals["sender_address"] and signals["sender_address"].lower() in blocked)
+        sender_blocked = _domain_blocked or _sender_blocked
 
         if sender_blocked:
+            _block_reason = signals["sender_address"] if _sender_blocked else signals["sender_domain"]
             details.append({"rule": "blocklist_domain", "flagged": True,
-                            "reason": f"blocked: {signals['sender_domain'] or signals['sender_address']}"})
+                            "reason": f"blocked: {_block_reason}"})
             flags += 1
         else:
             details.append({"rule": "blocklist_domain", "flagged": False, "reason": "sender not blocked"})
 
-        # Check whitelist — whitelist always wins (CLAUDE.md)
-        if sender_blocked and signals["sender_domain"]:
+        # Check whitelist — whitelist wins for DOMAIN-level blocks only.
+        # If the specific sender address is blocked (e.g. scammer@gmail.com),
+        # whitelisting gmail.com must NOT override it — that sender was
+        # individually confirmed malicious by an analyst.
+        if _domain_blocked and not _sender_blocked and signals["sender_domain"]:
             try:
                 from database import SessionLocal, is_whitelisted
                 db = SessionLocal()
                 if is_whitelisted(db, "domain", signals["sender_domain"]):
-                    # Remove the blocklist flag — whitelist wins
+                    # Remove the blocklist flag — whitelist wins for domain-only blocks
                     details[-1] = {"rule": "blocklist_domain", "flagged": False,
                                    "reason": f"whitelisted override: {signals['sender_domain']}"}
                     flags -= 1
+                    sender_blocked = False
                 db.close()
             except Exception:
                 pass  # DB unavailable — blocklist stands
@@ -337,7 +397,7 @@ class RuleEngine:
         # urgency is paired with requests for credentials, wire transfers, or account changes.
         body = (parsed.get("body_text") or "").lower()
 
-        # Tier 1: coercive urgency with threat of consequence
+        # Tier 1: coercive urgency with threat of consequence (English + French)
         urgency_phrases = [
             "your account will be", "account has been suspended",
             "account will be suspended", "account will be closed",
@@ -346,9 +406,17 @@ class RuleEngine:
             "confirm your identity", "failure to respond",
             "within 24 hours", "within 48 hours", "immediate action required",
             "action required immediately",
+            # French equivalents
+            "votre compte sera", "compte a ete suspendu",
+            "compte sera suspendu", "compte sera ferme",
+            "action en justice", "transaction non autorisee",
+            "obligatoire", "action immediate requise",
+            "dans les 24 heures", "delai de 24h", "delai de 48h",
+            "suspension de votre", "avant le ",
+            "reconfiguration obligatoire",
         ]
 
-        # Tier 2: financial or credential targeting
+        # Tier 2: financial or credential targeting (English + French)
         targeting_phrases = [
             "update your payment", "verify your account", "confirm your password",
             "enter your credentials", "click here to verify", "click here to confirm",
@@ -356,6 +424,17 @@ class RuleEngine:
             "login immediately", "sign in to verify", "reset your password",
             "social security", "credit card number", "cvv",
             "modify bank", "change bank details", "new bank account",
+            # French equivalents
+            "mettre a jour votre paiement", "verifier votre compte",
+            "confirmer votre mot de passe", "confirmer votre identite",
+            "cliquez ici pour verifier", "cliquez ici pour confirmer",
+            "virement bancaire", "coordonnees bancaires",
+            "reinitialiser votre mot de passe", "reinitialiser votre",
+            "numero de carte", "modifier vos coordonnees",
+            # Auth/2FA targeting (quishing vector)
+            "scanner le qr code", "reconfigurer votre",
+            "authentification 2fa", "microsoft authenticator",
+            "reinitialiser avant",
         ]
 
         urgency_matches = [p for p in urgency_phrases if p in body]
@@ -494,6 +573,56 @@ class RuleEngine:
             details.append({"rule": "thread_hijack_bec", "flagged": False,
                             "reason": "no thread hijack / BEC pattern detected"})
 
+        # Rule 11 — ICS calendar attachment from external sender
+        # Calendar invites (.ics) auto-add to Outlook/Gmail and are a known
+        # phishing vector. External senders sending calendar files = suspicious.
+        ics_flagged = False
+        if sender_is_external:
+            for att in signals.get("attachments", []):
+                att_name = (att.get("original_name") or "").lower()
+                att_type = (att.get("declared_type") or "").lower()
+                if att_name.endswith(".ics") or "text/calendar" in att_type:
+                    ics_flagged = True
+                    break
+
+        if ics_flagged:
+            details.append({"rule": "ics_calendar_external", "flagged": True,
+                            "reason": "calendar invite (.ics) from external sender — known phishing vector"})
+            flags += 1
+        else:
+            details.append({"rule": "ics_calendar_external", "flagged": False,
+                            "reason": "no external calendar invite"})
+
+        # Rule 12 — Vishing / callback phishing pattern
+        # Fake charge notification + phone number + cancel/refund trigger.
+        # Classic BazarCall / callback phishing — victim calls attacker's number.
+        _PHONE_PATTERN = re.compile(
+            r'(?:\+\d{1,3}[\s\-]?)?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{4}'
+        )
+        _AMOUNT_PATTERN = re.compile(
+            r'(?:\$|€|£)?\s?\d{1,6}[.,]\d{2}\s*(?:USD|EUR|TND|GBP|usd|eur|tnd|gbp)?'
+            r'|(?:\d{1,6}[.,]\d{2}\s*(?:USD|EUR|TND|GBP|usd|eur|tnd|gbp))'
+        )
+        _VISHING_TRIGGERS = (
+            "renouvellement", "renewal", "renewed", "renouvele",
+            "debite", "charged", "deducted", "preleve",
+            "annuler", "cancel", "refund", "remboursement",
+            "ne reconnaissez pas", "do not recognize",
+            "contacter", "contact", "call", "appelez",
+        )
+
+        has_phone = bool(_PHONE_PATTERN.search(body))
+        has_amount = bool(_AMOUNT_PATTERN.search(body))
+        has_vishing_trigger = any(t in body for t in _VISHING_TRIGGERS)
+
+        if has_phone and has_amount and has_vishing_trigger:
+            details.append({"rule": "vishing_callback", "flagged": True,
+                            "reason": "callback phishing: phone number + charge amount + cancel/refund trigger"})
+            flags += 1
+        else:
+            details.append({"rule": "vishing_callback", "flagged": False,
+                            "reason": "no vishing/callback pattern"})
+
         # Determine verdict severity:
         # - "proposed_reject": deterministic hard-evidence rules fired
         #   (blocklist, bad extension, bad hash, threat feed match)
@@ -506,6 +635,7 @@ class RuleEngine:
             "feed_sender_domain", "feed_malicious_url",
             "feed_malicious_domain", "feed_malicious_ip",
             "encrypted_attachment_password",
+            "ics_calendar_external",
         }
         hard_flags = [d for d in details if d["flagged"] and d["rule"] in HARD_EVIDENCE_RULES]
 
