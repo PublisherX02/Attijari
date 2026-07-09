@@ -7,6 +7,7 @@
     <p class="page-subtitle">Manage blocked senders, domains, IPs, and file hashes</p>
 </div>
 
+{% if role == 'admin' or permissions.get('blocklist.manage', False) %}
 <!-- Add entry form -->
 <div class="card" style="margin-bottom: 24px;">
     <div class="card-header">
@@ -29,6 +30,7 @@
         <button class="btn btn-danger" onclick="addBlocklistEntry()" style="height:42px;">🚫 Block</button>
     </div>
 </div>
+{% endif %}
 
 <!-- Blocklist table -->
 <div class="table-container">
@@ -39,7 +41,7 @@
                 <th>Value</th>
                 <th>Source</th>
                 <th>Added</th>
-                <th>Action</th>
+                {% if role == 'admin' or permissions.get('blocklist.manage', False) %}<th>Action</th>{% endif %}
             </tr>
         </thead>
         <tbody id="blocklist-body">

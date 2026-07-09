@@ -196,12 +196,17 @@ async function loadInbox(page = 1, status = null, search = '') {
             return;
         }
 
+        const canRelease = userCan('emails.release');
+        const canQuarantine = userCan('emails.quarantine');
+        const canRevert = userCan('emails.revert');
+        const canBulk = userCan('emails.bulk');
+
         container.innerHTML = data.emails.map(e => `
             <tr onclick="window.location='/email/${parseInt(e.id)}'">
-                <td onclick="event.stopPropagation()">
+                ${canBulk ? `<td onclick="event.stopPropagation()">
                     <input type="checkbox" class="row-checkbox" data-id="${parseInt(e.id)}"
                         onchange="toggleEmailSelection(${parseInt(e.id)}, this.checked)">
-                </td>
+                </td>` : '<td></td>'}
                 <td>${esc(truncate(e.sender, 40))}</td>
                 <td>${esc(truncate(e.subject, 55))}</td>
                 <td>${statusBadge(e.status)}</td>
@@ -211,13 +216,13 @@ async function loadInbox(page = 1, status = null, search = '') {
                     ${e.status === 'pending' ? `<span class="badge pending">Scanning…</span>`
                     : e.status === 'escalated' || e.status === 'recu' ? `
                         <div class="btn-group">
-                            <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); releaseEmail(${parseInt(e.id)})">Release</button>
-                            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); quarantineEmail(${parseInt(e.id)})">Quarantine</button>
+                            ${canRelease ? `<button class="btn btn-success btn-sm" onclick="event.stopPropagation(); releaseEmail(${parseInt(e.id)})">Release</button>` : ''}
+                            ${canQuarantine ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); quarantineEmail(${parseInt(e.id)})">Quarantine</button>` : ''}
                         </div>
                     ` : e.analyst_action ? `
                         <div class="btn-group">
                             <span style="color:var(--text-muted)">${esc(e.analyst_action)}</span>
-                            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); revertAction(${parseInt(e.id)})" title="Undo — return to escalated for re-review">Undo</button>
+                            ${canRevert ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); revertAction(${parseInt(e.id)})" title="Undo — return to escalated for re-review">Undo</button>` : ''}
                         </div>
                     ` : ''}
                 </td>
@@ -503,10 +508,10 @@ async function loadEmailDetail(emailId) {
             ${auditHtml}
 
             <div class="action-bar">
-                <button class="btn btn-success" onclick="releaseEmail(${parseInt(e.id)})">✓ Release</button>
-                <button class="btn btn-danger" onclick="quarantineEmail(${parseInt(e.id)})">🛡 Quarantine</button>
-                <button class="btn btn-outline" onclick="openOverrideModal(${parseInt(e.id)})">Override Verdict</button>
-                ${e.analyst_action ? `<button class="btn btn-outline" onclick="revertAction(${parseInt(e.id)})" title="Undo ${esc(e.analyst_action)} — return to escalated for re-review">Undo ${esc(e.analyst_action)}</button>` : ''}
+                ${userCan('emails.release') ? `<button class="btn btn-success" onclick="releaseEmail(${parseInt(e.id)})">✓ Release</button>` : ''}
+                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" onclick="quarantineEmail(${parseInt(e.id)})">🛡 Quarantine</button>` : ''}
+                ${userCan('emails.override') ? `<button class="btn btn-outline" onclick="openOverrideModal(${parseInt(e.id)})">Override Verdict</button>` : ''}
+                ${e.analyst_action && userCan('emails.revert') ? `<button class="btn btn-outline" onclick="revertAction(${parseInt(e.id)})" title="Undo ${esc(e.analyst_action)} — return to escalated for re-review">Undo ${esc(e.analyst_action)}</button>` : ''}
                 <div style="flex:1"></div>
                 <span style="color:var(--text-muted);font-size:0.8rem">Email #${parseInt(e.id)}</span>
             </div>
@@ -537,7 +542,7 @@ async function loadBlocklist() {
                 <td style="font-family:monospace">${esc(e.value)}</td>
                 <td>${esc(e.source)}</td>
                 <td>${formatDate(e.created_at)}</td>
-                <td><button class="btn btn-outline btn-sm" onclick="removeBlocklistEntry(${parseInt(e.id)})">Remove</button></td>
+                <td>${userCan('blocklist.manage') ? `<button class="btn btn-outline btn-sm" onclick="removeBlocklistEntry(${parseInt(e.id)})">Remove</button>` : ''}</td>
             </tr>
         `).join('');
     } catch (err) {
@@ -586,7 +591,7 @@ async function loadWhitelist() {
                 <td style="font-family:monospace">${esc(e.value)}</td>
                 <td>${esc(e.reason) || '—'}</td>
                 <td>${formatDate(e.created_at)}</td>
-                <td><button class="btn btn-outline btn-sm" onclick="removeWhitelistEntry(${parseInt(e.id)})">Remove</button></td>
+                <td>${userCan('whitelist.manage') ? `<button class="btn btn-outline btn-sm" onclick="removeWhitelistEntry(${parseInt(e.id)})">Remove</button>` : ''}</td>
             </tr>
         `).join('');
     } catch (err) {

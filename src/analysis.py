@@ -80,7 +80,7 @@ def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOK
         "max_tokens": max_tokens,
         "temperature": DEFAULT_TEMPERATURE,
         "stream": False,
-        "stop": ["```"]
+        "format": "json",
     }).encode("utf-8")
 
     last_exc = None
@@ -118,7 +118,7 @@ def _call_ollama_client(model: str, prompt: str) -> str:
         raise RuntimeError("ollama python client not available") from e
 
     client = ollama.Ollama()
-    kwargs = {"model": model, "prompt": prompt, "max_tokens": DEFAULT_MAX_TOKENS, "temperature": DEFAULT_TEMPERATURE, "stream": False}
+    kwargs = {"model": model, "prompt": prompt, "max_tokens": DEFAULT_MAX_TOKENS, "temperature": DEFAULT_TEMPERATURE, "stream": False, "format": "json"}
     if hasattr(client, "generate"):
         try:
             return client.generate(**kwargs)

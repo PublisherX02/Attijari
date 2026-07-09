@@ -54,7 +54,10 @@ async def login_post(request: Request, username: str = Form(...), password: str 
     user = db.query(User).filter(User.username == username).first()
     if not user or not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
         return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Invalid username or password"})
-        
+
+    if not user.is_active:
+        return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Account deactivated. Contact administrator."})
+
     if not user.totp_secret:
         # MFA is mandatory — reject users without TOTP configured
         return templates.TemplateResponse(request, "login.html", {"request": request, "error": "MFA not configured. Contact administrator."})
@@ -68,8 +71,14 @@ async def login_post(request: Request, username: str = Form(...), password: str 
     _used_totp_codes[cache_key] = True
     _cleanup_totp_cache()
 
+    # Update last_login timestamp
+    from database import utcnow as _utcnow
+    user.last_login = _utcnow()
+    db.commit()
+
     payload = {
         "sub": username,
+        "role": user.role or "viewer",
         "exp": datetime.now(timezone.utc) + timedelta(hours=8)
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)

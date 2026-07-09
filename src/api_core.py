@@ -135,9 +135,49 @@ def get_db_generator():
     finally:
         db.close()
 
+class AuthenticatedUser:
+    """Lightweight wrapper carrying identity + RBAC context through requests."""
+    __slots__ = ("username", "role", "permissions", "user_id")
+
+    def __init__(self, username: str, role: str = "viewer",
+                 permissions: dict = None, user_id: int = None):
+        self.username = username
+        self.role = role
+        self.permissions = permissions or {}
+        self.user_id = user_id
+
+    def has(self, permission: str) -> bool:
+        if self.role == "admin":
+            return True
+        return bool(self.permissions.get(permission, False))
+
+    def __str__(self):
+        return self.username
+
+
+def _load_user_context(username: str) -> Optional["AuthenticatedUser"]:
+    """Load full RBAC context from DB for an authenticated username."""
+    from database import User
+    db = next(get_db_generator())
+    try:
+        user = db.query(User).filter(User.username == username, User.is_active == True).first()
+        if not user:
+            return None
+        return AuthenticatedUser(
+            username=user.username,
+            role=user.role or "viewer",
+            permissions=user.permissions or {},
+            user_id=user.id,
+        )
+    finally:
+        db.close()
+
+
 async def verify_auth(request: Request, access_token: Optional[str] = Cookie(None)):
     if request.url.path in ["/login", "/api/login"] or request.url.path.startswith("/static"):
         return None
+
+    username = None
 
     if not access_token:
         # For API clients without cookies, fallback to Basic Auth
@@ -146,27 +186,58 @@ async def verify_auth(request: Request, access_token: Optional[str] = Cookie(Non
             import base64
             try:
                 decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
-                username, password = decoded.split(":", 1)
+                uname, password = decoded.split(":", 1)
                 db = next(get_db_generator())
                 from database import User
-                user = db.query(User).filter(User.username == username).first()
+                user = db.query(User).filter(User.username == uname).first()
                 # Always call bcrypt to prevent timing-based username enumeration
                 _dummy_hash = "$2b$12$LJ3m4ys3Lg2F55HBz6E6ceRzNKPRtTBBBfUvKXFLT7gaBMvHy1jCe"
                 hash_to_check = user.password_hash if user else _dummy_hash
                 password_valid = bcrypt.checkpw(password.encode("utf-8"), hash_to_check.encode("utf-8"))
-                if user and password_valid:
-                    request.state.authenticated_user = username
-                    return username
+                if user and password_valid and user.is_active:
+                    username = uname
+                db.close()
             except Exception:
                 pass
+        if not username:
+            raise NotAuthenticatedException()
+    else:
+        try:
+            if is_token_revoked(access_token):
+                raise NotAuthenticatedException()
+            payload = jwt.decode(access_token, JWT_SECRET, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+        except jwt.PyJWTError:
+            raise NotAuthenticatedException()
+
+    # Load full RBAC context
+    auth_user = _load_user_context(username)
+    if not auth_user:
         raise NotAuthenticatedException()
 
-    try:
-        if is_token_revoked(access_token):
+    request.state.authenticated_user = auth_user.username
+    request.state.auth_user = auth_user
+    return auth_user
+
+
+def require_permission(permission: str):
+    """FastAPI dependency that checks a specific permission after authentication.
+
+    Usage:
+        @router.post("/api/blocklist")
+        async def add_blocklist(user: AuthenticatedUser = Depends(require_permission("blocklist.manage"))):
+            ...
+    """
+    from fastapi import Depends, HTTPException
+
+    async def _check(user: AuthenticatedUser = Depends(verify_auth)):
+        if user is None:
             raise NotAuthenticatedException()
-        payload = jwt.decode(access_token, JWT_SECRET, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        request.state.authenticated_user = username
-        return username
-    except jwt.PyJWTError:
-        raise NotAuthenticatedException()
+        if not user.has(permission):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied: {permission} required",
+            )
+        return user
+
+    return _check

@@ -7,7 +7,9 @@
         <h2>Inbox Queue</h2>
         <p class="page-subtitle">Review flagged emails and take action</p>
     </div>
+    {% if role == 'admin' or permissions.get('emails.scan', False) %}
     <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">🔄 Scan Now</button>
+    {% endif %}
 </div>
 
 <!-- Stats cards -->
@@ -36,20 +38,26 @@
     <button class="chip" data-status="recu" onclick="filterByStatus('recu')">🟣 Received</button>
 </div>
 
+{% if role == 'admin' or permissions.get('emails.bulk', False) %}
 <!-- Bulk action bar (hidden until emails are selected) -->
 <div id="bulk-action-bar" style="display:none;align-items:center;gap:12px;padding:10px 16px;background:var(--surface-raised,#1e2532);border:1px solid var(--border,#2d3748);border-radius:var(--radius,8px);margin-bottom:12px">
     <span id="bulk-count-label" style="color:var(--text-secondary);font-size:0.875rem"></span>
+    {% if role == 'admin' or permissions.get('emails.release', False) %}
     <button id="bulk-release-btn" class="btn btn-success btn-sm" onclick="executeBulkAction('release')">Release Selected</button>
+    {% endif %}
+    {% if role == 'admin' or permissions.get('emails.quarantine', False) %}
     <button id="bulk-quarantine-btn" class="btn btn-danger btn-sm" onclick="executeBulkAction('quarantine')">Quarantine Selected</button>
+    {% endif %}
     <button class="btn btn-outline btn-sm" onclick="selectedEmailIds.clear();document.querySelectorAll('.row-checkbox').forEach(c=>c.checked=false);updateBulkBar()">Clear Selection</button>
 </div>
+{% endif %}
 
 <!-- Email table -->
 <div class="table-container">
     <table>
         <thead>
             <tr>
-                <th style="width:36px"><input type="checkbox" id="select-all-checkbox" title="Select all" onchange="toggleSelectAll(this.checked)"></th>
+                <th style="width:36px">{% if role == 'admin' or permissions.get('emails.bulk', False) %}<input type="checkbox" id="select-all-checkbox" title="Select all" onchange="toggleSelectAll(this.checked)">{% endif %}</th>
                 <th>Sender</th>
                 <th>Subject</th>
                 <th>Status</th>

@@ -229,7 +229,13 @@ class Report(Base):
 
 
 class User(Base):
-    """System users for the Dashboard (ISO 27001 Access Control)."""
+    """System users for the Dashboard (ISO 27001 Access Control).
+
+    Roles:
+      - admin:   full access, can manage users and assign permissions
+      - analyst: configurable permissions (view, release, quarantine, etc.)
+      - viewer:  read-only access to emails and reports
+    """
 
     __tablename__ = "users"
 
@@ -238,7 +244,115 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     totp_secret = Column(String(64), nullable=True)
     is_active = Column(Boolean, default=True)
+    role = Column(String(20), nullable=False, default="viewer")  # admin, analyst, viewer
+    permissions = Column(JSONB, nullable=False, default=dict)  # granular permission flags
+    created_by = Column(String(255), nullable=True)
+    last_login = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------------------------------------------------------------------------
+# RBAC — Permission definitions
+# ---------------------------------------------------------------------------
+
+# Every granular permission the system supports.
+# Admin role implicitly has ALL permissions.
+# Analyst/viewer roles get a subset assigned by the admin.
+ALL_PERMISSIONS = {
+    "emails.view": True,         # view email list and details
+    "emails.release": True,      # release emails
+    "emails.quarantine": True,   # quarantine emails
+    "emails.override": True,     # override pipeline verdicts
+    "emails.revert": True,       # revert analyst actions
+    "emails.bulk": True,         # bulk release/quarantine
+    "emails.scan": True,         # trigger manual IMAP scan
+    "blocklist.view": True,      # view blocklist
+    "blocklist.manage": True,    # add/remove blocklist entries
+    "whitelist.view": True,      # view whitelist
+    "whitelist.manage": True,    # add/remove whitelist entries
+    "audit.view": True,          # view audit log and action history
+    "reports.view": True,        # view reports
+    "health.view": True,         # view system health
+    "alerts.view": True,         # view security alerts
+    "alerts.acknowledge": True,  # acknowledge alerts
+    "export.csv": True,          # export email data as CSV
+    "users.manage": True,        # create/edit/delete users (admin only)
+}
+
+VIEWER_PERMISSIONS = {
+    "emails.view": True,
+    "blocklist.view": True,
+    "whitelist.view": True,
+    "reports.view": True,
+    "health.view": True,
+    "alerts.view": True,
+    "audit.view": True,
+}
+
+ANALYST_PERMISSIONS = {
+    **VIEWER_PERMISSIONS,
+    "emails.release": True,
+    "emails.quarantine": True,
+    "emails.override": True,
+    "emails.revert": True,
+    "emails.bulk": True,
+    "emails.scan": True,
+    "blocklist.manage": True,
+    "whitelist.manage": True,
+    "alerts.acknowledge": True,
+    "export.csv": True,
+}
+
+ROLE_DEFAULTS = {
+    "admin": ALL_PERMISSIONS,
+    "analyst": ANALYST_PERMISSIONS,
+    "viewer": VIEWER_PERMISSIONS,
+}
+
+
+def user_has_permission(user: "User", permission: str) -> bool:
+    """Check if a user has a specific permission."""
+    if user.role == "admin":
+        return True  # admin bypasses all checks
+    return bool(user.permissions.get(permission, False))
+
+
+def _migrate_users_rbac():
+    """One-time migration: add role+permissions columns to pre-RBAC users table."""
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        existing_cols = {c["name"] for c in inspector.get_columns("users")}
+
+        # Add missing columns via ALTER TABLE
+        new_cols = {
+            "role": "VARCHAR(20) NOT NULL DEFAULT 'viewer'",
+            "permissions": "JSONB NOT NULL DEFAULT '{}'::jsonb",
+            "created_by": "VARCHAR(255)",
+            "last_login": "TIMESTAMP WITH TIME ZONE",
+        }
+        first_migration = "role" not in existing_cols
+        with engine.begin() as conn:
+            for col_name, col_def in new_cols.items():
+                if col_name not in existing_cols:
+                    conn.execute(sa_text(f'ALTER TABLE users ADD COLUMN "{col_name}" {col_def}'))
+                    print(f"[DB] Added column users.{col_name}")
+
+        # Only promote pre-RBAC users on first migration (when role column was just added).
+        # On subsequent startups, never touch existing roles — they were set intentionally.
+        if first_migration:
+            db = SessionLocal()
+            try:
+                users = db.query(User).all()
+                for u in users:
+                    u.role = "admin"  # pre-RBAC users were de facto admins
+                    u.permissions = ALL_PERMISSIONS.copy()
+                db.commit()
+                print("[DB] Migrated existing users to RBAC schema (first run).")
+            finally:
+                db.close()
+    except Exception as e:
+        print(f"[DB] RBAC migration note: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +363,10 @@ def init_db():
     """Create all tables if they don't exist. Safe to call multiple times."""
     Base.metadata.create_all(bind=engine)
     print("[DB] All tables created / verified.")
-    
+
+    # Migrate existing users: add role/permissions columns if missing
+    _migrate_users_rbac()
+
     # Initialize default admin if no users exist
     try:
         db = SessionLocal()
@@ -260,13 +377,17 @@ def init_db():
             env_pass = os.getenv("DASHBOARD_PASS")
             if env_pass:
                 password = env_pass
-                pass_source = "from DASHBOARD_PASS in .env"
             else:
                 password = secrets.token_urlsafe(16)
-                pass_source = "randomly generated (set DASHBOARD_PASS in .env to override)"
             hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             totp_secret = pyotp.random_base32()
-            admin = User(username=os.getenv("DASHBOARD_USER", "admin"), password_hash=hashed, totp_secret=totp_secret)
+            admin = User(
+                username=os.getenv("DASHBOARD_USER", "admin"),
+                password_hash=hashed,
+                totp_secret=totp_secret,
+                role="admin",
+                permissions=ALL_PERMISSIONS.copy(),
+            )
             db.add(admin)
             db.commit()
             # Write credentials to a secure local file — NEVER print to console/logs

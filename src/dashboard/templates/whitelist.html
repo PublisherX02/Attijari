@@ -7,6 +7,7 @@
     <p class="page-subtitle">Whitelisted indicators always override the blocklist</p>
 </div>
 
+{% if role == 'admin' or permissions.get('whitelist.manage', False) %}
 <!-- Add entry form -->
 <div class="card" style="margin-bottom: 24px;">
     <div class="card-header">
@@ -32,6 +33,7 @@
         <button class="btn btn-success" onclick="addWhitelistEntry()" style="height:42px;">✅ Whitelist</button>
     </div>
 </div>
+{% endif %}
 
 <!-- Whitelist table -->
 <div class="table-container">
@@ -42,7 +44,7 @@
                 <th>Value</th>
                 <th>Reason</th>
                 <th>Added</th>
-                <th>Action</th>
+                {% if role == 'admin' or permissions.get('whitelist.manage', False) %}<th>Action</th>{% endif %}
             </tr>
         </thead>
         <tbody id="whitelist-body">

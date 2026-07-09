@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% block title %}Admin — User Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>User Management</h2>
+    <button class="btn btn-primary" onclick="openCreateModal()">+ Create User</button>
+</div>
+
+<!-- User table -->
+<div class="card" style="margin-top:20px;">
+    <table class="data-table" id="users-table">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Permissions</th>
+                <th>Last Login</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="users-body">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Create User Modal -->
+<div class="modal-overlay" id="create-modal" onclick="if(event.target===this)closeCreateModal()">
+    <div class="modal" style="max-width:520px;">
+        <h3>Create New User</h3>
+        <div class="form-group">
+            <label class="form-label">Username</label>
+            <input class="form-input" id="new-username" type="text" placeholder="e.g. analyst_fatma" pattern="[a-zA-Z0-9._-]+" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Password</label>
+            <input class="form-input" id="new-password" type="password" placeholder="Min 8 characters" minlength="8" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Role</label>
+            <select class="form-select" id="new-role" onchange="applyRoleDefaults()">
+                <option value="analyst">Analyst</option>
+                <option value="viewer">Viewer</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <div class="form-group" id="perms-section">
+            <label class="form-label">Permissions</label>
+            <div id="perm-checkboxes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.85rem;"></div>
+        </div>
+        <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-outline" onclick="closeCreateModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="createUser()">Create User</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeEditModal()">
+    <div class="modal" style="max-width:520px;">
+        <h3>Edit User: <span id="edit-username-label"></span></h3>
+        <input type="hidden" id="edit-user-id">
+        <div class="form-group">
+            <label class="form-label">Role</label>
+            <select class="form-select" id="edit-role" onchange="applyEditRoleDefaults()">
+                <option value="analyst">Analyst</option>
+                <option value="viewer">Viewer</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <div class="form-group" id="edit-perms-section">
+            <label class="form-label">Permissions</label>
+            <div id="edit-perm-checkboxes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.85rem;"></div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Status</label>
+            <select class="form-select" id="edit-active">
+                <option value="true">Active</option>
+                <option value="false">Deactivated</option>
+            </select>
+        </div>
+        <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-outline" onclick="closeEditModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveUser()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- TOTP QR Modal -->
+<div class="modal-overlay" id="totp-modal" onclick="if(event.target===this)closeTotpModal()">
+    <div class="modal" style="max-width:460px;text-align:center;">
+        <h3>2FA Setup for <span id="totp-username"></span></h3>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px;">
+            Have the user scan this QR code in their authenticator app (Google Authenticator, Authy, etc.)
+        </p>
+        <div id="totp-qr" style="margin:20px auto;"></div>
+        <div style="background:var(--bg-tertiary);padding:12px;border-radius:8px;margin:12px 0;">
+            <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Manual entry key:</label>
+            <code id="totp-secret-display" style="font-size:0.95rem;letter-spacing:2px;word-break:break-all;"></code>
+        </div>
+        <p style="color:#e74c3c;font-size:0.8rem;margin-top:8px;">
+            This key will NOT be shown again. Make sure the user has saved it.
+        </p>
+        <button class="btn btn-primary" onclick="closeTotpModal()" style="margin-top:12px;">Done</button>
+    </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal-overlay" id="reset-pw-modal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal" style="max-width:400px;">
+        <h3>Reset Password: <span id="reset-pw-username"></span></h3>
+        <input type="hidden" id="reset-pw-user-id">
+        <div class="form-group">
+            <label class="form-label">New Password</label>
+            <input class="form-input" id="reset-pw-value" type="password" placeholder="Min 8 characters" minlength="8">
+        </div>
+        <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-outline" onclick="document.getElementById('reset-pw-modal').classList.remove('open')">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmResetPassword()">Reset Password</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let permCatalog = [];
+let roleDefaults = {};
+
+// ----- Load users -----
+async function loadUsers() {
+    const res = await fetch('/api/users');
+    if (res.status === 403) { window.location = '/'; return; }
+    const data = await res.json();
+    permCatalog = data.permission_catalog || [];
+    roleDefaults = data.role_defaults || {};
+
+    const tbody = document.getElementById('users-body');
+    if (!data.users || data.users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No users found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = data.users.map(u => {
+        const statusBadge = u.is_active
+            ? '<span class="status-badge status-accepted">Active</span>'
+            : '<span class="status-badge status-quarantined">Inactive</span>';
+        const roleBadge = u.role === 'admin'
+            ? '<span class="status-badge" style="background:rgba(155,89,182,0.15);color:#9b59b6;">admin</span>'
+            : u.role === 'analyst'
+            ? '<span class="status-badge" style="background:rgba(41,128,185,0.15);color:#2980b9;">analyst</span>'
+            : '<span class="status-badge" style="background:rgba(149,165,166,0.15);color:#7f8c8d;">viewer</span>';
+
+        const permCount = u.permissions ? Object.values(u.permissions).filter(Boolean).length : 0;
+        const lastLogin = u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never';
+        const created = u.created_at ? new Date(u.created_at).toLocaleDateString() : '-';
+
+        return `<tr>
+            <td><strong>${esc(u.username)}</strong>${u.created_by ? '<br><small style="color:var(--text-muted)">by ' + esc(u.created_by) + '</small>' : ''}</td>
+            <td>${roleBadge}</td>
+            <td>${statusBadge}</td>
+            <td><span title="${permCount} permissions">${permCount}/${permCatalog.length}</span></td>
+            <td>${lastLogin}</td>
+            <td>${created}</td>
+            <td>
+                <div class="btn-group" style="gap:4px;">
+                    <button class="btn btn-outline btn-sm" onclick="openEditModal(${u.id})" title="Edit">Edit</button>
+                    <button class="btn btn-outline btn-sm" onclick="resetPassword(${u.id}, '${esc(u.username)}')" title="Reset password">PW</button>
+                    <button class="btn btn-outline btn-sm" onclick="resetTotp(${u.id}, '${esc(u.username)}')" title="Reset 2FA">2FA</button>
+                    ${u.role !== 'admin' ? `<button class="btn btn-outline btn-sm" style="color:#e74c3c;" onclick="deactivateUser(${u.id}, '${esc(u.username)}')" title="Deactivate">X</button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ----- Permission checkboxes -----
+function renderPermCheckboxes(containerId, selected, disabled) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = permCatalog.map(p => {
+        const checked = selected[p] ? 'checked' : '';
+        const dis = disabled ? 'disabled' : '';
+        const label = p.replace('.', ' > ');
+        return `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" name="perm" value="${p}" ${checked} ${dis}>
+            <span>${label}</span>
+        </label>`;
+    }).join('');
+}
+
+function getCheckedPerms(containerId) {
+    const boxes = document.querySelectorAll(`#${containerId} input[name="perm"]`);
+    const perms = {};
+    boxes.forEach(b => { perms[b.value] = b.checked; });
+    return perms;
+}
+
+// ----- Create user -----
+function openCreateModal() {
+    document.getElementById('new-username').value = '';
+    document.getElementById('new-password').value = '';
+    document.getElementById('new-role').value = 'analyst';
+    applyRoleDefaults();
+    document.getElementById('create-modal').classList.add('open');
+}
+function closeCreateModal() { document.getElementById('create-modal').classList.remove('open'); }
+
+function applyRoleDefaults() {
+    const role = document.getElementById('new-role').value;
+    const permsSection = document.getElementById('perms-section');
+    if (role === 'admin') {
+        permsSection.style.display = 'none';
+    } else {
+        permsSection.style.display = '';
+        const defaults = roleDefaults[role] || {};
+        renderPermCheckboxes('perm-checkboxes', defaults, false);
+    }
+}
+
+async function createUser() {
+    const username = document.getElementById('new-username').value.trim();
+    const password = document.getElementById('new-password').value;
+    const role = document.getElementById('new-role').value;
+
+    if (!username || username.length < 3) { alert('Username must be at least 3 characters'); return; }
+    if (password.length < 8) { alert('Password must be at least 8 characters'); return; }
+
+    const permissions = role === 'admin' ? undefined : getCheckedPerms('perm-checkboxes');
+
+    const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ username, password, role, permissions })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to create user'); return; }
+
+    closeCreateModal();
+
+    // Show TOTP QR code
+    showTotpModal(username, data.totp_uri, data.totp_secret);
+    loadUsers();
+}
+
+// ----- TOTP QR display -----
+function showTotpModal(username, totpUri, totpSecret) {
+    document.getElementById('totp-username').textContent = username;
+    document.getElementById('totp-secret-display').textContent = totpSecret;
+
+    // Generate QR code using a simple table-based renderer
+    const qrContainer = document.getElementById('totp-qr');
+    qrContainer.innerHTML = '';
+
+    // Use a canvas-free QR approach: generate a link to the URI
+    // For a proper QR, we embed a small inline QR generator
+    if (typeof QRCode !== 'undefined') {
+        new QRCode(qrContainer, { text: totpUri, width: 200, height: 200 });
+    } else {
+        // Fallback: show the URI for manual entry
+        qrContainer.innerHTML = `<div style="background:#fff;padding:16px;border-radius:8px;border:2px dashed #ccc;">
+            <p style="font-size:0.8rem;color:#666;margin:0 0 8px;">QR library not loaded. Use manual key above, or copy this URI:</p>
+            <code style="font-size:0.7rem;word-break:break-all;">${totpUri}</code>
+        </div>`;
+    }
+
+    document.getElementById('totp-modal').classList.add('open');
+}
+function closeTotpModal() { document.getElementById('totp-modal').classList.remove('open'); }
+
+// ----- Edit user -----
+let editUserData = null;
+async function openEditModal(userId) {
+    const res = await fetch('/api/users');
+    const data = await res.json();
+    const user = data.users.find(u => u.id === userId);
+    if (!user) { alert('User not found'); return; }
+    editUserData = user;
+
+    document.getElementById('edit-user-id').value = userId;
+    document.getElementById('edit-username-label').textContent = user.username;
+    document.getElementById('edit-role').value = user.role;
+    document.getElementById('edit-active').value = user.is_active ? 'true' : 'false';
+    applyEditRoleDefaults();
+    document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); editUserData = null; }
+
+function applyEditRoleDefaults() {
+    const role = document.getElementById('edit-role').value;
+    const section = document.getElementById('edit-perms-section');
+    if (role === 'admin') {
+        section.style.display = 'none';
+    } else {
+        section.style.display = '';
+        // Use current user perms if role hasn't changed, otherwise role defaults
+        const perms = (editUserData && editUserData.role === role)
+            ? (editUserData.permissions || {})
+            : (roleDefaults[role] || {});
+        renderPermCheckboxes('edit-perm-checkboxes', perms, false);
+    }
+}
+
+async function saveUser() {
+    const userId = document.getElementById('edit-user-id').value;
+    const role = document.getElementById('edit-role').value;
+    const is_active = document.getElementById('edit-active').value === 'true';
+    const permissions = role === 'admin' ? undefined : getCheckedPerms('edit-perm-checkboxes');
+
+    const res = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ role, permissions, is_active })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to update user'); return; }
+    closeEditModal();
+    loadUsers();
+}
+
+// ----- Reset password -----
+function resetPassword(userId, username) {
+    document.getElementById('reset-pw-user-id').value = userId;
+    document.getElementById('reset-pw-username').textContent = username;
+    document.getElementById('reset-pw-value').value = '';
+    document.getElementById('reset-pw-modal').classList.add('open');
+}
+
+async function confirmResetPassword() {
+    const userId = document.getElementById('reset-pw-user-id').value;
+    const pw = document.getElementById('reset-pw-value').value;
+    if (pw.length < 8) { alert('Password must be at least 8 characters'); return; }
+
+    const res = await fetch(`/api/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ new_password: pw })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed'); return; }
+    document.getElementById('reset-pw-modal').classList.remove('open');
+    alert('Password reset successfully');
+}
+
+// ----- Reset TOTP -----
+async function resetTotp(userId, username) {
+    if (!confirm(`Reset 2FA for "${username}"? They will need to re-scan a new QR code.`)) return;
+    const res = await fetch(`/api/users/${userId}/reset-totp`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed'); return; }
+    showTotpModal(username, data.totp_uri, data.totp_secret);
+}
+
+// ----- Deactivate -----
+async function deactivateUser(userId, username) {
+    if (!confirm(`Deactivate user "${username}"? They will no longer be able to log in.`)) return;
+    const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed'); return; }
+    loadUsers();
+}
+
+// ----- QR Code library (minimal inline) -----
+// Load qrcode.js from CDN for QR rendering
+(function() {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+    s.onload = () => console.log('[Admin] QR library loaded');
+    document.head.appendChild(s);
+})();
+
+// Initial load
+loadUsers();
+</script>
+{% endblock %}

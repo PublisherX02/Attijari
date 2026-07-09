@@ -675,6 +675,272 @@ class RuleEngine:
             details.append({"rule": "html_smuggling", "flagged": False,
                             "reason": "no HTML smuggling patterns detected"})
 
+        # Rule 15 — Return-Path / From domain mismatch (envelope spoofing)
+        # The Return-Path (envelope sender) should match the From header domain.
+        # A mismatch indicates the email was sent from a different server than
+        # claimed — a classic SPF evasion / spoofing technique.
+        headers = parsed.get("headers") or {}
+        return_path = headers.get("return-path") or ""
+        from_header = headers.get("from") or ""
+        rp_mismatch_flagged = False
+        if return_path and from_header and "@" in return_path:
+            rp_clean = return_path.strip().strip("<>").lower()
+            rp_domain = rp_clean.split("@")[-1] if "@" in rp_clean else ""
+            from_addr_match = re.search(r'[\w.+-]+@[\w.-]+', from_header.lower())
+            from_domain = from_addr_match.group().split("@")[-1] if from_addr_match else ""
+            if rp_domain and from_domain and rp_domain != from_domain:
+                # Skip known forwarding/mailing-list patterns
+                _FORWARDING_DOMAINS = {
+                    "googlegroups.com", "lists.sourceforge.net", "freelists.org",
+                    "yahoogroups.com", "bounces.google.com",
+                }
+                if rp_domain not in _FORWARDING_DOMAINS:
+                    rp_mismatch_flagged = True
+
+        if rp_mismatch_flagged:
+            details.append({"rule": "return_path_mismatch", "flagged": True,
+                            "reason": f"Return-Path domain ({rp_domain}) differs from From domain ({from_domain}) — envelope spoofing"})
+            flags += 1
+        else:
+            details.append({"rule": "return_path_mismatch", "flagged": False,
+                            "reason": "Return-Path matches From domain or not applicable"})
+
+        # Rule 16 — Multiple From headers (RFC 5322 violation)
+        # A legitimate email has exactly one From header. Multiple From headers
+        # are used to confuse email clients into displaying a trusted sender
+        # while the actual envelope routes through a malicious one.
+        from_all = headers.get("from_all") or []
+        multi_from_flagged = len(from_all) > 1
+
+        if multi_from_flagged:
+            details.append({"rule": "multi_from_header", "flagged": True,
+                            "reason": f"Email contains {len(from_all)} From headers (RFC violation) — display spoofing attack"})
+            flags += 1
+        else:
+            details.append({"rule": "multi_from_header", "flagged": False,
+                            "reason": "single From header (normal)"})
+
+        # Rule 17 — Empty envelope sender (null Return-Path)
+        # A Return-Path of "<>" is legitimate for bounce messages (DSN).
+        # But attackers use it to bypass SPF checks since SPF validates the
+        # envelope sender — an empty one means no domain to check.
+        empty_rp_flagged = False
+        if return_path.strip() == "<>" or return_path.strip() == "":
+            # Only flag if the subject/body doesn't look like a real bounce
+            subject_lower = (headers.get("subject") or "").lower()
+            _BOUNCE_KEYWORDS = ("undeliverable", "delivery status", "returned mail",
+                                "mail delivery failed", "postmaster", "mailer-daemon")
+            is_likely_bounce = any(kw in subject_lower for kw in _BOUNCE_KEYWORDS)
+            if not is_likely_bounce and return_path.strip() == "<>":
+                empty_rp_flagged = True
+
+        if empty_rp_flagged:
+            details.append({"rule": "empty_envelope_sender", "flagged": True,
+                            "reason": "Empty Return-Path (<>) on non-bounce email — SPF bypass attempt"})
+            flags += 1
+        else:
+            details.append({"rule": "empty_envelope_sender", "flagged": False,
+                            "reason": "Return-Path present or legitimate bounce"})
+
+        # Rule 18 — XSS payload in headers OR HTML body (email client exploitation)
+        # Detects JavaScript injection in To/Subject/From fields and also inline
+        # HTML event handlers (onmouseover, onerror, etc.) in the email body.
+        xss_flagged = False
+        _XSS_PATTERNS = (
+            "onerror=", "onload=", "onmouseover=", "onfocus=", "onbegin=",
+            "onmouseout=", "onmousemove=", "onclick=", "onblur=", "onchange=",
+            "ondblclick=", "onkeydown=", "onkeypress=", "onkeyup=",
+            "onsubmit=", "onreset=", "onselect=", "onabort=",
+            "expression(", "alert(", "<svg", "animatetransform",
+            "javascript:", "vbscript:",
+        )
+        # Check headers: To, Subject, From
+        to_header = (headers.get("to") or "").lower()
+        subject_header = (headers.get("subject") or "").lower()
+        from_header_lower = (headers.get("from") or "").lower()
+        xss_in = []
+        for pattern in _XSS_PATTERNS:
+            if pattern in to_header:
+                xss_in.append(f"To:{pattern}")
+            if pattern in subject_header:
+                xss_in.append(f"Subject:{pattern}")
+            if pattern in from_header_lower:
+                xss_in.append(f"From:{pattern}")
+
+        # Check HTML body for inline XSS (event handlers without <script> tags)
+        if not xss_in:
+            body_html_lower = (parsed.get("body_html") or "").lower()
+            if body_html_lower:
+                for pattern in _XSS_PATTERNS:
+                    if pattern in body_html_lower:
+                        xss_in.append(f"body:{pattern}")
+                        if len(xss_in) >= 3:
+                            break
+
+        if xss_in:
+            xss_flagged = True
+
+        if xss_flagged:
+            details.append({"rule": "xss_header_injection", "flagged": True,
+                            "reason": f"XSS payload detected: {', '.join(xss_in[:3])}"})
+            flags += 1
+        else:
+            details.append({"rule": "xss_header_injection", "flagged": False,
+                            "reason": "no XSS payloads in headers or body"})
+
+        # Rule 19 — MIME confusion attack (duplicate Content-Type headers)
+        # Multiple Content-Type headers in the same MIME part cause different
+        # email clients to interpret the content differently — one sees text/plain
+        # (safe), another sees text/html (executes scripts).
+        mime_attack_flagged = False
+        ct_all = headers.get("content-type_all") or []
+        if len(ct_all) > 1:
+            # Multiple Content-Type headers in the top-level message = MIME confusion
+            mime_attack_flagged = True
+
+        if mime_attack_flagged:
+            details.append({"rule": "mime_confusion_attack", "flagged": True,
+                            "reason": "MIME structure confusion attack detected"})
+            flags += 1
+        else:
+            details.append({"rule": "mime_confusion_attack", "flagged": False,
+                            "reason": "no MIME confusion attack detected"})
+
+        # Rule 20 — Multiple addresses in single From header
+        # RFC 5322 allows a single From with one address. Multiple comma-separated
+        # addresses in one From header (e.g. "legit@good.com, attacker@evil.com")
+        # is used to confuse clients into showing the first (trusted) address
+        # while the email actually originates from the second.
+        multi_addr_flagged = False
+        from_raw = (headers.get("from") or "")
+        if from_raw:
+            # Count @ signs — more than 1 in a single From header = suspicious
+            at_count = from_raw.count("@")
+            if at_count > 1:
+                # Exclude mailing list formats like "Name via List <list@domain>"
+                if "," in from_raw or " " in from_raw.split("@")[0].split("<")[-1]:
+                    multi_addr_flagged = True
+
+        if multi_addr_flagged:
+            details.append({"rule": "multi_addr_from", "flagged": True,
+                            "reason": f"From header contains {at_count} addresses — sender confusion attack"})
+            flags += 1
+        else:
+            details.append({"rule": "multi_addr_from", "flagged": False,
+                            "reason": "single address in From header"})
+
+        # Rule 21 — Unicode spoofing in From header (RTL override, homoglyphs)
+        # Attackers use Unicode control characters (U+202A LRE, U+202E RLO,
+        # U+200F RLM) to reverse the visual display of the sender address,
+        # making "attacker@evil.com" display as "moc.live@rekcatta".
+        unicode_spoof_flagged = False
+        _UNICODE_TRICKS = (
+            "\u202a", "\u202b", "\u202c", "\u202d", "\u202e",  # bidi overrides
+            "\u200e", "\u200f",  # LRM, RLM
+            "\u200b", "\u200c", "\u200d",  # zero-width chars
+            "\ufeff",  # BOM
+        )
+        from_raw_full = from_raw
+        for trick in _UNICODE_TRICKS:
+            if trick in from_raw_full:
+                unicode_spoof_flagged = True
+                break
+        # Also detect encoded unicode in raw From (=?utf-8?b? with \u202 patterns)
+        if not unicode_spoof_flagged and "=?utf-8?" in from_raw_full.lower():
+            # Base64-encoded From headers containing bidi chars are suspicious
+            # when the decoded result doesn't match a normal email format
+            import base64 as _b64
+            _enc_match = re.search(r'=\?utf-8\?b\?(.*?)\?=', from_raw_full, re.IGNORECASE)
+            if _enc_match:
+                try:
+                    decoded = _b64.b64decode(_enc_match.group(1)).decode("utf-8", errors="replace")
+                    for trick in _UNICODE_TRICKS:
+                        if trick in decoded:
+                            unicode_spoof_flagged = True
+                            break
+                    # Also check if decoded string has reversed domain pattern
+                    if not unicode_spoof_flagged and "@" in decoded:
+                        # Check for backwards TLD (e.g. "moc.liamg" instead of "gmail.com")
+                        domain_part = decoded.split("@")[-1].strip()
+                        if domain_part and "." in domain_part:
+                            tld = domain_part.split(".")[-1]
+                            if tld in ("moc", "ten", "gro", "ude", "vog"):
+                                unicode_spoof_flagged = True
+                except Exception:
+                    pass
+
+        if unicode_spoof_flagged:
+            details.append({"rule": "unicode_from_spoofing", "flagged": True,
+                            "reason": "From header contains Unicode control characters or bidi overrides — visual spoofing"})
+            flags += 1
+        else:
+            details.append({"rule": "unicode_from_spoofing", "flagged": False,
+                            "reason": "no Unicode spoofing in From header"})
+
+        # Rule 22 — Source-route injection in From/envelope
+        # RFC 5321 source routes (e.g. "From <@relay1,@relay2:attacker@evil.com>")
+        # are deprecated but still parsed by some clients. Attackers inject them
+        # to route emails through intermediaries while hiding the true origin.
+        source_route_flagged = False
+        if from_raw and re.search(r'<@[^>]*,.*?:', from_raw):
+            source_route_flagged = True
+        # Also check for domain appended after space (e.g. "user@legit.com attacker.com")
+        from_addr_match = re.search(r'[\w.+-]+@[\w.-]+\s+[\w.-]+\.[\w]{2,}', from_raw)
+        if from_addr_match:
+            source_route_flagged = True
+
+        if source_route_flagged:
+            details.append({"rule": "source_route_injection", "flagged": True,
+                            "reason": "From header contains source-route or appended domain — origin spoofing"})
+            flags += 1
+        else:
+            details.append({"rule": "source_route_injection", "flagged": False,
+                            "reason": "no source-route injection detected"})
+
+        # Rule 23 — Empty/malformed email (no headers, no From, no Subject)
+        # A legitimate email always has From and Subject headers. An email
+        # with missing core headers is either malformed or deliberately
+        # crafted to exploit parser differences between security tools and
+        # email clients (parser differential attack).
+        malformed_flagged = False
+        has_from = bool((headers.get("from") or "").strip())
+        has_subject = bool((headers.get("subject") or "").strip())
+        has_body = bool((parsed.get("body_text") or "").strip()) or bool((parsed.get("body_html") or "").strip())
+        if not has_from and not has_subject:
+            malformed_flagged = True
+        elif not has_from and not has_body:
+            malformed_flagged = True
+
+        if malformed_flagged:
+            details.append({"rule": "malformed_email", "flagged": True,
+                            "reason": "Email missing core headers (From/Subject) — parser differential attack or malformed payload"})
+            flags += 1
+        else:
+            details.append({"rule": "malformed_email", "flagged": False,
+                            "reason": "core email headers present"})
+
+        # Rule 24 — MIME body part confusion (duplicate Content-Type in MIME parts)
+        # Our Rule 19 checks top-level duplicate Content-Type headers. This rule
+        # catches MIME attacks where duplicate Content-Types appear inside the
+        # raw email body parts (after the top-level headers). Email clients may
+        # pick different parts to render, causing one to see safe text while
+        # another renders malicious HTML.
+        mime_body_confusion = False
+        raw_body_text = (parsed.get("body_text") or "") + (parsed.get("body_html") or "")
+        # Check if body contains embedded MIME headers (Content-Type appearing in body)
+        if not mime_attack_flagged:
+            body_ct_count = raw_body_text.lower().count("content-type:")
+            if body_ct_count >= 2:
+                mime_body_confusion = True
+
+        if mime_body_confusion:
+            details.append({"rule": "mime_body_part_confusion", "flagged": True,
+                            "reason": f"Multiple Content-Type declarations in MIME body ({body_ct_count}) — rendering confusion attack"})
+            flags += 1
+        else:
+            details.append({"rule": "mime_body_part_confusion", "flagged": False,
+                            "reason": "no MIME body part confusion detected"})
+
         # Determine verdict severity:
         # - "proposed_reject": deterministic hard-evidence rules fired
         #   (blocklist, bad extension, bad hash, threat feed match)
@@ -690,6 +956,16 @@ class RuleEngine:
             "ics_calendar_external",
             "internal_domain_spoof",
             "html_smuggling",
+            "return_path_mismatch",
+            "multi_from_header",
+            "empty_envelope_sender",
+            "xss_header_injection",
+            "mime_confusion_attack",
+            "multi_addr_from",
+            "unicode_from_spoofing",
+            "source_route_injection",
+            "malformed_email",
+            "mime_body_part_confusion",
         }
         hard_flags = [d for d in details if d["flagged"] and d["rule"] in HARD_EVIDENCE_RULES]
 

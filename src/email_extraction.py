@@ -238,12 +238,20 @@ class EmailIngestion:
         header_fields = [
             "From" , "To" , "Reply-To" , "Return-Path",
             "Message-ID", "Subject", "Date",
-            "Received", "Authentication-Results"
+            "Received", "Authentication-Results",
+            "Content-Type",
         ]
         for field in header_fields:
             try:
-                value = msg.get_all(field) if field in ("Received" ,) else msg.get(field)
-                result["headers"][field.lower()] = str(value) if value else None
+                value = msg.get_all(field) if field in ("Received", "From", "Content-Type") else msg.get(field)
+                if field == "From" and isinstance(value, list):
+                    result["headers"]["from"] = str(value[0]) if value else None
+                    result["headers"]["from_all"] = [str(v) for v in value]
+                elif field == "Content-Type" and isinstance(value, list):
+                    result["headers"]["content-type"] = str(value[0]) if value else None
+                    result["headers"]["content-type_all"] = [str(v) for v in value]
+                else:
+                    result["headers"][field.lower()] = str(value) if value else None
             except Exception as e:
                 result["headers"][field.lower()] = None
                 result["parse_errors"].append(f"header:{field}:{e}")
