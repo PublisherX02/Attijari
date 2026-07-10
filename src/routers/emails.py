@@ -94,6 +94,13 @@ class OverrideRequest(BaseModel):
 @emails_router.post("/api/scan")
 async def api_trigger_scan(user: AuthenticatedUser = Depends(require_permission("emails.scan"))):
     """Manually trigger an IMAP poll + analysis pipeline run."""
+    # Refuse while a detonation window holds the machine's RAM.
+    try:
+        import detonation_state
+        if detonation_state.is_active():
+            return {"success": False, "message": "Detonation in progress — pipeline paused, try again shortly"}
+    except ImportError:
+        pass
     # Atomic check-and-acquire: try to get lock without racing
     if _scan_lock.locked():
         return {"success": False, "message": "Scan already in progress"}
@@ -803,6 +810,62 @@ async def api_health_alerts(limit: int = Query(50, ge=1, le=500), user: Authenti
     """Recent maintenance alerts (newest first)."""
     from health import get_monitor
     return {"alerts": get_monitor().get_recent_alerts(limit=limit)}
+
+
+# ---------------------------------------------------------------------------
+# REST API — Detonation sandbox status
+# ---------------------------------------------------------------------------
+
+@emails_router.get("/api/detonation/status")
+async def api_detonation_status(user: AuthenticatedUser = Depends(require_permission("health.view"))):
+    """Detonation queue depth + whether a drained detonation window is active.
+
+    Does NOT probe the CAPE VM (it is normally suspended to save RAM); it only
+    reports host-side queue/window state, which is cheap and never blocks.
+    """
+    import detonation_state
+    from database import PendingDetonation, count_queued_detonations
+
+    from sqlalchemy import func as _func
+
+    db = SessionLocal()
+    try:
+        queued = count_queued_detonations(db)
+        by_status = dict(
+            db.query(PendingDetonation.status, _func.count(PendingDetonation.id))
+            .group_by(PendingDetonation.status).all()
+        )
+        recent = (
+            db.query(PendingDetonation)
+            .order_by(PendingDetonation.updated_at.desc())
+            .limit(10).all()
+        )
+        recent_out = [
+            {
+                "id": r.id,
+                "email_id": r.email_id,
+                "filename": r.filename,
+                "sha256": r.sha256,
+                "status": r.status,
+                "reason": r.reason,
+                "malscore": (r.result or {}).get("malscore") if r.result else None,
+                "escalate": (r.result or {}).get("escalate") if r.result else None,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in recent
+        ]
+    finally:
+        db.close()
+
+    window = detonation_state.status()
+    return {
+        "window_active": window["active"],
+        "window_reason": window["reason"],
+        "window_elapsed_s": window["elapsed_s"],
+        "queued": queued,
+        "by_status": by_status,
+        "recent": recent_out,
+    }
 
 
 # ---------------------------------------------------------------------------

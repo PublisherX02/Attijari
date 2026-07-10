@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="stylesheet" href="{{ static_v('css/dashboard.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -139,7 +139,7 @@
         </div>
     </div>
 
-    <script>
+    <script nonce="{{ csp_nonce }}">
         // User RBAC context — injected server-side for permission-based UI rendering
         window.USER_ROLE = "{{ role or '' }}";
         window.USER_PERMS = {
@@ -159,7 +159,7 @@
             return !!window.USER_PERMS[perm];
         }
     </script>
-    <script src="/static/js/dashboard.js"></script>
+    <script src="{{ static_v('js/dashboard.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

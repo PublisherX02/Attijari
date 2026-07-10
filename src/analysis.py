@@ -190,6 +190,66 @@ def is_payload_safe(email_body: str) -> bool:
         print(f"[LLAMA-GUARD] Inference error: {e}")
         return True
 
+def free_guard_model() -> bool:
+    """Release the Llama Guard transformers pipeline and free GPU/CPU memory.
+
+    Called by the detonation orchestrator before handing the machine over to the
+    CAPE VM. The pipeline is lazily re-initialized on the next is_payload_safe()
+    call, so this is safe to call at any time. Returns True if something was freed.
+    """
+    global guard_pipeline
+    if guard_pipeline is None:
+        return False
+    try:
+        del guard_pipeline
+    except Exception:
+        pass
+    guard_pipeline = None
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    print("[LLAMA-GUARD] Model released to free memory for detonation")
+    return True
+
+
+def free_guard_model() -> bool:
+    """Release the Llama Guard transformers pipeline and free GPU/CPU memory.
+
+    Called by the detonation orchestrator before handing the machine over to the
+    CAPE VM. The pipeline is lazily re-initialized on the next is_payload_safe()
+    call, so this is safe to call at any time. Returns True if something was freed.
+    """
+    global guard_pipeline
+    if guard_pipeline is None:
+        return False
+    try:
+        del guard_pipeline
+    except Exception:
+        pass
+    guard_pipeline = None
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    print("[LLAMA-GUARD] Model released to free memory for detonation")
+    return True
+
+
 def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_candidates: Optional[list[str]] = None, context: Optional[dict] = None) -> Dict[str, Any]:
     """Analyze email body text with Ollama and return structured verdict.
 

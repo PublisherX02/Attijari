@@ -76,6 +76,24 @@ def mask_pii(email: str):
 
 templates.env.filters["mask_pii"] = mask_pii
 
+
+# --- Static asset cache-busting -------------------------------------------
+# Append ?v=<file mtime> to static URLs so browsers ALWAYS fetch the current
+# JS/CSS after a deploy. Without this, a stale cached dashboard.js can render
+# UI (e.g. action buttons) the current RBAC gating would otherwise hide.
+_STATIC_ROOT = _DASHBOARD_DIR / "static"
+
+
+def static_v(path: str) -> str:
+    try:
+        v = int((_STATIC_ROOT / path).stat().st_mtime)
+    except Exception:
+        v = 0
+    return f"/static/{path}?v={v}"
+
+
+_jinja_templates.env.globals["static_v"] = static_v
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections = []
@@ -179,36 +197,20 @@ async def verify_auth(request: Request, access_token: Optional[str] = Cookie(Non
 
     username = None
 
+    # HTTP Basic Auth was REMOVED: it authenticated with username+password only,
+    # bypassing the mandatory TOTP second factor, and had no rate limiting — an
+    # unthrottled, MFA-less brute-force surface. All access now requires a JWT
+    # session cookie, which can only be obtained through the MFA login flow.
     if not access_token:
-        # For API clients without cookies, fallback to Basic Auth
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Basic "):
-            import base64
-            try:
-                decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
-                uname, password = decoded.split(":", 1)
-                db = next(get_db_generator())
-                from database import User
-                user = db.query(User).filter(User.username == uname).first()
-                # Always call bcrypt to prevent timing-based username enumeration
-                _dummy_hash = "$2b$12$LJ3m4ys3Lg2F55HBz6E6ceRzNKPRtTBBBfUvKXFLT7gaBMvHy1jCe"
-                hash_to_check = user.password_hash if user else _dummy_hash
-                password_valid = bcrypt.checkpw(password.encode("utf-8"), hash_to_check.encode("utf-8"))
-                if user and password_valid and user.is_active:
-                    username = uname
-                db.close()
-            except Exception:
-                pass
-        if not username:
+        raise NotAuthenticatedException()
+
+    try:
+        if is_token_revoked(access_token):
             raise NotAuthenticatedException()
-    else:
-        try:
-            if is_token_revoked(access_token):
-                raise NotAuthenticatedException()
-            payload = jwt.decode(access_token, JWT_SECRET, algorithms=[ALGORITHM])
-            username = payload.get("sub")
-        except jwt.PyJWTError:
-            raise NotAuthenticatedException()
+        payload = jwt.decode(access_token, JWT_SECRET, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+    except jwt.PyJWTError:
+        raise NotAuthenticatedException()
 
     # Load full RBAC context
     auth_user = _load_user_context(username)

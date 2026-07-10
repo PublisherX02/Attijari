@@ -1,0 +1,312 @@
+"""detonation.py — Memory-gated CAPE detonation orchestrator (host side).
+
+Design (see detonation_config.py):
+  - Detonation is RARE: only inconclusive-static + unsure-LLM samples are queued.
+  - Detonation runs in a DRAINED window so the CAPE Ubuntu VM never competes for
+    RAM with Ollama / Llama Guard / Docker on one 16 GB machine:
+
+        1. Set the global "detonation active" flag (poller/scheduler/scan pause).
+        2. Unload Ollama models (keep_alive=0) and release the Llama Guard model.
+        3. Stop Docker (frees the WSL2 backend).
+        4. Resume the CAPE Ubuntu VM (Hyper-V Save-state → Start) and wait for API.
+        5. Submit each queued sample to CAPE, poll, fetch + parse the report,
+           update the email record.
+        6. Suspend the VM, restart Docker, clear the flag.
+
+  A watchdog guarantees step 6's teardown ALWAYS runs — even on crash or
+  timeout — so the pipeline can never be left permanently paused
+  (fail-safe, never fail-open).
+
+CAPE install/config lives on a separate Ubuntu VM; this module only speaks to it
+over the REST API (see cape_client.py).
+"""
+from __future__ import annotations
+
+import os
+import subprocess
+import time
+from typing import Any
+
+import detonation_config as cfg
+import detonation_state as state
+import cape_client
+
+
+# ---------------------------------------------------------------------------
+# Small helpers
+# ---------------------------------------------------------------------------
+
+def _run(cmd: str, timeout: int = 60) -> bool:
+    """Run a host shell command. Returns True on exit 0. Never raises."""
+    if not cmd:
+        return True
+    try:
+        # shell=True is intentional: cmd comes from trusted operator config
+        # (detonation_config / env), never from user input.
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)  # nosec B602
+        if r.returncode != 0:
+            print(f"[DETONATION] cmd failed ({r.returncode}): {cmd}\n  {r.stderr.strip()[:300]}")
+        return r.returncode == 0
+    except Exception as e:
+        print(f"[DETONATION] cmd error: {cmd} — {e}")
+        return False
+
+
+def should_detonate(filename: str) -> bool:
+    ext = os.path.splitext(filename or "")[1].lower()
+    return ext in cfg.SUPPORTED_EXTENSIONS
+
+
+def is_available() -> bool:
+    """Cheap check used by main.py at startup for operator visibility."""
+    return cape_client.is_available()
+
+
+# ---------------------------------------------------------------------------
+# Resource management (drain / restore)
+# ---------------------------------------------------------------------------
+
+def _unload_ollama() -> None:
+    """Unload every currently-loaded Ollama model via keep_alive=0."""
+    if not cfg.DETONATION_UNLOAD_OLLAMA:
+        return
+    try:
+        import requests
+        r = requests.get(f"{cfg.OLLAMA_BASE_URL}/api/ps", timeout=10)
+        models = [m.get("name") or m.get("model") for m in r.json().get("models", [])] if r.ok else []
+        for m in filter(None, models):
+            try:
+                requests.post(
+                    f"{cfg.OLLAMA_BASE_URL}/api/generate",
+                    json={"model": m, "keep_alive": 0}, timeout=15,
+                )
+                print(f"[DETONATION] Unloaded Ollama model: {m}")
+            except Exception as e:
+                print(f"[DETONATION] Could not unload {m}: {e}")
+    except Exception as e:
+        print(f"[DETONATION] Ollama unload skipped: {e}")
+
+
+def _free_guard() -> None:
+    if not cfg.DETONATION_FREE_GUARD:
+        return
+    try:
+        from analysis import free_guard_model
+        free_guard_model()
+    except Exception as e:
+        print(f"[DETONATION] Guard release skipped: {e}")
+
+
+def _stop_docker() -> None:
+    if cfg.DETONATION_STOP_DOCKER and cfg.DOCKER_STOP_CMD:
+        print("[DETONATION] Stopping Docker/WSL2 backend...")
+        _run(cfg.DOCKER_STOP_CMD, timeout=120)
+
+
+def _start_docker() -> None:
+    if not (cfg.DETONATION_STOP_DOCKER and cfg.DOCKER_START_CMD):
+        return
+    print("[DETONATION] Restarting Docker...")
+    # Launch Docker Desktop detached; then wait for the daemon to answer.
+    try:
+        subprocess.Popen(cfg.DOCKER_START_CMD, shell=True)  # nosec B602 — trusted config command
+    except Exception as e:
+        print(f"[DETONATION] Docker start failed to launch: {e}")
+        return
+    deadline = time.time() + cfg.DOCKER_READY_TIMEOUT
+    while time.time() < deadline:
+        try:
+            r = subprocess.run(["docker", "info"], capture_output=True, timeout=8)
+            if r.returncode == 0:
+                print("[DETONATION] Docker is back up")
+                return
+        except Exception:
+            pass
+        time.sleep(5)
+    print("[DETONATION] WARNING: Docker did not confirm ready within timeout")
+
+
+def _resume_vm() -> bool:
+    if not cfg.DETONATION_MANAGE_VM:
+        return cape_client.is_available()
+    print(f"[DETONATION] Resuming CAPE VM '{cfg.CAPE_VM_NAME}'...")
+    _run(cfg.VM_RESUME_CMD, timeout=120)
+    if not cape_client.wait_until_ready(cfg.CAPE_READY_TIMEOUT):
+        print("[DETONATION] CAPE API did not become ready after VM resume")
+        return False
+    print("[DETONATION] CAPE API ready")
+    return True
+
+
+def _suspend_vm() -> None:
+    if cfg.DETONATION_MANAGE_VM and cfg.VM_SUSPEND_CMD:
+        print(f"[DETONATION] Suspending CAPE VM '{cfg.CAPE_VM_NAME}' to free RAM...")
+        _run(cfg.VM_SUSPEND_CMD, timeout=120)
+
+
+def _drain() -> None:
+    """Free host memory before detonation."""
+    _unload_ollama()
+    _free_guard()
+    _stop_docker()
+
+
+def _restore() -> None:
+    """Always-runs teardown: suspend VM, bring Docker back. Ollama reloads lazily."""
+    try:
+        _suspend_vm()
+    finally:
+        _start_docker()
+
+
+# ---------------------------------------------------------------------------
+# Queue processing
+# ---------------------------------------------------------------------------
+
+def _process_one(row) -> dict[str, Any]:
+    """Detonate a single queued sample and return the parsed result."""
+    fname = row.filename or "sample.bin"
+    path = row.stored_path
+    if not path or not os.path.exists(path):
+        return {"tool": "detonation", "detonated": False, "status": "error",
+                "error": "stored_file_missing", "suspicious": True, "escalate": True}
+    print(f"[DETONATION] Detonating {fname} (sha {row.sha256[:12]}...) via CAPE")
+    return cape_client.detonate(path, fname)
+
+
+def _apply_result_to_email(db, row, result: dict[str, Any]) -> None:
+    """Fold the detonation verdict back into the email record + audit log."""
+    from database import Email, add_audit_entry
+    if not row.email_id:
+        return
+    email = db.query(Email).filter(Email.id == row.email_id).first()
+    if not email:
+        return
+
+    enrichment = dict(email.enrichment_result or {})
+    enrichment["detonation"] = result
+    email.enrichment_result = enrichment
+    try:
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(email, "enrichment_result")
+    except Exception:
+        pass
+
+    if result.get("escalate") and email.status not in ("quarantined", "released"):
+        email.status = "escalated"
+    db.commit()
+
+    try:
+        add_audit_entry(
+            db, action="detonation_complete", actor="system", email_id=row.email_id,
+            details={
+                "sha256": row.sha256,
+                "malscore": result.get("malscore"),
+                "risk_score": result.get("risk_score"),
+                "escalate": result.get("escalate"),
+                "cape_task_id": result.get("cape_task_id"),
+                "behaviors": result.get("suspicious_behaviors", [])[:10],
+            },
+        )
+    except Exception:
+        pass
+
+
+def process_detonation_queue() -> dict[str, Any]:
+    """Drain the queue in one memory-freed window. Safe no-op if nothing queued.
+
+    Returns a summary dict. Guaranteed to restore the pipeline via the watchdog
+    pattern (try/finally) regardless of how any single detonation fails.
+    """
+    from database import SessionLocal, get_queued_detonations, count_queued_detonations
+
+    db = SessionLocal()
+    try:
+        if count_queued_detonations(db) == 0:
+            return {"processed": 0, "status": "empty"}
+    finally:
+        db.close()
+
+    if state.is_active():
+        return {"processed": 0, "status": "already_running"}
+
+    summary = {"processed": 0, "escalated": 0, "errors": 0, "status": "ok"}
+    cycle_deadline = time.time() + cfg.DETONATION_CYCLE_TIMEOUT
+    state.begin("processing detonation queue")
+    print("[DETONATION] === Entering drained detonation window ===")
+
+    try:
+        _drain()
+        if not _resume_vm():
+            summary["status"] = "cape_unavailable"
+            # Fail-safe: escalate everything still queued so nothing is silently accepted.
+            _escalate_all_queued("cape_unavailable")
+            return summary
+
+        db = SessionLocal()
+        try:
+            batch = get_queued_detonations(db, limit=cfg.DETONATION_BATCH_SIZE)
+            for row in batch:
+                if time.time() > cycle_deadline:
+                    print("[DETONATION] Cycle timeout — stopping batch early")
+                    summary["status"] = "cycle_timeout"
+                    break
+                row.status = "running"
+                row.attempts = (row.attempts or 0) + 1
+                db.commit()
+
+                try:
+                    result = _process_one(row)
+                except Exception as e:
+                    result = {"tool": "detonation", "detonated": False, "status": "error",
+                              "error": f"orchestrator_crash: {e}", "suspicious": True, "escalate": True}
+
+                row.result = result
+                row.status = "error" if result.get("status") == "error" else "done"
+                db.commit()
+
+                _apply_result_to_email(db, row, result)
+
+                summary["processed"] += 1
+                if result.get("escalate"):
+                    summary["escalated"] += 1
+                if result.get("status") == "error":
+                    summary["errors"] += 1
+        finally:
+            db.close()
+
+        return summary
+
+    except Exception as e:
+        print(f"[DETONATION] Window crashed: {e}")
+        summary["status"] = f"crash: {e}"
+        return summary
+    finally:
+        _restore()
+        state.end()
+        print(f"[DETONATION] === Detonation window closed: {summary} ===")
+
+
+def _escalate_all_queued(reason: str) -> None:
+    """Fail-safe: when CAPE is unreachable, escalate every queued email so a
+    human still reviews it, and drop the samples from the queue."""
+    from database import SessionLocal, PendingDetonation, Email, add_audit_entry
+    db = SessionLocal()
+    try:
+        rows = db.query(PendingDetonation).filter(PendingDetonation.status == "queued").all()
+        for row in rows:
+            row.status = "error"
+            row.result = {"status": "error", "error": reason, "escalate": True}
+            if row.email_id:
+                email = db.query(Email).filter(Email.id == row.email_id).first()
+                if email and email.status not in ("quarantined", "released"):
+                    email.status = "escalated"
+        db.commit()
+        if rows:
+            add_audit_entry(db, action="detonation_unavailable", actor="system",
+                            details={"reason": reason, "escalated_count": len(rows)})
+            print(f"[DETONATION] CAPE unavailable — escalated {len(rows)} queued email(s) for review")
+    except Exception as e:
+        print(f"[DETONATION] Fail-safe escalation error: {e}")
+    finally:
+        db.close()

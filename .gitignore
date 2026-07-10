@@ -10,3 +10,11 @@ CLAUDE.md
 src/ingestion/
 src/__pycache__/
 data/
+
+# Python bytecode (global)
+__pycache__/
+*.pyc
+*.pyo
+
+# Large data archives — keep out of git
+*.zip

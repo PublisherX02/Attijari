@@ -683,6 +683,21 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             if total_iocs > 0:
                 result["flags"].append(f"iocs_extracted: {total_iocs} indicators found")
 
+    # 7b. DETONATION CANDIDATE (Stage 3.5) — DEFERRED, not run inline.
+    # Detonation is memory-gated and runs later in a drained window (see
+    # detonation.py). Here we only MARK a file as a candidate when static
+    # analysis was inconclusive (not escalated) but the file type is detonable.
+    # main.py decides whether to actually enqueue it, combining this marker
+    # with the LLM's confidence.
+    result["detonation_candidate"] = False
+    if not result["escalate"] and stored_path:
+        try:
+            from detonation import should_detonate
+            if should_detonate(filename):
+                result["detonation_candidate"] = True
+        except ImportError:
+            pass
+
     # 8. CRITICAL: encrypted attachment + password in body = auto escalate
     if body_text:
         body_lower = body_text.lower()

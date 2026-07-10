@@ -251,6 +251,34 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
 
+class PendingDetonation(Base):
+    """Queue of attachments awaiting behavioral analysis in the CAPE sandbox.
+
+    The pipeline enqueues a row when static analysis was inconclusive AND the
+    LLM was unsure, then moves on without blocking. A separate drained
+    detonation worker processes the queue one sample at a time.
+    """
+
+    __tablename__ = "pending_detonation"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email_id = Column(Integer, ForeignKey("emails.id"), nullable=True)
+    idempotency_key = Column(String(128), nullable=True, index=True)
+    sha256 = Column(String(64), nullable=False)
+    filename = Column(String(512), nullable=True)
+    stored_path = Column(Text, nullable=False)
+    reason = Column(String(255), nullable=True)   # why it was queued
+    status = Column(String(20), nullable=False, default="queued", index=True)  # queued, running, done, error
+    result = Column(JSONB, nullable=True)         # parsed CAPE result
+    attempts = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        Index("ix_pending_detonation_status", "status"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # RBAC — Permission definitions
 # ---------------------------------------------------------------------------
@@ -605,3 +633,48 @@ def get_blocked_set(db: Session, indicator_type: str) -> set[str]:
         Blocklist.active == True,
     ).all()
     return {r[0] for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# Detonation queue helpers
+# ---------------------------------------------------------------------------
+
+def enqueue_detonation(db: Session, sha256: str, stored_path: str,
+                       filename: Optional[str] = None, email_id: Optional[int] = None,
+                       idempotency_key: Optional[str] = None,
+                       reason: Optional[str] = None) -> Optional["PendingDetonation"]:
+    """Queue an attachment for detonation. De-dupes on (sha256) while queued/running."""
+    existing = db.query(PendingDetonation).filter(
+        PendingDetonation.sha256 == sha256,
+        PendingDetonation.status.in_(["queued", "running"]),
+    ).first()
+    if existing:
+        return existing
+    row = PendingDetonation(
+        email_id=email_id,
+        idempotency_key=idempotency_key,
+        sha256=sha256,
+        filename=filename,
+        stored_path=stored_path,
+        reason=reason,
+        status="queued",
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def get_queued_detonations(db: Session, limit: int = 5) -> list["PendingDetonation"]:
+    """Oldest queued samples first."""
+    return (
+        db.query(PendingDetonation)
+        .filter(PendingDetonation.status == "queued")
+        .order_by(PendingDetonation.created_at.asc())
+        .limit(limit)
+        .all()
+    )
+
+
+def count_queued_detonations(db: Session) -> int:
+    return db.query(PendingDetonation).filter(PendingDetonation.status == "queued").count()

@@ -73,7 +73,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 @app.exception_handler(NotAuthenticatedException)
 async def auth_exception_handler(request: Request, exc: NotAuthenticatedException):
     if request.url.path.startswith("/api/"):
-        return JSONResponse(status_code=401, content={"detail": "Not authenticated. Use JWT Cookie or Basic Auth."})
+        return JSONResponse(status_code=401, content={"detail": "Not authenticated. Log in via the MFA login flow to obtain a session."})
     return RedirectResponse(url="/login", status_code=303)
 
 _STATIC_DIR = _SRC_DIR / "dashboard" / "static"
@@ -94,7 +94,11 @@ async def security_and_metrics_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        f"script-src 'self' 'unsafe-inline'; "
+        # Scripts must carry the per-request nonce — no 'unsafe-inline', so an
+        # injected inline <script> without the nonce is blocked (XSS defense).
+        f"script-src 'self' 'nonce-{nonce}'; "
+        # style-src keeps 'unsafe-inline': inline style="" attributes cannot use
+        # a nonce, and inline styles are not the injection risk scripts are.
         f"style-src 'self' 'unsafe-inline'; "
         f"connect-src 'self' ws: wss:; "
         f"font-src 'self' https://fonts.gstatic.com"
@@ -124,12 +128,18 @@ POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
 
 async def _background_poll():
     await asyncio.sleep(5)
+    import detonation_state
     while True:
         try:
-            async with _scan_lock:
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, _run_pipeline_sync)
-                await ws_manager.broadcast("refresh")
+            if detonation_state.is_active():
+                # A drained detonation window is running; skip this tick so we
+                # don't reload Ollama/Docker and blow the memory budget.
+                print("[POLL] Detonation active — skipping this poll tick")
+            else:
+                async with _scan_lock:
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, _run_pipeline_sync)
+                    await ws_manager.broadcast("refresh")
         except Exception as e:
             print(f"[POLL] Pipeline error: {e}")
         await asyncio.sleep(POLL_INTERVAL)
