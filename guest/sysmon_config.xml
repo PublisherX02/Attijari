@@ -1,0 +1,28 @@
+<!-- guest/sysmon_config.xml — Lightweight config for detonation monitoring -->
+<Sysmon schemaversion="4.90">
+  <EventFiltering>
+    <ProcessCreate onmatch="exclude"/>
+    <FileCreate onmatch="include">
+      <TargetFilename condition="contains">\AppData\</TargetFilename>
+      <TargetFilename condition="contains">\Temp\</TargetFilename>
+      <TargetFilename condition="contains">\Desktop\</TargetFilename>
+      <TargetFilename condition="contains">\Downloads\</TargetFilename>
+      <TargetFilename condition="contains">\ProgramData\</TargetFilename>
+      <TargetFilename condition="end with">.exe</TargetFilename>
+      <TargetFilename condition="end with">.dll</TargetFilename>
+      <TargetFilename condition="end with">.bat</TargetFilename>
+      <TargetFilename condition="end with">.ps1</TargetFilename>
+      <TargetFilename condition="end with">.vbs</TargetFilename>
+    </FileCreate>
+    <NetworkConnect onmatch="exclude"/>
+    <RegistryEvent onmatch="include">
+      <TargetObject condition="contains">CurrentVersion\Run</TargetObject>
+      <TargetObject condition="contains">CurrentVersion\RunOnce</TargetObject>
+      <TargetObject condition="contains">\Services\</TargetObject>
+      <TargetObject condition="contains">\Winlogon</TargetObject>
+      <TargetObject condition="contains">\Environment</TargetObject>
+    </RegistryEvent>
+    <DnsQuery onmatch="exclude"/>
+    <ProcessTerminate onmatch="exclude"/>
+  </EventFiltering>
+</Sysmon>
