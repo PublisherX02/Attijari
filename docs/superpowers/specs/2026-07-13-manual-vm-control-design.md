@@ -1,7 +1,7 @@
 # Manual VM Control — Design Spec
 
 **Date:** 2026-07-13
-**Status:** Approved (pending user review of this document)
+**Status:** Implemented (Phase 1) — 2026-07-13
 **Phase:** 1 of 2 (Phase 2 — idle inspection session — deferred until the attijari runbook is executed and proven)
 
 ## Problem
