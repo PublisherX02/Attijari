@@ -176,3 +176,41 @@ def test_preflight_disabled_is_noop(monkeypatch):
     import detonation_config as cfg
     monkeypatch.setattr(cfg, "CAPE_VM_WRAPPER_ENABLED", False)
     detonation._preflight_cuckoo2()  # no wrapper import side effects required
+
+
+def test_ws_token_ok_accepts_valid_rejects_garbage():
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    import jwt as pyjwt
+    from datetime import datetime, timedelta, timezone
+    from api_core import JWT_SECRET, ALGORITHM
+    from routers.detonation_proxy import _ws_token_ok
+
+    good = pyjwt.encode(
+        {"sub": "analyst", "purpose": "ws",
+         "exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+        JWT_SECRET, algorithm=ALGORITHM)
+    assert _ws_token_ok(good) is True
+    assert _ws_token_ok(None) is False
+    assert _ws_token_ok("") is False
+    assert _ws_token_ok("not-a-jwt") is False
+
+    expired = pyjwt.encode(
+        {"sub": "analyst",
+         "exp": datetime.now(timezone.utc) - timedelta(hours=1)},
+        JWT_SECRET, algorithm=ALGORITHM)
+    assert _ws_token_ok(expired) is False
+
+
+def test_ws_token_ok_rejects_revoked():
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    import jwt as pyjwt
+    from datetime import datetime, timedelta, timezone
+    from api_core import JWT_SECRET, ALGORITHM, revoke_token
+    from routers.detonation_proxy import _ws_token_ok
+
+    tok = pyjwt.encode(
+        {"sub": "analyst",
+         "exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+        JWT_SECRET, algorithm=ALGORITHM)
+    revoke_token(tok)
+    assert _ws_token_ok(tok) is False

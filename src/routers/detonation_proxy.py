@@ -17,16 +17,21 @@ Display-only layer: nothing here influences a verdict (fail-safe rule 1).
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from typing import Optional
 
+import jwt as pyjwt
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
 import detonation_config as det_cfg
-from api_core import require_permission, AuthenticatedUser
+from api_core import (
+    require_permission, AuthenticatedUser,
+    JWT_SECRET, ALGORITHM, is_token_revoked,
+)
 
 detonation_proxy_router = APIRouter()
 
@@ -166,3 +171,106 @@ def api_detonation_report(
     # Upstream headers (incl. any X-Frame-Options) are deliberately dropped;
     # our own middleware applies the dashboard's security headers.
     return Response(content=r.content, status_code=r.status_code, media_type=ctype)
+
+
+# ---------------------------------------------------------------------------
+# Live sandbox view: WS relay to websockify on attijari
+# ---------------------------------------------------------------------------
+
+def _ws_token_ok(token: Optional[str]) -> bool:
+    """Same JWT-in-query-param check as routers/websockets.py."""
+    if not token or is_token_revoked(token):
+        return False
+    try:
+        pyjwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        return True
+    except pyjwt.PyJWTError:
+        return False
+
+
+@detonation_proxy_router.websocket("/ws/vnc/{task_id}")
+async def ws_vnc_relay(websocket: WebSocket, task_id: int,
+                       token: Optional[str] = Query(None)):
+    """Bidirectional binary relay browser <-> websockify (cuckoo2 VNC).
+
+    Opens ONLY while a detonation window is active — the VM screen is never
+    exposed at rest. Display-only: failures here never touch any verdict.
+    """
+    if not _ws_token_ok(token):
+        await websocket.close(code=1008, reason="Unauthorized")
+        return
+
+    import detonation_state
+    if not detonation_state.is_active():
+        await websocket.close(code=1008, reason="No active detonation window")
+        return
+
+    await websocket.accept()
+
+    import websockets as ws_client
+    try:
+        upstream = await ws_client.connect(
+            det_cfg.WEBSOCKIFY_URL, subprotocols=["binary"],
+            max_size=None, open_timeout=10,
+        )
+    except Exception:
+        await websocket.close(code=1011, reason="Sandbox video relay unavailable")
+        return
+
+    async def pump_to_upstream():
+        while True:
+            data = await websocket.receive_bytes()
+            await upstream.send(data)
+
+    async def pump_to_browser():
+        async for msg in upstream:
+            await websocket.send_bytes(msg if isinstance(msg, bytes) else msg.encode())
+
+    tasks = [asyncio.create_task(pump_to_upstream()),
+             asyncio.create_task(pump_to_browser())]
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for t in tasks:
+            t.cancel()
+        try:
+            await upstream.close()
+        except Exception:
+            pass
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Retry a failed detonation (re-enqueue for the next drained window)
+# ---------------------------------------------------------------------------
+
+@detonation_proxy_router.post("/api/detonation/{pending_id}/retry")
+def api_detonation_retry(
+    pending_id: int,
+    user: AuthenticatedUser = Depends(require_permission("emails.scan")),
+):
+    from database import SessionLocal, PendingDetonation, add_audit_entry
+    db = SessionLocal()
+    try:
+        row = db.query(PendingDetonation).filter(
+            PendingDetonation.id == pending_id).first()
+        if not row:
+            raise HTTPException(404, "Queue entry not found")
+        if row.status not in ("error", "done"):
+            raise HTTPException(409, f"Cannot retry entry in status '{row.status}'")
+        if not (row.stored_path and os.path.isfile(row.stored_path)):
+            raise HTTPException(409, "Original file no longer available")
+        row.status = "queued"
+        row.result = None
+        db.commit()
+        add_audit_entry(
+            db, action="detonation_retry", actor=user.username,
+            email_id=row.email_id,
+            details={"pending_id": row.id, "sha256": row.sha256},
+        )
+        return {"success": True, "id": row.id, "status": "queued"}
+    finally:
+        db.close()
