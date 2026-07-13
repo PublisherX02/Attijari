@@ -1,5 +1,8 @@
 # /etc/sudoers.d/vm-wrapper  (validate with `visudo -cf` BEFORE installing)
 # Exactly the three commands the wrapper needs — nothing broader.
+# KEEP IN SYNC with VM_WRAPPER_DOMAIN in /etc/vm-wrapper.env: these entries
+# whitelist the exact command text, so renaming the domain (cuckoo2) without
+# editing these lines makes sudo prompt for a password and every call fail.
 cape ALL=(root) NOPASSWD: /usr/bin/virsh domstate cuckoo2
 cape ALL=(root) NOPASSWD: /usr/bin/virsh destroy cuckoo2
 cape ALL=(root) NOPASSWD: /usr/bin/systemctl restart cape.service

@@ -21,6 +21,9 @@ from functools import wraps
 from flask import Flask, jsonify, request
 
 TOKEN = os.environ.get("VM_WRAPPER_TOKEN", "")
+# NOTE: if you change VM_WRAPPER_DOMAIN, /etc/sudoers.d/vm-wrapper must be
+# updated in the same breath — it whitelists the exact command text
+# ("virsh destroy cuckoo2"), so a renamed domain makes sudo prompt and fail.
 DOMAIN = os.environ.get("VM_WRAPPER_DOMAIN", "cuckoo2")
 BIND = os.environ.get("VM_WRAPPER_BIND", "127.0.0.1")
 PORT = int(os.environ.get("VM_WRAPPER_PORT", "8090"))
@@ -39,7 +42,11 @@ def require_token(f):
 
 
 def _run(cmd, timeout=60):
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    # A hung command must surface as clean JSON, never Flask's HTML 500 page.
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return -1, "", f"timeout: {' '.join(cmd)} exceeded {timeout}s"
     return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
 
 
