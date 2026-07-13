@@ -133,6 +133,38 @@ def test_sniff_media_type_magic_bytes():
     assert _sniff_media_type(b"") == ("application/octet-stream", False)
 
 
+def test_report_proxy_upstream_path_allowlist():
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from routers.detonation_proxy import _upstream_path
+    assert _upstream_path(42, "") == "analysis/42/"
+    assert _upstream_path(42, "analysis/42/") == "analysis/42/"
+    assert _upstream_path(42, "static/css/style.css") == "static/css/style.css"
+    # never proxy CAPE admin or arbitrary paths
+    assert _upstream_path(42, "admin/") is None
+    assert _upstream_path(42, "apiv2/tasks/list/") is None
+    assert _upstream_path(42, "static/../admin/") is None
+
+
+def test_report_proxy_rewrites_root_relative_refs():
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from routers.detonation_proxy import _rewrite_report_html
+    html = (
+        '<link href="/static/css/a.css"><script src="/static/js/b.js"></script>'
+        '<a href="/analysis/42/network/">net</a>'
+        '<a href="https://example.com/x">ext</a>'
+        '<a href="//cdn.example.com/y">proto-rel</a>'
+        '<style>.x{background:url(/static/img/z.png)}</style>'
+    )
+    out = _rewrite_report_html(html, 42)
+    assert 'href="/api/detonation/report/42/static/css/a.css"' in out
+    assert 'src="/api/detonation/report/42/static/js/b.js"' in out
+    assert 'href="/api/detonation/report/42/analysis/42/network/"' in out
+    # absolute and protocol-relative URLs untouched
+    assert 'href="https://example.com/x"' in out
+    assert 'href="//cdn.example.com/y"' in out
+    assert 'url(/api/detonation/report/42/static/img/z.png)' in out
+
+
 def test_parse_report_includes_proxied_web_report_url():
     from cape_client import parse_report
     r = parse_report({"info": {"score": 2.0}}, task_id=123)

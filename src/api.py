@@ -92,7 +92,14 @@ async def security_and_metrics_middleware(request: Request, call_next):
 
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    # The two framed surfaces (proxied CAPE report, attachment preview) must
+    # allow same-origin framing; XFO is evaluated on the FRAMED response, so
+    # DENY there would block our own iframes. Everything else stays DENY.
+    _p = request.url.path
+    _frameable = _p.startswith("/api/detonation/report/") or (
+        _p.startswith("/api/emails/") and _p.endswith("/raw")
+    )
+    response.headers["X-Frame-Options"] = "SAMEORIGIN" if _frameable else "DENY"
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
         # Scripts must carry the per-request nonce — no 'unsafe-inline', so an
@@ -102,6 +109,9 @@ async def security_and_metrics_middleware(request: Request, call_next):
         # a nonce, and inline styles are not the injection risk scripts are.
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         f"connect-src 'self' ws: wss:; "
+        # Same-origin iframes only: the proxied CAPE report and the /raw
+        # attachment preview. Nothing cross-origin is ever framed.
+        f"frame-src 'self'; "
         f"font-src 'self' https://fonts.gstatic.com"
     )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
