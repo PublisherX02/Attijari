@@ -842,7 +842,10 @@ async def api_health_alerts(limit: int = Query(50, ge=1, le=500), user: Authenti
 # ---------------------------------------------------------------------------
 
 @emails_router.get("/api/detonation/status")
-async def api_detonation_status(user: AuthenticatedUser = Depends(require_permission("health.view"))):
+# emails.view (not health.view): the suspension banner and the sandbox
+# viewer's honest-state gate poll this from every dashboard page; analysts
+# with emails.view already see every filename it could reveal.
+async def api_detonation_status(user: AuthenticatedUser = Depends(require_permission("emails.view"))):
     """Detonation queue depth + whether a drained detonation window is active.
 
     Does NOT probe the CAPE VM (it is normally suspended to save RAM); it only

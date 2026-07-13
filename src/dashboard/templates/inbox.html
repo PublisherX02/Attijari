@@ -8,7 +8,10 @@
         <p class="page-subtitle">Review flagged emails and take action</p>
     </div>
     {% if role == 'admin' or permissions.get('emails.scan', False) %}
-    <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">🔄 Scan Now</button>
+    <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">🔄 Scan Now</button>
+        <button class="btn btn-outline" id="open-vm-btn" onclick="openVmWindow()">🔬 Open sandbox VM</button>
+    </div>
     {% endif %}
 </div>
 

@@ -590,6 +590,10 @@ function _detonationRowHtml(e, row, windowActive) {
                 <strong>${score !== undefined ? esc(String(score)) : '—'} / 10</strong>
                 ${sigs.length ? `<span class="detail-label">· ${parseInt(sigs.length)} signature(s)</span>` : ''}
                 <a class="btn btn-outline btn-sm" href="${reportUrl}" target="_blank" rel="noopener">Open full report ↗</a>
+                ${userCan('emails.scan')
+                    ? `<button class="btn btn-outline btn-sm"
+                         onclick="seeInVm(${parseInt(row.id)}, ${parseInt(e.id)})">🖥 See in VM</button>`
+                    : ''}
             </div>
             <iframe class="sandbox-report-frame" src="${reportUrl}" title="CAPE report"></iframe>
             <details style="margin-top:8px"><summary class="detail-label" style="cursor:pointer">Attachment preview</summary>
@@ -602,7 +606,9 @@ function _detonationRowHtml(e, row, windowActive) {
                    The email was escalated to human review (fail-safe).</p>
                 ${userCan('emails.scan')
                     ? `<button class="btn btn-outline btn-sm"
-                         onclick="detonationRetry(${parseInt(row.id)}, ${parseInt(e.id)})">↻ Retry detonation</button>`
+                         onclick="detonationRetry(${parseInt(row.id)}, ${parseInt(e.id)})">↻ Retry detonation</button>
+                       <button class="btn btn-outline btn-sm"
+                         onclick="seeInVm(${parseInt(row.id)}, ${parseInt(e.id)})">🖥 See in VM</button>`
                     : ''}
             </div>`;
     }
@@ -689,44 +695,65 @@ async function mountNoVnc(container, taskId) {
     }
 }
 
-async function openSandboxViewer(taskId) {
-    // Honest gate: same detonation_state.is_active() truth the relay enforces.
-    // If nothing is detonating, say so immediately — never a doomed spinner.
-    let active = false;
-    try {
-        const st = await API.get('/api/detonation/status');
-        active = !!st.window_active;
-    } catch (_) { /* treat as inactive */ }
+let _viewerPollTimer = null;
 
-    const existing = document.getElementById('sandbox-viewer-overlay');
-    if (existing) existing.remove();
+async function openSandboxViewer(taskId) {
+    document.getElementById('sandbox-viewer-overlay')?.remove();
+    clearInterval(_viewerPollTimer);
 
     const overlay = document.createElement('div');
     overlay.id = 'sandbox-viewer-overlay';
     overlay.className = 'sandbox-overlay';
-    overlay.innerHTML = active
-        ? `<div class="sandbox-overlay-box">
-               <div class="sandbox-overlay-head"><span>Live sandbox — current job</span>
-                   <button class="btn btn-outline btn-sm" onclick="closeSandboxViewer()">✕ Close</button></div>
-               <div class="sandbox-live" id="sandbox-viewer-screen"></div>
-           </div>`
-        : `<div class="sandbox-overlay-box">
-               <div class="sandbox-overlay-head"><span>Sandbox</span>
-                   <button class="btn btn-outline btn-sm" onclick="closeSandboxViewer()">✕ Close</button></div>
-               <div class="sandbox-empty"><div class="emoji">😴</div>
-                   <p><strong>No active session right now.</strong></p>
-                   <p>The detonation VM only runs during a drained analysis window.
-                      The live view activates automatically when your queued sample runs.</p></div>
-           </div>`;
+    overlay.innerHTML = `
+        <div class="sandbox-overlay-box">
+            <div class="sandbox-overlay-head"><span>Sandbox</span>
+                <button class="btn btn-outline btn-sm" onclick="closeSandboxViewer()">✕ Close</button></div>
+            <div id="sandbox-viewer-body"></div>
+        </div>`;
     document.body.appendChild(overlay);
-    if (active) {
-        mountNoVnc(document.getElementById('sandbox-viewer-screen'), taskId);
-    }
+
+    // Three honest states driven by /api/detonation/status:
+    //   window_active + a running task  -> live noVNC feed
+    //   window_active, nothing running  -> "starting" (drain + VM wake gap, 10-20s+)
+    //   no window                       -> "no active session" (never a doomed spinner)
+    let mounted = false;
+    const render = async () => {
+        const body = document.getElementById('sandbox-viewer-body');
+        if (!body) { clearInterval(_viewerPollTimer); return; }
+        let st = { window_active: false, by_status: {} };
+        try { st = await API.get('/api/detonation/status'); } catch (_) {}
+        const running = (st.by_status && st.by_status.running) || 0;
+
+        if (st.window_active && running > 0) {
+            if (!mounted) {
+                body.innerHTML = '<div class="sandbox-live" id="sandbox-viewer-screen"></div>';
+                mountNoVnc(document.getElementById('sandbox-viewer-screen'), parseInt(taskId) || 0);
+                mounted = true;
+            }
+        } else if (st.window_active) {
+            mounted = false;
+            body.innerHTML = `<div class="sandbox-empty"><div class="spinner"></div>
+                <p><strong>Starting sandbox…</strong></p>
+                <p>Draining RAM and waking the VM — the live view appears when the
+                   sample starts running.</p></div>`;
+        } else {
+            mounted = false;
+            body.innerHTML = `<div class="sandbox-empty"><div class="emoji">😴</div>
+                <p><strong>No active session right now.</strong></p>
+                <p>The detonation VM only runs during a drained analysis window.
+                   The live view activates automatically when your queued sample runs.</p></div>`;
+        }
+    };
+    await render();
+    _viewerPollTimer = setInterval(render, 5000);
 }
 
 function closeSandboxViewer() {
+    clearInterval(_viewerPollTimer);
+    _viewerPollTimer = null;
     if (_activeRfb) { try { _activeRfb.disconnect(); } catch (_) {} _activeRfb = null; }
     document.getElementById('sandbox-viewer-overlay')?.remove();
+    refreshDetonationBanner();
 }
 
 async function detonationRetry(pendingId, emailId) {
@@ -738,6 +765,78 @@ async function detonationRetry(pendingId, emailId) {
         showToast(`Retry failed: ${err.message}`, 'error');
     }
 }
+
+/* --- Manual VM control ------------------------------------------------- */
+
+function confirmVmSuspension(onConfirm) {
+    document.getElementById('vm-warning-overlay')?.remove();
+    const ov = document.createElement('div');
+    ov.id = 'vm-warning-overlay';
+    ov.className = 'modal-overlay open';
+    ov.innerHTML = `
+        <div class="modal">
+            <h3>⚠ Suspend email analysis?</h3>
+            <p>Email analysis will be <strong>temporarily suspended</strong> while the
+               sandbox VM is running. Unprocessed mail stays safely on the IMAP server
+               and is analyzed when the window closes.</p>
+            <div class="action-bar" style="margin-top:16px">
+                <button class="btn btn-outline" id="vm-warning-cancel">Cancel</button>
+                <button class="btn btn-danger" id="vm-warning-confirm">Suspend analysis &amp; open VM</button>
+            </div>
+        </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#vm-warning-cancel').onclick = () => ov.remove();
+    ov.querySelector('#vm-warning-confirm').onclick = () => { ov.remove(); onConfirm(); };
+}
+
+async function _startWindowAndView() {
+    try {
+        const r = await API.post('/api/detonation/run-window');
+        if (r.status === 'empty') {
+            showToast('Nothing in the detonation queue — the sandbox only opens with work to run', 'warning');
+            return;
+        }
+        refreshDetonationBanner();
+        openSandboxViewer(0);
+    } catch (err) {
+        if (String(err.message).startsWith('API 409')) {
+            openSandboxViewer(0);   // a window is already live — just show it
+        } else {
+            showToast(`Could not start sandbox window: ${err.message}`, 'error');
+        }
+    }
+}
+
+function openVmWindow() {
+    confirmVmSuspension(_startWindowAndView);
+}
+
+function seeInVm(pendingId, emailId) {
+    confirmVmSuspension(async () => {
+        try {
+            await API.post(`/api/detonation/${parseInt(pendingId)}/retry`);
+        } catch (err) {
+            // 409 = already queued/running — fine, keep going. Anything else is fatal.
+            if (!String(err.message).startsWith('API 409')) {
+                showToast(`Could not queue the sample: ${err.message}`, 'error');
+                return;
+            }
+        }
+        if (emailId) refreshDetonationPanel(parseInt(emailId));
+        await _startWindowAndView();
+    });
+}
+
+async function refreshDetonationBanner() {
+    const banner = document.getElementById('detonation-banner');
+    if (!banner) return;
+    try {
+        const st = await API.get('/api/detonation/status');
+        banner.style.display = st.window_active ? 'block' : 'none';
+    } catch (_) { /* not permitted or transient — leave as-is */ }
+}
+setInterval(refreshDetonationBanner, 30000);
+document.addEventListener('DOMContentLoaded', refreshDetonationBanner);
 
 /* =========================================================================
    Blocklist / Whitelist management
