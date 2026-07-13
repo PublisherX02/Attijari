@@ -102,9 +102,14 @@ async def security_and_metrics_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN" if _frameable else "DENY"
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        # Scripts must carry the per-request nonce — no 'unsafe-inline', so an
-        # injected inline <script> without the nonce is blocked (XSS defense).
-        f"script-src 'self' 'nonce-{nonce}'; "
+        # 'unsafe-inline' is required: the dashboard wires ~70 inline
+        # onclick=""/onchange="" attributes (JS-generated rows + templates),
+        # which a nonce can never authorize — the Jul 10 nonce-only policy
+        # silently disabled every button in the UI. The nonce must NOT be
+        # emitted alongside 'unsafe-inline' (browsers then ignore the latter).
+        # Re-tightening requires first refactoring all inline handlers to
+        # addEventListener/delegation.
+        f"script-src 'self' 'unsafe-inline'; "
         # style-src keeps 'unsafe-inline': inline style="" attributes cannot use
         # a nonce, and inline styles are not the injection risk scripts are.
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
