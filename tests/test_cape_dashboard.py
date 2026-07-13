@@ -214,3 +214,66 @@ def test_ws_token_ok_rejects_revoked():
         JWT_SECRET, algorithm=ALGORITHM)
     revoke_token(tok)
     assert _ws_token_ok(tok) is False
+
+
+# ---------------------------------------------------------------------------
+# Manual VM control — atomic window acquisition (try_begin)
+# ---------------------------------------------------------------------------
+
+class _DummyDB:
+    def close(self):
+        pass
+
+
+def test_try_begin_claims_and_refuses_when_active():
+    import detonation_state as ds
+    ds.end()
+    assert ds.try_begin("t1") is True
+    assert ds.is_active() is True
+    assert ds.try_begin("t2") is False          # already held
+    ds.end()
+    assert ds.try_begin("t3") is True           # reusable after end()
+    ds.end()
+
+
+def test_detonation_lock_is_cross_thread_mutex():
+    # An asyncio.Lock here would only synchronize coroutines on one event
+    # loop and silently reopen the poller-vs-endpoint race. Must be a raw
+    # OS mutex.
+    import _thread
+    import detonation_state as ds
+    assert isinstance(ds._lock, _thread.LockType)
+
+
+def test_try_begin_race_exactly_one_winner():
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    import detonation_state as ds
+    ds.end()
+    n = 16
+    barrier = threading.Barrier(n)
+
+    def claim(_):
+        barrier.wait()                          # all threads fire together
+        return ds.try_begin("race")
+
+    with ThreadPoolExecutor(max_workers=n) as ex:
+        results = list(ex.map(claim, range(n)))
+    ds.end()
+    assert results.count(True) == 1
+    assert results.count(False) == n - 1
+
+
+def test_process_queue_already_running_when_window_held(monkeypatch):
+    import database
+    import detonation
+    import detonation_state as ds
+    monkeypatch.setattr(database, "SessionLocal", lambda: _DummyDB())
+    monkeypatch.setattr(database, "count_queued_detonations", lambda db: 1)
+    ds.end()
+    assert ds.try_begin("held-by-test")
+    try:
+        out = detonation.process_detonation_queue()
+        assert out == {"processed": 0, "status": "already_running"}
+    finally:
+        ds.end()

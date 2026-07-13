@@ -256,12 +256,11 @@ def process_detonation_queue() -> dict[str, Any]:
     finally:
         db.close()
 
-    if state.is_active():
+    if not state.try_begin("processing detonation queue"):
         return {"processed": 0, "status": "already_running"}
 
     summary = {"processed": 0, "escalated": 0, "errors": 0, "status": "ok"}
     cycle_deadline = time.time() + cfg.DETONATION_CYCLE_TIMEOUT
-    state.begin("processing detonation queue")
     print("[DETONATION] === Entering drained detonation window ===")
 
     try:

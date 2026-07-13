@@ -29,6 +29,23 @@ def begin(reason: str = "") -> None:
         _reason = reason
 
 
+def try_begin(reason: str = "") -> bool:
+    """Atomically claim the window. Returns False if already active.
+
+    This is the ONLY safe way to acquire the window when more than one
+    trigger exists (background poller + manual run-window endpoint, which
+    runs on a separate OS thread). is_active()-then-begin() is a race.
+    """
+    global _active, _since, _reason
+    with _lock:
+        if _active:
+            return False
+        _active = True
+        _since = time.time()
+        _reason = reason
+        return True
+
+
 def end() -> None:
     global _active, _reason
     with _lock:
