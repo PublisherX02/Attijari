@@ -198,6 +198,17 @@ async def api_get_email(email_id: int, user: AuthenticatedUser = Depends(require
             AuditLog.email_id == email_id
         ).order_by(AuditLog.created_at.desc()).all()
 
+        # Detonation queue rows for this email (read-only projection; the
+        # frontend derives queued/running/done/error panel state from these).
+        # stored_path is deliberately NOT exposed — internal filesystem path.
+        from database import PendingDetonation
+        det_rows = (
+            db.query(PendingDetonation)
+            .filter(PendingDetonation.email_id == email_id)
+            .order_by(PendingDetonation.created_at.desc())
+            .all()
+        )
+
         # Check for whitelist/blocklist conflict on the sender domain so the
         # dashboard can warn the analyst when a released email's domain is also
         # blocklisted (meaning a different confirmed-malicious sender shared it).
@@ -217,6 +228,20 @@ async def api_get_email(email_id: int, user: AuthenticatedUser = Depends(require
             "status": email.status,
             "rules_result": email.rules_result,
             "enrichment_result": email.enrichment_result,
+            "detonation_queue": [
+                {
+                    "id": r.id,
+                    "filename": r.filename,
+                    "sha256": r.sha256,
+                    "status": r.status,
+                    "reason": r.reason,
+                    "attempts": r.attempts,
+                    "result": r.result,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+                }
+                for r in det_rows
+            ],
             "llm_result": email.llm_result,
             "llm_reasoning": email.llm_reasoning,
             "parse_errors": email.parse_errors,

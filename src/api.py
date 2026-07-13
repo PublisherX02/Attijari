@@ -58,6 +58,7 @@ from routers.dashboard import dashboard_router
 from routers.websockets import ws_router
 from routers.emails import emails_router
 from routers.users import users_router
+from routers.detonation_proxy import detonation_proxy_router
 from tasks.background import data_retention_and_backup_task
 from routers.emails import _run_pipeline_sync
 from api_core import ws_manager
@@ -171,6 +172,7 @@ app.include_router(dashboard_router, dependencies=[Depends(verify_auth)])
 app.include_router(ws_router)
 app.include_router(emails_router, dependencies=[Depends(verify_auth)])
 app.include_router(users_router, dependencies=[Depends(verify_auth)])
+app.include_router(detonation_proxy_router, dependencies=[Depends(verify_auth)])
 
 # Import metrics endpoint locally to avoid circular dependencies if it exists
 try:

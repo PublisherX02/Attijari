@@ -120,6 +120,19 @@ def test_preflight_never_raises_when_wrapper_down(monkeypatch):
     detonation._preflight_cuckoo2()  # swallowed — window must proceed
 
 
+def test_sniff_media_type_magic_bytes():
+    # JWT_SECRET must exist before any api_core import chain
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from routers.detonation_proxy import _sniff_media_type
+    assert _sniff_media_type(b"%PDF-1.7 blah") == ("application/pdf", True)
+    assert _sniff_media_type(b"\x89PNG\r\n\x1a\nxxxx") == ("image/png", True)
+    assert _sniff_media_type(b"\xff\xd8\xff\xe0rest") == ("image/jpeg", True)
+    assert _sniff_media_type(b"GIF89a....") == ("image/gif", True)
+    # a docm renamed to .pdf still gets octet-stream: magic bytes win (rule 7)
+    assert _sniff_media_type(b"PK\x03\x04word/") == ("application/octet-stream", False)
+    assert _sniff_media_type(b"") == ("application/octet-stream", False)
+
+
 def test_parse_report_includes_proxied_web_report_url():
     from cape_client import parse_report
     r = parse_report({"info": {"score": 2.0}}, task_id=123)
