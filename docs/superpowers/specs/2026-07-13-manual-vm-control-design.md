@@ -147,8 +147,17 @@ Unit/integration (extend `tests/test_cape_dashboard.py`):
    (patch `process_detonation_queue`'s drain/VM internals to a slow no-op) →
    exactly one caller observes a started window; the other's
    `process_detonation_queue` returns `already_running`. Assert via
-   `try_begin` semantics: 2 threads calling `try_begin` concurrently → exactly
-   one True.
+   `try_begin` semantics: N real OS threads (barrier-released
+   `ThreadPoolExecutor`) calling `try_begin` concurrently → exactly one True.
+   Additionally assert the synchronization primitive itself provides
+   **cross-thread** exclusion, not just cross-coroutine:
+   `detonation_state._lock` must be a `threading.Lock`
+   (`isinstance(_lock, _thread.LockType)`). Verified at design time:
+   `detonation_state.py:18` is `_lock = threading.Lock()` — a raw OS mutex —
+   so the endpoint's daemon thread and the poller genuinely exclude each
+   other. This assertion exists to catch a future refactor to
+   `asyncio.Lock`, which would only synchronize coroutines on one event loop
+   and silently reopen the race.
 5. `try_begin` when active → False; after `end()` → True again.
 6. Audit entry written on manual start.
 
