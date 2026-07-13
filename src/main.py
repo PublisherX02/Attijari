@@ -70,6 +70,18 @@ def _maybe_enqueue_detonation(db, parsed: dict, email_id: int, deterministic_esc
         print(f"[DETONATION] Queued {er.get('filename')} for detonation ({reason})")
 
 
+def _ollama_reachable(timeout: float = 5.0) -> bool:
+    """Probe the Ollama server before ingesting mail."""
+    from urllib import request as _rq
+    from analysis import OLLAMA_HTTP_URL
+    base = OLLAMA_HTTP_URL.rsplit("/api/", 1)[0]
+    try:
+        with _rq.urlopen(f"{base}/api/version", timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def run_pipeline():
     load_dotenv()
     logger = get_logger("pipeline")
@@ -82,6 +94,15 @@ def run_pipeline():
             return
     except ImportError:
         pass
+
+    # LLM availability gate. If Ollama is down, every email ingested this tick
+    # would be finalized as "escalated: analysis_failed" with no real analysis
+    # (2026-07-13: 23 emails burned overnight this way). Deferring the whole
+    # tick loses nothing — unfetched mail stays on the IMAP server and is
+    # picked up on the next poll once Ollama is back.
+    if not _ollama_reachable():
+        logger.warning("[PIPELINE] Ollama unreachable — deferring this run; mail stays on IMAP server")
+        return
 
     logger.info("=" * 50)
     logger.info("[START] Email Ingestion & Analysis Pipeline")
