@@ -277,3 +277,69 @@ def test_process_queue_already_running_when_window_held(monkeypatch):
         assert out == {"processed": 0, "status": "already_running"}
     finally:
         ds.end()
+
+
+# ---------------------------------------------------------------------------
+# Manual VM control — run-window endpoint
+# ---------------------------------------------------------------------------
+
+def test_run_window_409_when_window_active():
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    import detonation_state as ds
+    from routers.detonation_proxy import api_detonation_run_window
+    ds.end()
+    assert ds.try_begin("held-by-test")
+    try:
+        try:
+            api_detonation_run_window(user=SimpleNamespace(username="op"))
+            assert False, "expected HTTPException 409"
+        except HTTPException as e:
+            assert e.status_code == 409
+    finally:
+        ds.end()
+
+
+def test_run_window_empty_queue_is_noop(monkeypatch):
+    from types import SimpleNamespace
+    import database
+    import detonation_state as ds
+    from routers.detonation_proxy import api_detonation_run_window
+    ds.end()
+    monkeypatch.setattr(database, "SessionLocal", lambda: _DummyDB())
+    monkeypatch.setattr(database, "count_queued_detonations", lambda db: 0)
+    out = api_detonation_run_window(user=SimpleNamespace(username="op"))
+    assert out == {"status": "empty"}
+    assert ds.is_active() is False              # nothing was drained/started
+
+
+def test_run_window_starts_thread_and_writes_audit(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    import database
+    import detonation
+    import detonation_state as ds
+    from routers.detonation_proxy import api_detonation_run_window
+    ds.end()
+    audits = []
+    ran = threading.Event()
+    monkeypatch.setattr(database, "SessionLocal", lambda: _DummyDB())
+    monkeypatch.setattr(database, "count_queued_detonations", lambda db: 2)
+    monkeypatch.setattr(database, "add_audit_entry",
+                        lambda db, **kw: audits.append(kw))
+    monkeypatch.setattr(detonation, "process_detonation_queue",
+                        lambda: (ran.set(), {"status": "ok"})[1])
+    out = api_detonation_run_window(user=SimpleNamespace(username="op"))
+    assert out == {"status": "started"}
+    assert ran.wait(5), "process_detonation_queue never ran in the thread"
+    assert audits and audits[0]["action"] == "detonation_window_manual"
+    assert audits[0]["actor"] == "op"
+    assert audits[0]["details"]["queued"] == 2
+
+
+def test_run_window_route_registered_with_scan_permission():
+    from routers.detonation_proxy import detonation_proxy_router
+    match = [r for r in detonation_proxy_router.routes
+             if getattr(r, "path", "") == "/api/detonation/run-window"]
+    assert match, "run-window route not registered"
+    assert "POST" in match[0].methods

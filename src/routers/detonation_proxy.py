@@ -274,3 +274,48 @@ def api_detonation_retry(
         return {"success": True, "id": row.id, "status": "queued"}
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Manually start the drained detonation window (operator-triggered)
+# ---------------------------------------------------------------------------
+
+@detonation_proxy_router.post("/api/detonation/run-window")
+def api_detonation_run_window(
+    user: AuthenticatedUser = Depends(require_permission("emails.scan")),
+):
+    """Start processing the detonation queue NOW instead of waiting for the
+    next poll tick. Email analysis is suspended for the duration (the caller
+    has confirmed a warning modal).
+
+    The 409 below is a fast-path courtesy; the AUTHORITATIVE mutual
+    exclusion is detonation_state.try_begin() inside
+    process_detonation_queue() — two racing calls cannot both drain.
+    """
+    import threading
+
+    import detonation_state
+    from database import SessionLocal, count_queued_detonations, add_audit_entry
+
+    if detonation_state.is_active():
+        raise HTTPException(409, "detonation window already active")
+
+    db = SessionLocal()
+    try:
+        queued = count_queued_detonations(db)
+        if queued == 0:
+            return {"status": "empty"}
+        add_audit_entry(
+            db, action="detonation_window_manual", actor=user.username,
+            details={"queued": queued},
+        )
+    finally:
+        db.close()
+
+    from detonation import process_detonation_queue
+    threading.Thread(
+        target=process_detonation_queue,
+        daemon=True,
+        name="manual-detonation-window",
+    ).start()
+    return {"status": "started"}
