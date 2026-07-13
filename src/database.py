@@ -268,7 +268,7 @@ class PendingDetonation(Base):
     filename = Column(String(512), nullable=True)
     stored_path = Column(Text, nullable=False)
     reason = Column(String(255), nullable=True)   # why it was queued
-    status = Column(String(20), nullable=False, default="queued", index=True)  # queued, running, done, error
+    status = Column(String(20), nullable=False, default="queued")  # queued, running, done, error
     result = Column(JSONB, nullable=True)         # parsed CAPE result
     attempts = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), default=utcnow)
