@@ -505,6 +505,8 @@ async function loadEmailDetail(emailId) {
 
             ${signalsHtml ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Security Signals</h3>${signalsHtml}` : ''}
 
+            <div id="detonation-panel"></div>
+
             ${auditHtml}
 
             <div class="action-bar">
@@ -517,8 +519,223 @@ async function loadEmailDetail(emailId) {
             </div>
         `;
 
+        renderDetonationPanel(e);
+
     } catch (err) {
         container.innerHTML = `<div class="empty-state"><div class="emoji">❌</div><p>Error: ${esc(err.message)}</p></div>`;
+    }
+}
+
+/* =========================================================================
+   Detonation sandbox panel (CAPE integration)
+   ========================================================================= */
+
+let _detonationPollTimer = null;
+let _activeRfb = null;
+
+function _detonationStatusBadge(status) {
+    const map = { queued: 'recu', running: 'escalated', done: 'accepted', error: 'quarantined' };
+    return `<span class="badge ${map[status] || 'recu'}">${esc(status)}</span>`;
+}
+
+function _attachmentPreviewHtml(emailId, row) {
+    const name = (row.filename || '').toLowerCase();
+    const inline = /\.(pdf|png|jpe?g|gif)$/.test(name);
+    const rawUrl = `/api/emails/${parseInt(emailId)}/attachments/${parseInt(row.id)}/raw`;
+    if (inline) {
+        // Server re-verifies via magic bytes and forces the content type; a
+        // lying extension just yields a download instead of a render.
+        return `<iframe class="sandbox-preview-frame" src="${rawUrl}" title="Attachment preview"></iframe>`;
+    }
+    return `
+        <div class="sandbox-preview-meta">
+            <div class="detail-row"><span class="detail-label">File</span>
+                <span class="detail-value">${esc(truncate(row.filename, 60))}</span></div>
+            <div class="detail-row"><span class="detail-label">SHA-256</span>
+                <span class="detail-value" style="font-family:monospace;font-size:0.72rem">${esc(row.sha256)}</span></div>
+            <div class="detail-row"><span class="detail-label">Queued because</span>
+                <span class="detail-value">${esc(row.reason) || '—'}</span></div>
+            <a class="btn btn-outline btn-sm" href="${rawUrl}" download>Download original (handle with care)</a>
+        </div>`;
+}
+
+function _detonationRowHtml(e, row, windowActive) {
+    const det = (e.enrichment_result && e.enrichment_result.detonation) || {};
+    const result = row.result || {};
+    const taskId = result.cape_task_id || det.cape_task_id || null;
+    const reportUrl = result.web_report_url || det.web_report_url ||
+        (taskId ? `/api/detonation/report/${parseInt(taskId)}/` : null);
+
+    let body = '';
+    if (row.status === 'queued' || row.status === 'running') {
+        const live = (row.status === 'running' && windowActive && taskId)
+            ? `<div class="sandbox-live" id="sandbox-live-${parseInt(row.id)}" data-task-id="${parseInt(taskId)}"></div>`
+            : `<div class="sandbox-empty">
+                   <div class="spinner"></div>
+                   <p>${row.status === 'queued'
+                        ? 'Queued for detonation — runs in the next drained window.'
+                        : 'Detonation running…'}</p>
+               </div>`;
+        body = `
+            <div class="sandbox-columns">
+                <div>${_attachmentPreviewHtml(e.id, row)}</div>
+                <div>${live}</div>
+            </div>`;
+    } else if (row.status === 'done' && reportUrl) {
+        const score = (result.malscore !== undefined) ? result.malscore : det.malscore;
+        const sigs = result.suspicious_behaviors || det.suspicious_behaviors || [];
+        body = `
+            <div class="sandbox-verdict">
+                <span class="detail-label">Malscore</span>
+                <strong>${score !== undefined ? esc(String(score)) : '—'} / 10</strong>
+                ${sigs.length ? `<span class="detail-label">· ${parseInt(sigs.length)} signature(s)</span>` : ''}
+                <a class="btn btn-outline btn-sm" href="${reportUrl}" target="_blank" rel="noopener">Open full report ↗</a>
+            </div>
+            <iframe class="sandbox-report-frame" src="${reportUrl}" title="CAPE report"></iframe>
+            <details style="margin-top:8px"><summary class="detail-label" style="cursor:pointer">Attachment preview</summary>
+                ${_attachmentPreviewHtml(e.id, row)}</details>`;
+    } else { // error (or done without a report)
+        const errMsg = result.error || 'detonation failed';
+        body = `
+            <div class="sandbox-error">
+                <p>⚠ Detonation failed: <code>${esc(errMsg)}</code>.
+                   The email was escalated to human review (fail-safe).</p>
+                ${userCan('emails.scan')
+                    ? `<button class="btn btn-outline btn-sm"
+                         onclick="detonationRetry(${parseInt(row.id)}, ${parseInt(e.id)})">↻ Retry detonation</button>`
+                    : ''}
+            </div>`;
+    }
+
+    return `
+        <div class="sandbox-row">
+            <div class="sandbox-row-head">
+                <span>💣 ${esc(truncate(row.filename, 50))}</span>
+                ${_detonationStatusBadge(row.status)}
+                ${row.attempts > 1 ? `<span class="detail-label">attempt ${parseInt(row.attempts)}</span>` : ''}
+                ${taskId ? `<span class="detail-label">CAPE task #${parseInt(taskId)}</span>` : ''}
+            </div>
+            ${body}
+        </div>`;
+}
+
+async function renderDetonationPanel(e) {
+    const panel = document.getElementById('detonation-panel');
+    if (!panel) return;
+    const rows = e.detonation_queue || [];
+    if (rows.length === 0) { panel.innerHTML = ''; return; }
+
+    let windowActive = false;
+    try {
+        const st = await API.get('/api/detonation/status');
+        windowActive = !!st.window_active;
+    } catch (_) { /* status endpoint down — panel still renders, no live view */ }
+
+    const firstTask = (rows[0].result && rows[0].result.cape_task_id) || 0;
+    panel.innerHTML = `
+        <div class="detail-section" style="grid-column: 1 / -1; margin-bottom:16px">
+            <h3>🔬 Detonation Sandbox
+                <button class="btn btn-outline btn-sm" style="float:right"
+                        onclick="openSandboxViewer(${parseInt(firstTask)})">Open sandbox</button>
+            </h3>
+            ${rows.map(r => _detonationRowHtml(e, r, windowActive)).join('')}
+        </div>`;
+
+    // Live noVNC for any row currently running inside an active window
+    for (const r of rows) {
+        const el = document.getElementById(`sandbox-live-${r.id}`);
+        if (el) mountNoVnc(el, parseInt(el.dataset.taskId) || 0);
+    }
+
+    // Poll while anything is pending so the panel advances queued→running→done
+    const pending = rows.some(r => r.status === 'queued' || r.status === 'running');
+    clearInterval(_detonationPollTimer);
+    if (pending) {
+        _detonationPollTimer = setInterval(() => refreshDetonationPanel(e.id), 10000);
+    }
+}
+
+async function refreshDetonationPanel(emailId) {
+    if (!document.getElementById('detonation-panel')) {
+        clearInterval(_detonationPollTimer);
+        return;
+    }
+    try {
+        const e = await API.get(`/api/emails/${emailId}`);
+        renderDetonationPanel(e);
+    } catch (_) { /* transient — next tick retries */ }
+}
+
+async function mountNoVnc(container, taskId) {
+    try {
+        if (_activeRfb) { try { _activeRfb.disconnect(); } catch (_) {} _activeRfb = null; }
+        const mod = await import('/static/novnc/core/rfb.js');
+        const RFB = mod.default;
+        const token = document.querySelector('meta[name="ws-token"]')?.content || '';
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        const url = `${proto}://${location.host}/ws/vnc/${parseInt(taskId) || 0}?token=${encodeURIComponent(token)}`;
+        const rfb = new RFB(container, url);
+        rfb.viewOnly = true;          // analyst watches; never drives the guest
+        rfb.scaleViewport = true;
+        rfb.addEventListener('disconnect', (ev) => {
+            if (!ev.detail.clean) {
+                container.innerHTML = `<div class="sandbox-empty"><p>Sandbox view unavailable
+                    (window closed or relay refused). The verdict is unaffected.</p></div>`;
+            }
+        });
+        _activeRfb = rfb;
+    } catch (err) {
+        container.innerHTML = `<div class="sandbox-empty"><p>Sandbox view unavailable: ${esc(err.message)}</p></div>`;
+    }
+}
+
+async function openSandboxViewer(taskId) {
+    // Honest gate: same detonation_state.is_active() truth the relay enforces.
+    // If nothing is detonating, say so immediately — never a doomed spinner.
+    let active = false;
+    try {
+        const st = await API.get('/api/detonation/status');
+        active = !!st.window_active;
+    } catch (_) { /* treat as inactive */ }
+
+    const existing = document.getElementById('sandbox-viewer-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'sandbox-viewer-overlay';
+    overlay.className = 'sandbox-overlay';
+    overlay.innerHTML = active
+        ? `<div class="sandbox-overlay-box">
+               <div class="sandbox-overlay-head"><span>Live sandbox — current job</span>
+                   <button class="btn btn-outline btn-sm" onclick="closeSandboxViewer()">✕ Close</button></div>
+               <div class="sandbox-live" id="sandbox-viewer-screen"></div>
+           </div>`
+        : `<div class="sandbox-overlay-box">
+               <div class="sandbox-overlay-head"><span>Sandbox</span>
+                   <button class="btn btn-outline btn-sm" onclick="closeSandboxViewer()">✕ Close</button></div>
+               <div class="sandbox-empty"><div class="emoji">😴</div>
+                   <p><strong>No active session right now.</strong></p>
+                   <p>The detonation VM only runs during a drained analysis window.
+                      The live view activates automatically when your queued sample runs.</p></div>
+           </div>`;
+    document.body.appendChild(overlay);
+    if (active) {
+        mountNoVnc(document.getElementById('sandbox-viewer-screen'), taskId);
+    }
+}
+
+function closeSandboxViewer() {
+    if (_activeRfb) { try { _activeRfb.disconnect(); } catch (_) {} _activeRfb = null; }
+    document.getElementById('sandbox-viewer-overlay')?.remove();
+}
+
+async function detonationRetry(pendingId, emailId) {
+    try {
+        await API.post(`/api/detonation/${pendingId}/retry`);
+        showToast('Re-queued for detonation — runs in the next drained window', 'success');
+        refreshDetonationPanel(emailId);
+    } catch (err) {
+        showToast(`Retry failed: ${err.message}`, 'error');
     }
 }
 
