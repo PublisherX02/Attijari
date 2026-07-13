@@ -126,15 +126,44 @@ def _start_docker() -> None:
     print("[DETONATION] WARNING: Docker did not confirm ready within timeout")
 
 
+def _preflight_cuckoo2() -> None:
+    """Recover cuckoo2 if a previous run left it powered on.
+
+    Runs after the attijari VM is up and CAPE answers, before submitting the
+    batch — prevents CAPE's 'Trying to start a virtual machine that has not
+    been turned off' failure. Wrapper disabled/unreachable → log and proceed:
+    a failed submission escalates safely; never block the drain window.
+    """
+    if not cfg.CAPE_VM_WRAPPER_ENABLED:
+        return
+    try:
+        import cape_vm_wrapper
+        st = cape_vm_wrapper.cuckoo2_state()
+        print(f"[DETONATION] cuckoo2 pre-flight state: {st}")
+        if st == "running":
+            print("[DETONATION] cuckoo2 left running — destroy + CAPE restart via wrapper")
+            if cape_vm_wrapper.reset_cuckoo2():
+                if not cape_client.wait_until_ready(cfg.CAPE_READY_TIMEOUT):
+                    print("[DETONATION] CAPE not ready after cuckoo2 reset — proceeding (fail-safe)")
+            else:
+                print("[DETONATION] cuckoo2 reset failed — proceeding (fail-safe)")
+    except Exception as e:
+        print(f"[DETONATION] cuckoo2 pre-flight skipped: {e}")
+
+
 def _resume_vm() -> bool:
     if not cfg.DETONATION_MANAGE_VM:
-        return cape_client.is_available()
+        ok = cape_client.is_available()
+        if ok:
+            _preflight_cuckoo2()
+        return ok
     print(f"[DETONATION] Resuming CAPE VM '{cfg.CAPE_VM_NAME}'...")
     _run(cfg.VM_RESUME_CMD, timeout=120)
     if not cape_client.wait_until_ready(cfg.CAPE_READY_TIMEOUT):
         print("[DETONATION] CAPE API did not become ready after VM resume")
         return False
     print("[DETONATION] CAPE API ready")
+    _preflight_cuckoo2()
     return True
 
 

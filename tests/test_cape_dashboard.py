@@ -78,3 +78,50 @@ def test_wrapper_client_reset_ok(monkeypatch):
     assert cape_vm_wrapper.reset_cuckoo2() is True
     assert captured["url"].endswith("/vm/reset")
     assert captured["headers"]["Authorization"] == "Bearer sekret"
+
+
+def test_preflight_resets_stuck_cuckoo2(monkeypatch):
+    import detonation
+    import detonation_config as cfg
+    import cape_vm_wrapper
+    import cape_client
+
+    calls = []
+    monkeypatch.setattr(cfg, "CAPE_VM_WRAPPER_ENABLED", True)
+    monkeypatch.setattr(cape_vm_wrapper, "cuckoo2_state", lambda: "running")
+    monkeypatch.setattr(cape_vm_wrapper, "reset_cuckoo2",
+                        lambda: calls.append("reset") or True)
+    monkeypatch.setattr(cape_client, "wait_until_ready",
+                        lambda t: calls.append("wait") or True)
+    detonation._preflight_cuckoo2()
+    assert calls == ["reset", "wait"]
+
+
+def test_preflight_noop_when_cuckoo2_off(monkeypatch):
+    import detonation
+    import detonation_config as cfg
+    import cape_vm_wrapper
+
+    monkeypatch.setattr(cfg, "CAPE_VM_WRAPPER_ENABLED", True)
+    monkeypatch.setattr(cape_vm_wrapper, "cuckoo2_state", lambda: "shut off")
+    monkeypatch.setattr(cape_vm_wrapper, "reset_cuckoo2",
+                        lambda: (_ for _ in ()).throw(AssertionError("must not reset")))
+    detonation._preflight_cuckoo2()  # must not raise, must not reset
+
+
+def test_preflight_never_raises_when_wrapper_down(monkeypatch):
+    import detonation
+    import detonation_config as cfg
+    import cape_vm_wrapper
+
+    monkeypatch.setattr(cfg, "CAPE_VM_WRAPPER_ENABLED", True)
+    monkeypatch.setattr(cape_vm_wrapper, "cuckoo2_state",
+                        lambda: (_ for _ in ()).throw(RuntimeError("down")))
+    detonation._preflight_cuckoo2()  # swallowed — window must proceed
+
+
+def test_preflight_disabled_is_noop(monkeypatch):
+    import detonation
+    import detonation_config as cfg
+    monkeypatch.setattr(cfg, "CAPE_VM_WRAPPER_ENABLED", False)
+    detonation._preflight_cuckoo2()  # no wrapper import side effects required
