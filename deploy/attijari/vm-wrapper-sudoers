@@ -1,0 +1,5 @@
+# /etc/sudoers.d/vm-wrapper  (validate with `visudo -cf` BEFORE installing)
+# Exactly the three commands the wrapper needs — nothing broader.
+cape ALL=(root) NOPASSWD: /usr/bin/virsh domstate cuckoo2
+cape ALL=(root) NOPASSWD: /usr/bin/virsh destroy cuckoo2
+cape ALL=(root) NOPASSWD: /usr/bin/systemctl restart cape.service

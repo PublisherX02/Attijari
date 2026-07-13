@@ -1,0 +1,15 @@
+# /etc/systemd/system/vm-wrapper.service
+# Adjust User= to the account that runs CAPE (commonly 'cape').
+[Unit]
+Description=CAPE VM recovery wrapper (cuckoo2 destroy + cape.service restart)
+After=network.target
+
+[Service]
+User=cape
+EnvironmentFile=/etc/vm-wrapper.env
+ExecStart=/usr/bin/python3 /opt/vm-wrapper/vm_wrapper.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
