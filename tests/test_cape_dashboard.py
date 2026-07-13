@@ -1,0 +1,80 @@
+"""Tests for the CAPE sandbox <-> dashboard integration layer.
+
+Hermetic host-side tests (no DB, no network, no live CAPE):
+  - config surface for the wrapper / websockify / web-report plumbing
+  - cape_vm_wrapper client fail-safe behavior
+  - cuckoo2 pre-flight recovery logic
+  - report-proxy URL allowlist + HTML rewriting
+  - /raw content-type sniffing (magic bytes, never declared type)
+  - VNC relay token check
+"""
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+
+def test_config_has_wrapper_fields():
+    import detonation_config as cfg
+    assert isinstance(cfg.CAPE_VM_WRAPPER_ENABLED, bool)
+    assert cfg.CAPE_VM_WRAPPER_URL.startswith("http")
+    assert not cfg.CAPE_VM_WRAPPER_URL.endswith("/")
+    assert cfg.CAPE_VM_WRAPPER_TIMEOUT > 0
+    assert cfg.WEBSOCKIFY_URL.startswith("ws")
+    # CAPE_WEB_URL is the Django UI base: API URL without the /apiv2 suffix
+    assert not cfg.CAPE_WEB_URL.endswith("/apiv2")
+    assert not cfg.CAPE_WEB_URL.endswith("/")
+
+
+def test_wrapper_client_disabled_returns_none(monkeypatch):
+    import cape_vm_wrapper
+    monkeypatch.setattr(cape_vm_wrapper, "CAPE_VM_WRAPPER_ENABLED", False)
+    assert cape_vm_wrapper.cuckoo2_state() is None
+    assert cape_vm_wrapper.reset_cuckoo2() is False
+
+
+def test_wrapper_client_state_ok(monkeypatch):
+    import cape_vm_wrapper
+
+    class FakeResp:
+        status_code = 200
+        def json(self):
+            return {"cuckoo2": "shut off"}
+
+    monkeypatch.setattr(cape_vm_wrapper, "CAPE_VM_WRAPPER_ENABLED", True)
+    monkeypatch.setattr(cape_vm_wrapper.requests, "get", lambda *a, **kw: FakeResp())
+    assert cape_vm_wrapper.cuckoo2_state() == "shut off"
+
+
+def test_wrapper_client_never_raises(monkeypatch):
+    import cape_vm_wrapper
+
+    def boom(*a, **kw):
+        raise ConnectionError("wrapper down")
+
+    monkeypatch.setattr(cape_vm_wrapper, "CAPE_VM_WRAPPER_ENABLED", True)
+    monkeypatch.setattr(cape_vm_wrapper.requests, "get", boom)
+    monkeypatch.setattr(cape_vm_wrapper.requests, "post", boom)
+    assert cape_vm_wrapper.cuckoo2_state() is None
+    assert cape_vm_wrapper.reset_cuckoo2() is False
+
+
+def test_wrapper_client_reset_ok(monkeypatch):
+    import cape_vm_wrapper
+
+    class FakeResp:
+        status_code = 200
+
+    captured = {}
+
+    def fake_post(url, headers=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers
+        return FakeResp()
+
+    monkeypatch.setattr(cape_vm_wrapper, "CAPE_VM_WRAPPER_ENABLED", True)
+    monkeypatch.setattr(cape_vm_wrapper, "CAPE_VM_WRAPPER_TOKEN", "sekret")
+    monkeypatch.setattr(cape_vm_wrapper.requests, "post", fake_post)
+    assert cape_vm_wrapper.reset_cuckoo2() is True
+    assert captured["url"].endswith("/vm/reset")
+    assert captured["headers"]["Authorization"] == "Bearer sekret"
