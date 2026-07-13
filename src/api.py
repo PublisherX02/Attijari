@@ -99,7 +99,7 @@ async def security_and_metrics_middleware(request: Request, call_next):
         f"script-src 'self' 'nonce-{nonce}'; "
         # style-src keeps 'unsafe-inline': inline style="" attributes cannot use
         # a nonce, and inline styles are not the injection risk scripts are.
-        f"style-src 'self' 'unsafe-inline'; "
+        f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         f"connect-src 'self' ws: wss:; "
         f"font-src 'self' https://fonts.gstatic.com"
     )
