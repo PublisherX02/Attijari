@@ -159,6 +159,8 @@ def parse_report(report: dict[str, Any], task_id: int) -> dict[str, Any]:
         "detonated": True,
         "status": "ok",
         "cape_task_id": task_id,
+        # Dashboard-proxied path (the browser can never reach CAPE directly)
+        "web_report_url": f"/api/detonation/report/{task_id}/",
         "malscore": malscore,
         "risk_score": int(min(malscore * 10, 100)),   # 0–10 → 0–100
         "suspicious": suspicious,

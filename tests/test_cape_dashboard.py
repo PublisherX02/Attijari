@@ -120,6 +120,12 @@ def test_preflight_never_raises_when_wrapper_down(monkeypatch):
     detonation._preflight_cuckoo2()  # swallowed — window must proceed
 
 
+def test_parse_report_includes_proxied_web_report_url():
+    from cape_client import parse_report
+    r = parse_report({"info": {"score": 2.0}}, task_id=123)
+    assert r["web_report_url"] == "/api/detonation/report/123/"
+
+
 def test_preflight_disabled_is_noop(monkeypatch):
     import detonation
     import detonation_config as cfg
