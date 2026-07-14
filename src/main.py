@@ -858,6 +858,20 @@ def run_pipeline():
     except Exception as e:
         logger.error(f"[DETONATION] Queue processing error: {e}")
 
+    # Branch-B manual detonations: the email backlog for this tick is now
+    # cleared, so any deferred manual file becomes 'ready' for the operator.
+    try:
+        from database import SessionLocal as _SL, promote_deferred_detonations as _promote
+        _db = _SL()
+        try:
+            n = _promote(_db)
+            if n:
+                print(f"[DETONATION] {n} deferred manual detonation(s) now READY for operator confirmation")
+        finally:
+            _db.close()
+    except Exception as _e:
+        print(f"[DETONATION] deferred promotion skipped: {_e}")
+
     elapsed = time.time() - t_start
     logger.info(f"=== Pipeline Finished in {elapsed:.1f}s ===")
 

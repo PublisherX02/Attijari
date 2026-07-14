@@ -260,3 +260,30 @@ def test_serialize_manual_row():
     assert out["escalate"] is True
     assert out["cape_task_id"] == 42
     assert out["created_by"] == "alice"
+
+
+# ---------------------------------------------------------------------------
+# Task 8 — manual_ready surfacing in the status endpoint
+# ---------------------------------------------------------------------------
+
+def test_manual_ready_rows_filters_ready(monkeypatch):
+    from routers import emails as e
+    import database
+
+    class Row:
+        def __init__(self, id, status):
+            self.id = id
+            self.status = status
+            self.filename = f"f{id}.exe"
+            self.sha256 = "b" * 64
+
+    rows = [Row(1, "ready"), Row(2, "done"), Row(3, "ready")]
+    monkeypatch.setattr(database, "list_manual_detonations", lambda db, limit=100: rows)
+
+    class FakeDB:
+        def close(self): pass
+
+    out = e._manual_ready_rows(FakeDB())
+    ids = [r["id"] for r in out]
+    assert ids == [1, 3]
+    assert out[0]["filename"] == "f1.exe"

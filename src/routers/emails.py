@@ -841,6 +841,16 @@ async def api_health_alerts(limit: int = Query(50, ge=1, le=500), user: Authenti
 # REST API — Detonation sandbox status
 # ---------------------------------------------------------------------------
 
+def _manual_ready_rows(db) -> list[dict]:
+    """Branch-B rows awaiting operator confirmation (status 'ready', no email)."""
+    from database import list_manual_detonations
+    out = []
+    for r in list_manual_detonations(db):
+        if r.status == "ready":
+            out.append({"id": r.id, "filename": r.filename, "sha256": r.sha256})
+    return out
+
+
 @emails_router.get("/api/detonation/status")
 # emails.view (not health.view): the suspension banner and the sandbox
 # viewer's honest-state gate poll this from every dashboard page; analysts
@@ -882,6 +892,7 @@ async def api_detonation_status(user: AuthenticatedUser = Depends(require_permis
             }
             for r in recent
         ]
+        manual_ready = _manual_ready_rows(db)
     finally:
         db.close()
 
@@ -893,6 +904,7 @@ async def api_detonation_status(user: AuthenticatedUser = Depends(require_permis
         "queued": queued,
         "by_status": by_status,
         "recent": recent_out,
+        "manual_ready": manual_ready,
     }
 
 
