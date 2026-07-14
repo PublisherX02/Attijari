@@ -54,12 +54,14 @@ mutually exclusive branches**. This replaces the single informed-consent modal
 from the manual-VM-control feature.
 
 ### Branch A — "Open now (stop email analysis)"
+
 Immediate. Equivalent to the existing `run-window` drain flow:
 suspend polling/scheduler → unload Ollama → free Guard → stop Docker →
 resume CAPE VM → detonate the file → live VNC. Email analysis is suspended for
 the duration (the operator has explicitly consented via this modal).
 
 ### Branch B — "Priority queue (run after emails are analyzed)"
+
 Non-interruptive. Sequence:
 
 1. File is enqueued with `priority=True` and a deferred marker; email analysis
@@ -67,9 +69,14 @@ Non-interruptive. Sequence:
 2. A lightweight check on the existing poll tick detects when the
    pending-email-analysis backlog reaches zero.
 3. On backlog-clear, the manual detonation flips to a **"ready"** state, surfaced
-   through `/api/detonation/status`. The operator sees a
-   "✅ Emails analyzed — your file is ready to open" prompt on whatever page
-   they are on (reusing the global status poller/banner).
+   through `/api/detonation/status`. The operator is alerted through **three
+   channels at once** (the operator may have tabbed away from the dashboard):
+   - a **desktop notification** via the Web Notifications API
+     (`Notification.requestPermission()` obtained up front on the manual page;
+     works on `localhost` without HTTPS),
+   - a short **sound cue** (a bundled audio asset played on the ready transition),
+   - an in-page **"✅ Emails analyzed — your file is ready to open"** prompt on
+     whatever page they are on (reusing the global status poller/banner).
 4. Operator presses **OK** → **only then** the drain window starts (VM resumes)
    and the file detonates with live VNC.
 
@@ -85,7 +92,7 @@ the manual window closes.
 
 ## 5. Data model changes
 
-`PendingDetonation` gains two nullable columns (email-sourced rows leave them
+`PendingDetonation` gains the following (email-sourced rows leave them
 null / default):
 
 - `created_by TEXT NULL` — operator username for manual uploads; null for
@@ -101,11 +108,18 @@ A migration adds the columns; existing rows backfill to null/false.
 
 ## 6. New endpoints (`routers/detonation_proxy.py` or a small new router)
 
-All gated by `require_permission("emails.scan")` (same as run-window/retry).
+All gated by a **new, grantable permission `detonation.manual`** (see §11) — not
+admin-only, and distinct from `emails.scan` so an admin can hand this specific
+capability to whichever operators they trust.
 
 - `POST /api/detonation/manual` — multipart upload.
-  - Validates: size ≤ 50 MB; extension in `SUPPORTED_EXTENSIONS` (reject others
-    with a clear message — do not queue a file CAPE can't handle).
+  - Validates: size ≤ 50 MB; extension in `CAPE_DETONABLE_EXTENSIONS` (the
+    CAPE-supported set, see §12). Reject anything outside it with a clear
+    "CAPEv2 cannot detonate this file type" message — CAPE aborts unsupported
+    types anyway, so rejecting up front avoids burning a whole drain window on a
+    guaranteed abort. **Backstop:** CAPE auto-detects by *content*; a file that
+    passes the extension gate but whose real type CAPE can't handle will abort →
+    the row goes to `error` and the history row shows it honestly.
   - Stores bytes under an internal id (never the attacker filename — CLAUDE.md
     rule 6). Computes SHA-256. Sniffs real type via magic bytes (rule 7).
   - `enqueue_detonation(sha256, stored_path, filename, email_id=None,
@@ -131,11 +145,17 @@ All gated by `require_permission("emails.scan")` (same as run-window/retry).
 
 - New template `manual_detonation.html` extending `base.html`, following the
   `admin.html` (User Management) pattern: page header + primary action + table.
-- Nav link added next to User Management (visible with `emails.scan`).
+- Nav link added next to User Management (visible only with `detonation.manual`).
 - `dashboard.js`: upload handler (multipart), two-outcome modal, history-table
   render/refresh, "ready" prompt driven by the existing status poller, and
   "See in VM" / "View report" row actions (reusing the existing viewer + report
   proxy wiring).
+- **Branch B alerting:** on the manual page, request Web Notification permission
+  up front. When the status poller reports a manual detonation in the `ready`
+  state, fire a desktop `Notification` + play a bundled sound asset (e.g.
+  `static/sounds/ready.mp3`, self-hosted so CSP `media-src 'self'` covers it) in
+  addition to the in-page banner/modal. Degrade gracefully if the user denied
+  notification permission (banner + sound still fire).
 - All handlers via `addEventListener`/delegation (CSP is `'self' 'unsafe-inline'`
   today, but new code should not add inline `onclick=` — see the Jul-13 CSP
   incident in the build log).
@@ -162,21 +182,69 @@ All gated by `require_permission("emails.scan")` (same as run-window/retry).
   `email_id=None, priority=False`, window triggered.
 - Upload Branch B: enqueued deferred+priority, window NOT triggered; backlog-clear
   promotes to ready; confirm triggers window.
-- Rejects: oversized file, unsupported extension, missing file.
+- Rejects: oversized file, extension outside `CAPE_DETONABLE_EXTENSIONS`
+  (e.g. `.txt`, `.png`), missing file.
 - Filename hostility: a file named `../../etc/passwd` or `x.pdf.exe` never
-  becomes a real path; stored under internal id.
+  becomes a real path; stored under internal id. (`x.pdf.exe` → real ext `.exe`,
+  supported; the point tested is path safety, not rejection.)
 - Priority ordering: a priority row sorts ahead of email-sourced queued rows.
 - Concurrency: upload while a window is active → row queued, honest response, no
   double-drain (existing `try_begin()` barrier already covered).
 - List endpoint returns only `email_id IS NULL` rows with correct fields + cache
   headers.
+- Permission: a user without `detonation.manual` gets 403 on both endpoints and
+  never sees the nav link.
 
-## 10. Open questions for user review
+## 10. Resolved decisions (were open questions)
 
-1. **Permission gate:** defaulted to `emails.scan` (same as run-window/retry).
-   User Management is admin-only (`users.manage`). Confirm `emails.scan` is right,
-   or tighten to admin-only.
-2. **Supported files:** gate to `SUPPORTED_EXTENSIONS` (reject others) vs. accept
-   anything and let CAPE decide. Defaulted to the gate.
-3. **Branch B "ready" surfacing:** banner + modal prompt via the existing status
-   poller — acceptable, or do you want a stronger signal (e.g. desktop/sound)?
+1. **Permission gate:** a **new grantable permission `detonation.manual`**, NOT
+   admin-only. Admins assign it per-user via User Management (§11).
+2. **Supported files:** gate to `CAPE_DETONABLE_EXTENSIONS` — the actual
+   CAPEv2-supported set (§12), rejecting anything CAPE would abort on.
+3. **Branch B "ready" surfacing:** desktop notification **+ sound + in-page
+   banner/modal**, all three (§4, §7).
+
+## 11. Permission: `detonation.manual`
+
+- Added to the permission catalog `ALL_PERMISSIONS` in `database.py` (with a
+  human label, so it appears as a toggle in the User Management permission editor).
+- Role defaults: `admin` → true (admins hold all permissions anyway);
+  `analyst` and `viewer` → **false by default**. An admin explicitly grants it to
+  the analysts they trust — matching "admin decides to whom."
+- All three server surfaces (`POST`/`GET /api/detonation/manual`, and the page
+  route) require it. The nav link is rendered only when the session holds it.
+- Existing users: a migration/backfill adds the key (default false) to every
+  stored `permissions` JSON so the editor shows it for already-created accounts.
+
+## 12. `CAPE_DETONABLE_EXTENSIONS` — the accepted set
+
+Derived from CAPEv2's analysis-package extension map (authoritative source:
+CAPE docs, `usage/packages.html`, and `analyzer/windows/modules/packages/`).
+Defined once in `detonation_config.py`, config-overridable so it can be trimmed
+to match the specific CAPE install's enabled packages.
+
+```text
+.mdb .accdb   .class   .iso .vhd   .chm   .url   .cpl   .dll
+.doc .docm .docx   .eml   .exe   .hta   .hwp   .jar   .js .jse
+.lnk   .mht   .build   .msg   .msi   .nsis   .one   .pdf
+.ppt .pptm .pptx   .ps1   .pub .pubx   .py   .rar   .reg
+.scr .sct   .swf   .vbs .vbe   .wsf   .xls .xlsm .xlsx   .xslt
+.xps   .zip
+```
+
+Notes:
+- This is **broader** than the email pipeline's `SUPPORTED_EXTENSIONS` (which is a
+  curated "worth auto-detonating" subset). The two are intentionally distinct:
+  the manual page is operator-driven, so it accepts everything CAPE *can* run;
+  the email pipeline only queues the high-signal subset automatically.
+- `.exe`/`.dll`/`.scr` etc. are accepted — this is a sandbox; running live
+  malware in the isolated VM is the entire point.
+- If a CAPE install disables a package (e.g. no Office in the guest), trim the
+  set via config so operators get an honest up-front rejection instead of a
+  CAPE-side abort.
+
+## 13. CSP note
+
+The sound cue needs `media-src 'self'` in the CSP (self-hosted asset only). The
+Web Notifications API is a browser capability, not a network fetch, so it needs
+no CSP change. Follow the build-log CSP discipline: no inline handlers.
