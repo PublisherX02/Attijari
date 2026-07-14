@@ -70,3 +70,32 @@ def test_pending_detonation_has_manual_columns():
     cols = db.PendingDetonation.__table__.columns.keys()
     assert "created_by" in cols
     assert "priority" in cols
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — DB helpers: promote_deferred_detonations
+# ---------------------------------------------------------------------------
+
+def test_promote_deferred_detonations_flips_status():
+    import database as db
+
+    class Row:
+        def __init__(self, status):
+            self.status = status
+
+    rows = [Row("deferred"), Row("deferred")]
+
+    class FakeQuery:
+        def filter(self, *a, **k): return self
+        def all(self): return rows
+
+    class FakeDB:
+        def __init__(self): self.committed = False
+        def query(self, *a, **k): return FakeQuery()
+        def commit(self): self.committed = True
+
+    fake = FakeDB()
+    n = db.promote_deferred_detonations(fake)
+    assert n == 2
+    assert all(r.status == "ready" for r in rows)
+    assert fake.committed is True

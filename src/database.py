@@ -708,3 +708,29 @@ def get_queued_detonations(db: Session, limit: int = 5) -> list["PendingDetonati
 
 def count_queued_detonations(db: Session) -> int:
     return db.query(PendingDetonation).filter(PendingDetonation.status == "queued").count()
+
+
+def list_manual_detonations(db: Session, limit: int = 100) -> list["PendingDetonation"]:
+    """Manual (non-email) detonations, newest first, for the manual-detonation page."""
+    return (
+        db.query(PendingDetonation)
+        .filter(PendingDetonation.email_id.is_(None))
+        .order_by(PendingDetonation.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def promote_deferred_detonations(db: Session) -> int:
+    """Flip Branch-B 'deferred' rows to 'ready' once the email backlog is clear.
+    Called at the end of a pipeline tick. Returns the number promoted."""
+    rows = db.query(PendingDetonation).filter(PendingDetonation.status == "deferred").all()
+    for r in rows:
+        r.status = "ready"
+    if rows:
+        db.commit()
+    return len(rows)
+
+
+def get_pending_detonation(db: Session, pending_id: int) -> Optional["PendingDetonation"]:
+    return db.query(PendingDetonation).filter(PendingDetonation.id == pending_id).first()
