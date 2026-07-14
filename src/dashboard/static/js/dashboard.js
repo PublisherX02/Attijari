@@ -25,6 +25,49 @@ const API = {
     },
 };
 
+/* =========================================================================
+   Delegated action dispatch (CSP-safe replacement for inline onclick/onchange)
+   ========================================================================= */
+const actionRegistry = {};
+const changeRegistry = {};
+const enterActionRegistry = {};
+
+function registerAction(name, fn) { actionRegistry[name] = fn; }
+function registerChangeAction(name, fn) { changeRegistry[name] = fn; }
+function registerEnterAction(name, fn) { enterActionRegistry[name] = fn; }
+
+document.addEventListener('click', (event) => {
+    const el = event.target.closest('[data-action]');
+    if (!el) return;
+    const handler = actionRegistry[el.dataset.action];
+    if (!handler) { console.error('Unknown data-action:', el.dataset.action); return; }
+    handler(el, event);
+});
+
+document.addEventListener('change', (event) => {
+    const el = event.target.closest('[data-change-action]');
+    if (!el) return;
+    const handler = changeRegistry[el.dataset.changeAction];
+    if (!handler) { console.error('Unknown data-change-action:', el.dataset.changeAction); return; }
+    handler(el, event);
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    const el = event.target.closest('[data-enter-action]');
+    if (!el) return;
+    const handler = enterActionRegistry[el.dataset.enterAction];
+    if (!handler) return;
+    handler(el, event);
+});
+
+registerAction('noop', () => {});
+registerAction('backdrop-close', (el, event) => {
+    if (event.target !== el) return;
+    const closeFn = window[el.dataset.close];
+    if (typeof closeFn === 'function') closeFn();
+});
+
 /* --- Toast notifications --- */
 function showToast(message, type = 'success') {
     let container = document.getElementById('toast-container');
@@ -150,6 +193,12 @@ async function executeBulkAction(action) {
     }
 }
 
+function clearSelection() {
+    selectedEmailIds.clear();
+    document.querySelectorAll('.row-checkbox').forEach(c => c.checked = false);
+    updateBulkBar();
+}
+
 async function loadInbox(page = 1, status = null, search = '') {
     currentPage = page;
     currentStatus = status;
@@ -202,10 +251,10 @@ async function loadInbox(page = 1, status = null, search = '') {
         const canBulk = userCan('emails.bulk');
 
         container.innerHTML = data.emails.map(e => `
-            <tr onclick="window.location='/email/${parseInt(e.id)}'">
-                ${canBulk ? `<td onclick="event.stopPropagation()">
+            <tr data-action="open-email" data-id="${parseInt(e.id)}">
+                ${canBulk ? `<td data-action="noop">
                     <input type="checkbox" class="row-checkbox" data-id="${parseInt(e.id)}"
-                        onchange="toggleEmailSelection(${parseInt(e.id)}, this.checked)">
+                        data-change-action="toggle-email-selection">
                 </td>` : '<td></td>'}
                 <td>${esc(truncate(e.sender, 40))}</td>
                 <td>${esc(truncate(e.subject, 55))}</td>
@@ -216,13 +265,13 @@ async function loadInbox(page = 1, status = null, search = '') {
                     ${e.status === 'pending' ? `<span class="badge pending">Scanning…</span>`
                     : e.status === 'escalated' || e.status === 'recu' ? `
                         <div class="btn-group">
-                            ${canRelease ? `<button class="btn btn-success btn-sm" onclick="event.stopPropagation(); releaseEmail(${parseInt(e.id)})">Release</button>` : ''}
-                            ${canQuarantine ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); quarantineEmail(${parseInt(e.id)})">Quarantine</button>` : ''}
+                            ${canRelease ? `<button class="btn btn-success btn-sm" data-action="release-email" data-id="${parseInt(e.id)}">Release</button>` : ''}
+                            ${canQuarantine ? `<button class="btn btn-danger btn-sm" data-action="quarantine-email" data-id="${parseInt(e.id)}">Quarantine</button>` : ''}
                         </div>
                     ` : e.analyst_action ? `
                         <div class="btn-group">
                             <span style="color:var(--text-muted)">${esc(e.analyst_action)}</span>
-                            ${canRevert ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); revertAction(${parseInt(e.id)})" title="Undo — return to escalated for re-review">Undo</button>` : ''}
+                            ${canRevert ? `<button class="btn btn-outline btn-sm" data-action="revert-action" data-id="${parseInt(e.id)}" title="Undo — return to escalated for re-review">Undo</button>` : ''}
                         </div>
                     ` : ''}
                 </td>
@@ -248,9 +297,9 @@ function renderPagination(page, pages, total) {
     if (!el || pages <= 1) { if (el) el.innerHTML = ''; return; }
 
     let html = '';
-    if (page > 1) html += `<button class="btn btn-outline btn-sm" onclick="loadInbox(${page - 1}, currentStatus, currentSearch)">← Prev</button>`;
+    if (page > 1) html += `<button class="btn btn-outline btn-sm" data-action="load-inbox-page" data-page="${page - 1}">← Prev</button>`;
     html += `<span class="current-page">Page ${page} of ${pages} (${total} total)</span>`;
-    if (page < pages) html += `<button class="btn btn-outline btn-sm" onclick="loadInbox(${page + 1}, currentStatus, currentSearch)">Next →</button>`;
+    if (page < pages) html += `<button class="btn btn-outline btn-sm" data-action="load-inbox-page" data-page="${page + 1}">Next →</button>`;
     el.innerHTML = html;
 }
 
@@ -510,10 +559,10 @@ async function loadEmailDetail(emailId) {
             ${auditHtml}
 
             <div class="action-bar">
-                ${userCan('emails.release') ? `<button class="btn btn-success" onclick="releaseEmail(${parseInt(e.id)})">✓ Release</button>` : ''}
-                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" onclick="quarantineEmail(${parseInt(e.id)})">🛡 Quarantine</button>` : ''}
-                ${userCan('emails.override') ? `<button class="btn btn-outline" onclick="openOverrideModal(${parseInt(e.id)})">Override Verdict</button>` : ''}
-                ${e.analyst_action && userCan('emails.revert') ? `<button class="btn btn-outline" onclick="revertAction(${parseInt(e.id)})" title="Undo ${esc(e.analyst_action)} — return to escalated for re-review">Undo ${esc(e.analyst_action)}</button>` : ''}
+                ${userCan('emails.release') ? `<button class="btn btn-success" data-action="release-email" data-id="${parseInt(e.id)}">✓ Release</button>` : ''}
+                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" data-action="quarantine-email" data-id="${parseInt(e.id)}">🛡 Quarantine</button>` : ''}
+                ${userCan('emails.override') ? `<button class="btn btn-outline" data-action="open-override-modal" data-id="${parseInt(e.id)}">Override Verdict</button>` : ''}
+                ${e.analyst_action && userCan('emails.revert') ? `<button class="btn btn-outline" data-action="revert-action" data-id="${parseInt(e.id)}" title="Undo ${esc(e.analyst_action)} — return to escalated for re-review">Undo ${esc(e.analyst_action)}</button>` : ''}
                 <div style="flex:1"></div>
                 <span style="color:var(--text-muted);font-size:0.8rem">Email #${parseInt(e.id)}</span>
             </div>
@@ -592,7 +641,7 @@ function _detonationRowHtml(e, row, windowActive) {
                 <a class="btn btn-outline btn-sm" href="${reportUrl}" target="_blank" rel="noopener">Open full report ↗</a>
                 ${userCan('emails.scan')
                     ? `<button class="btn btn-outline btn-sm"
-                         onclick="seeInVm(${parseInt(row.id)}, ${parseInt(e.id)})">🖥 See in VM</button>`
+                         data-action="see-in-vm" data-pending-id="${parseInt(row.id)}" data-email-id="${parseInt(e.id)}">🖥 See in VM</button>`
                     : ''}
             </div>
             <iframe class="sandbox-report-frame" src="${reportUrl}" title="CAPE report"></iframe>
@@ -606,9 +655,9 @@ function _detonationRowHtml(e, row, windowActive) {
                    The email was escalated to human review (fail-safe).</p>
                 ${userCan('emails.scan')
                     ? `<button class="btn btn-outline btn-sm"
-                         onclick="detonationRetry(${parseInt(row.id)}, ${parseInt(e.id)})">↻ Retry detonation</button>
+                         data-action="detonation-retry" data-pending-id="${parseInt(row.id)}" data-email-id="${parseInt(e.id)}">↻ Retry detonation</button>
                        <button class="btn btn-outline btn-sm"
-                         onclick="seeInVm(${parseInt(row.id)}, ${parseInt(e.id)})">🖥 See in VM</button>`
+                         data-action="see-in-vm" data-pending-id="${parseInt(row.id)}" data-email-id="${parseInt(e.id)}">🖥 See in VM</button>`
                     : ''}
             </div>`;
     }
@@ -642,7 +691,7 @@ async function renderDetonationPanel(e) {
         <div class="detail-section" style="grid-column: 1 / -1; margin-bottom:16px">
             <h3>🔬 Detonation Sandbox
                 <button class="btn btn-outline btn-sm" style="float:right"
-                        onclick="openSandboxViewer(${parseInt(firstTask)})">Open sandbox</button>
+                        data-action="open-sandbox-viewer" data-task-id="${parseInt(firstTask)}">Open sandbox</button>
             </h3>
             ${rows.map(r => _detonationRowHtml(e, r, windowActive)).join('')}
         </div>`;
@@ -707,7 +756,7 @@ async function openSandboxViewer(taskId) {
     overlay.innerHTML = `
         <div class="sandbox-overlay-box">
             <div class="sandbox-overlay-head"><span>Sandbox</span>
-                <button class="btn btn-outline btn-sm" onclick="closeSandboxViewer()">✕ Close</button></div>
+                <button class="btn btn-outline btn-sm" data-action="close-sandbox-viewer">✕ Close</button></div>
             <div id="sandbox-viewer-body"></div>
         </div>`;
     document.body.appendChild(overlay);
@@ -885,7 +934,7 @@ async function loadBlocklist() {
                 <td style="font-family:monospace">${esc(e.value)}</td>
                 <td>${esc(e.source)}</td>
                 <td>${formatDate(e.created_at)}</td>
-                <td>${userCan('blocklist.manage') ? `<button class="btn btn-outline btn-sm" onclick="removeBlocklistEntry(${parseInt(e.id)})">Remove</button>` : ''}</td>
+                <td>${userCan('blocklist.manage') ? `<button class="btn btn-outline btn-sm" data-action="remove-blocklist-entry" data-id="${parseInt(e.id)}">Remove</button>` : ''}</td>
             </tr>
         `).join('');
     } catch (err) {
@@ -934,7 +983,7 @@ async function loadWhitelist() {
                 <td style="font-family:monospace">${esc(e.value)}</td>
                 <td>${esc(e.reason) || '—'}</td>
                 <td>${formatDate(e.created_at)}</td>
-                <td>${userCan('whitelist.manage') ? `<button class="btn btn-outline btn-sm" onclick="removeWhitelistEntry(${parseInt(e.id)})">Remove</button>` : ''}</td>
+                <td>${userCan('whitelist.manage') ? `<button class="btn btn-outline btn-sm" data-action="remove-whitelist-entry" data-id="${parseInt(e.id)}">Remove</button>` : ''}</td>
             </tr>
         `).join('');
     } catch (err) {
@@ -1053,6 +1102,14 @@ function closeModal() {
     if (overlay) overlay.classList.remove('open');
 }
 
+function confirmOverrideFromModal() {
+    overrideEmail(document.getElementById('modal-overlay').dataset.emailId);
+}
+
+function closeReasonModal() {
+    document.getElementById('reason-modal-overlay').classList.remove('open');
+}
+
 
 /* =========================================================================
    Admin Audit Panel
@@ -1081,8 +1138,8 @@ async function loadToolHealth(tool) {
         // Build filter chips
         if (filters && !tool) {
             const tools = Object.keys(summary);
-            filters.innerHTML = `<button class="chip active" data-tool="" onclick="filterAuditTool('')">All Tools</button>` +
-                tools.map(t => `<button class="chip" data-tool="${esc(t)}" onclick="filterAuditTool('${esc(t)}')">${esc(t)}</button>`).join('');
+            filters.innerHTML = `<button class="chip active" data-tool="" data-action="filter-audit-tool">All Tools</button>` +
+                tools.map(t => `<button class="chip" data-tool="${esc(t)}" data-action="filter-audit-tool">${esc(t)}</button>`).join('');
         }
 
         // Update active chip
@@ -1097,7 +1154,7 @@ async function loadToolHealth(tool) {
         };
 
         grid.innerHTML = Object.entries(summary).map(([name, s]) => `
-            <div class="health-card" onclick="filterAuditTool('${esc(name)}')" style="cursor:pointer">
+            <div class="health-card" data-action="filter-audit-tool" data-tool="${esc(name)}" style="cursor:pointer">
                 <span class="status-dot ${statusColors[s.status] || 'unavailable'}"></span>
                 <strong>${esc(name.toUpperCase())}</strong>
                 <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:0.8rem;color:var(--text-secondary)">
@@ -1166,7 +1223,7 @@ async function loadFeedbackHistory() {
         }
 
         tbody.innerHTML = entries.map(fb => `
-            <tr onclick="window.location='/email/${parseInt(fb.email_id)}'" style="cursor:pointer">
+            <tr data-action="open-email" data-id="${parseInt(fb.email_id)}" style="cursor:pointer">
                 <td style="white-space:nowrap">${formatDate(fb.created_at)}</td>
                 <td>#${parseInt(fb.email_id)}</td>
                 <td><span class="badge ${fb.action === 'release' ? 'released' : 'quarantined'}">${esc(fb.action)}</span></td>
@@ -1213,3 +1270,41 @@ function connectWebSocket() {
 }
 
 connectWebSocket();
+
+/* =========================================================================
+   Action registrations (data-action / data-change-action / data-enter-action)
+   ========================================================================= */
+registerAction('open-email', (el) => { window.location = `/email/${el.dataset.id}`; });
+registerAction('release-email', (el) => releaseEmail(parseInt(el.dataset.id)));
+registerAction('quarantine-email', (el) => quarantineEmail(parseInt(el.dataset.id)));
+registerAction('revert-action', (el) => revertAction(parseInt(el.dataset.id)));
+registerAction('open-override-modal', (el) => openOverrideModal(parseInt(el.dataset.id)));
+registerAction('load-inbox-page', (el) => loadInbox(parseInt(el.dataset.page), currentStatus, currentSearch));
+registerAction('filter-by-status', (el) => filterByStatus(el.dataset.status));
+registerAction('search-emails', () => searchEmails());
+registerAction('trigger-scan', () => triggerScan());
+registerAction('open-vm-window', () => openVmWindow());
+registerAction('clear-selection', () => clearSelection());
+registerAction('bulk-release', () => executeBulkAction('release'));
+registerAction('bulk-quarantine', () => executeBulkAction('quarantine'));
+registerAction('close-modal', () => closeModal());
+registerAction('confirm-override', () => confirmOverrideFromModal());
+registerAction('close-reason-modal', () => closeReasonModal());
+registerAction('confirm-reason-action', () => confirmReasonAction());
+registerAction('see-in-vm', (el) => seeInVm(parseInt(el.dataset.pendingId), parseInt(el.dataset.emailId)));
+registerAction('detonation-retry', (el) => detonationRetry(parseInt(el.dataset.pendingId), parseInt(el.dataset.emailId)));
+registerAction('open-sandbox-viewer', (el) => openSandboxViewer(parseInt(el.dataset.taskId)));
+registerAction('close-sandbox-viewer', () => closeSandboxViewer());
+registerAction('remove-blocklist-entry', (el) => removeBlocklistEntry(parseInt(el.dataset.id)));
+registerAction('add-blocklist-entry', () => addBlocklistEntry());
+registerAction('remove-whitelist-entry', (el) => removeWhitelistEntry(parseInt(el.dataset.id)));
+registerAction('add-whitelist-entry', () => addWhitelistEntry());
+registerAction('load-health', () => loadHealth());
+registerAction('generate-report', () => generateReport());
+registerAction('filter-audit-tool', (el) => filterAuditTool(el.dataset.tool));
+registerAction('load-audit-panel', () => loadAuditPanel());
+
+registerChangeAction('toggle-email-selection', (el) => toggleEmailSelection(parseInt(el.dataset.id), el.checked));
+registerChangeAction('toggle-select-all', (el) => toggleSelectAll(el.checked));
+
+registerEnterAction('search-emails', () => searchEmails());
