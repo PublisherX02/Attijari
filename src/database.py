@@ -271,6 +271,8 @@ class PendingDetonation(Base):
     status = Column(String(20), nullable=False, default="queued")  # queued, running, done, error
     result = Column(JSONB, nullable=True)         # parsed CAPE result
     attempts = Column(Integer, default=0)
+    created_by = Column(String(255), nullable=True)   # operator username (manual uploads)
+    priority = Column(Boolean, nullable=False, default=False)  # manual rows jump the queue
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -384,6 +386,27 @@ def _migrate_users_rbac():
         print(f"[DB] RBAC migration note: {e}")
 
 
+def _migrate_pending_detonation_manual():
+    """One-time: add manual-detonation columns to an existing pending_detonation table."""
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        if "pending_detonation" not in inspector.get_table_names():
+            return  # create_all will make it with the columns already
+        existing = {c["name"] for c in inspector.get_columns("pending_detonation")}
+        new_cols = {
+            "created_by": "VARCHAR(255)",
+            "priority": "BOOLEAN NOT NULL DEFAULT FALSE",
+        }
+        with engine.begin() as conn:
+            for name, ddl in new_cols.items():
+                if name not in existing:
+                    conn.execute(sa_text(f'ALTER TABLE pending_detonation ADD COLUMN "{name}" {ddl}'))
+                    print(f"[DB] Added column pending_detonation.{name}")
+    except Exception as e:
+        print(f"[DB] pending_detonation manual migration skipped: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Database initialization
 # ---------------------------------------------------------------------------
@@ -395,6 +418,7 @@ def init_db():
 
     # Migrate existing users: add role/permissions columns if missing
     _migrate_users_rbac()
+    _migrate_pending_detonation_manual()
 
     # Initialize default admin if no users exist
     try:
@@ -643,7 +667,10 @@ def get_blocked_set(db: Session, indicator_type: str) -> set[str]:
 def enqueue_detonation(db: Session, sha256: str, stored_path: str,
                        filename: Optional[str] = None, email_id: Optional[int] = None,
                        idempotency_key: Optional[str] = None,
-                       reason: Optional[str] = None) -> Optional["PendingDetonation"]:
+                       reason: Optional[str] = None,
+                       created_by: Optional[str] = None,
+                       priority: bool = False,
+                       status: str = "queued") -> Optional["PendingDetonation"]:
     """Queue an attachment for detonation. De-dupes on (sha256) while queued/running."""
     existing = db.query(PendingDetonation).filter(
         PendingDetonation.sha256 == sha256,
@@ -658,7 +685,9 @@ def enqueue_detonation(db: Session, sha256: str, stored_path: str,
         filename=filename,
         stored_path=stored_path,
         reason=reason,
-        status="queued",
+        status=status,
+        created_by=created_by,
+        priority=priority,
     )
     db.add(row)
     db.commit()
@@ -671,7 +700,7 @@ def get_queued_detonations(db: Session, limit: int = 5) -> list["PendingDetonati
     return (
         db.query(PendingDetonation)
         .filter(PendingDetonation.status == "queued")
-        .order_by(PendingDetonation.created_at.asc())
+        .order_by(PendingDetonation.priority.desc(), PendingDetonation.created_at.asc())
         .limit(limit)
         .all()
     )

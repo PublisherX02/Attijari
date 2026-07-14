@@ -50,3 +50,23 @@ def test_detonation_manual_permission_enforced():
     assert db.user_has_permission(U("admin", {}), "detonation.manual") is True
     assert db.user_has_permission(U("analyst", {}), "detonation.manual") is False
     assert db.user_has_permission(U("analyst", {"detonation.manual": True}), "detonation.manual") is True
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — PendingDetonation columns + enqueue signature
+# ---------------------------------------------------------------------------
+
+def test_enqueue_detonation_signature():
+    import inspect, database as db
+    sig = inspect.signature(db.enqueue_detonation)
+    for p in ("created_by", "priority", "status"):
+        assert p in sig.parameters, f"enqueue_detonation missing {p}"
+    assert sig.parameters["priority"].default is False
+    assert sig.parameters["status"].default == "queued"
+
+
+def test_pending_detonation_has_manual_columns():
+    import database as db
+    cols = db.PendingDetonation.__table__.columns.keys()
+    assert "created_by" in cols
+    assert "priority" in cols
