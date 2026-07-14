@@ -833,7 +833,34 @@ async function refreshDetonationBanner() {
     try {
         const st = await API.get('/api/detonation/status');
         banner.style.display = st.window_active ? 'block' : 'none';
+        notifyManualReady(st.manual_ready, banner);
     } catch (_) { /* not permitted or transient — leave as-is */ }
+}
+
+// Branch-B manual detonations that just became ready → alert on any page
+// (desktop notification + sound + banner). Fires once per detonation id.
+function notifyManualReady(ready, banner) {
+    window.__mdReadySeen = window.__mdReadySeen || {};
+    (ready || []).forEach(function (row) {
+        if (window.__mdReadySeen[row.id]) return;
+        window.__mdReadySeen[row.id] = true;
+        const msg = 'Emails analyzed — "' + (row.filename || 'your file') + '" is ready to open.';
+        // 1) in-page banner
+        if (banner) { banner.style.display = 'block'; banner.textContent = '✅ ' + msg; }
+        // 2) desktop notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+            try { new Notification('Attijari SOC — sandbox ready', { body: msg }); } catch (_) {}
+        }
+        // 3) sound cue (WebAudio beep — no asset, no CSP change)
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+            g.gain.setValueAtTime(0.15, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+            o.start(); o.stop(ctx.currentTime + 0.6);
+        } catch (_) { /* audio unavailable — banner + notification still fire */ }
+    });
 }
 setInterval(refreshDetonationBanner, 30000);
 document.addEventListener('DOMContentLoaded', refreshDetonationBanner);
