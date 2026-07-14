@@ -233,3 +233,30 @@ def test_confirm_ready_rejects_non_ready(monkeypatch):
     row = state["enqueued"][0]  # status "queued", not "ready"
     out = m.confirm_ready(row.id, "alice")
     assert "error" in out
+
+
+# ---------------------------------------------------------------------------
+# Task 7 — API serialization
+# ---------------------------------------------------------------------------
+
+def test_serialize_manual_row():
+    from routers import detonation_proxy as dp
+
+    class Row:
+        id = 7
+        filename = "sample.exe"
+        sha256 = "a" * 64
+        status = "done"
+        created_by = "alice"
+        reason = "manual upload"
+        result = {"malscore": 8.5, "escalate": True, "cape_task_id": 42}
+        created_at = None
+        updated_at = None
+
+    out = dp._serialize_manual(Row())
+    assert out["id"] == 7
+    assert out["filename"] == "sample.exe"
+    assert out["malscore"] == 8.5
+    assert out["escalate"] is True
+    assert out["cape_task_id"] == 42
+    assert out["created_by"] == "alice"

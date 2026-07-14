@@ -319,3 +319,74 @@ def api_detonation_run_window(
         name="manual-detonation-window",
     ).start()
     return {"status": "started"}
+
+
+# ---------------------------------------------------------------------------
+# Manual detonation page — upload an arbitrary file and watch it run
+# ---------------------------------------------------------------------------
+
+from fastapi import UploadFile, File, Form
+from fastapi.responses import JSONResponse
+
+
+def _serialize_manual(row) -> dict:
+    result = row.result or {}
+    return {
+        "id": row.id,
+        "filename": row.filename,
+        "sha256": row.sha256,
+        "status": row.status,
+        "created_by": row.created_by,
+        "reason": row.reason,
+        "malscore": result.get("malscore"),
+        "escalate": result.get("escalate"),
+        "cape_task_id": result.get("cape_task_id"),
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+@detonation_proxy_router.post("/api/detonation/manual")
+async def api_detonation_manual_upload(
+    file: UploadFile = File(...),
+    branch: str = Form(...),
+    user: AuthenticatedUser = Depends(require_permission("detonation.manual")),
+):
+    """Upload a file to detonate. branch='now' (drain immediately) or 'queue'
+    (priority-defer until the email backlog clears, then operator confirms)."""
+    import manual_detonation as md
+    content = await file.read()
+    out = md.handle_upload(content, file.filename or "sample.bin", branch, user.username)
+    if "error" in out:
+        return JSONResponse({"success": False, "error": out["error"]}, status_code=400)
+    return {"success": True, **out}
+
+
+@detonation_proxy_router.get("/api/detonation/manual")
+def api_detonation_manual_list(
+    user: AuthenticatedUser = Depends(require_permission("detonation.manual")),
+):
+    """History of manual (non-email) detonations for the page table."""
+    from database import SessionLocal, list_manual_detonations
+    db = SessionLocal()
+    try:
+        rows = [_serialize_manual(r) for r in list_manual_detonations(db)]
+    finally:
+        db.close()
+    return JSONResponse(
+        {"detonations": rows},
+        headers={"Cache-Control": "private, max-age=5"},
+    )
+
+
+@detonation_proxy_router.post("/api/detonation/manual/{pending_id}/confirm")
+def api_detonation_manual_confirm(
+    pending_id: int,
+    user: AuthenticatedUser = Depends(require_permission("detonation.manual")),
+):
+    """Branch B: operator confirms a 'ready' file — promote + start the window."""
+    import manual_detonation as md
+    out = md.confirm_ready(pending_id, user.username)
+    if "error" in out:
+        return JSONResponse({"success": False, "error": out["error"]}, status_code=409)
+    return {"success": True, **out}
