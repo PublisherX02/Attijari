@@ -99,3 +99,37 @@ def test_promote_deferred_detonations_flips_status():
     assert n == 2
     assert all(r.status == "ready" for r in rows)
     assert fake.committed is True
+
+
+# ---------------------------------------------------------------------------
+# Task 5 — upload validation + safe storage
+# ---------------------------------------------------------------------------
+
+def test_validate_upload():
+    import manual_detonation as m
+    assert m.validate_upload(1000, "invoice.pdf") is None
+    assert m.validate_upload(1000, "malware.exe") is None
+    # unsupported extension
+    assert "cannot detonate" in (m.validate_upload(1000, "notes.txt") or "").lower()
+    assert "cannot detonate" in (m.validate_upload(1000, "photo.png") or "").lower()
+    # oversized
+    assert "too large" in (m.validate_upload(m.MAX_UPLOAD_BYTES + 1, "big.exe") or "").lower()
+    # empty
+    assert m.validate_upload(0, "x.exe") is not None
+    # double extension resolves to the REAL last extension (.exe -> supported)
+    assert m.validate_upload(1000, "invoice.pdf.exe") is None
+
+
+def test_store_upload_uses_internal_id(tmp_path, monkeypatch):
+    import manual_detonation as m
+    import hashlib
+    monkeypatch.setattr(m, "MANUAL_UPLOAD_DIR", str(tmp_path))
+    content = b"MZ fake exe bytes"
+    path, sha = m.store_upload(content, "../../evil name.exe")
+    assert sha == hashlib.sha256(content).hexdigest()
+    # stored under the sandbox dir, filename does NOT contain attacker path
+    assert str(tmp_path) in os.path.realpath(path)
+    assert "evil name" not in os.path.basename(path)
+    assert ".." not in os.path.basename(path)
+    with open(path, "rb") as fh:
+        assert fh.read() == content
