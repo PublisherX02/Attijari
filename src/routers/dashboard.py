@@ -93,3 +93,11 @@ async def dashboard_admin(request: Request):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(request, "admin.html", ctx)
+
+@dashboard_router.get("/manual-detonation", response_class=HTMLResponse)
+async def dashboard_manual_detonation(request: Request):
+    ctx = _ctx(request, "manual_detonation")
+    if not _has_perm(ctx, "detonation.manual"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(request, "manual_detonation.html", ctx)

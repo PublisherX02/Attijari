@@ -72,6 +72,12 @@
                     <span>User Management</span>
                 </a>
                 {% endif %}
+                {% if role == 'admin' or permissions.get('detonation.manual', False) %}
+                <a href="/manual-detonation" class="nav-link {% if active_page == 'manual_detonation' %}active{% endif %}">
+                    <span class="nav-icon">🧨</span>
+                    <span>Manual Detonation</span>
+                </a>
+                {% endif %}
             </div>
             <div style="padding: 16px 12px; border-top: 1px solid var(--border-glass);">
                 {% if role == 'admin' or permissions.get('health.view', False) %}
@@ -149,7 +155,7 @@
         window.USER_PERMS = {
             {% if role == 'admin' %}
             // Admin bypasses all — every permission is true
-            {% for p in ['emails.view','emails.release','emails.quarantine','emails.override','emails.revert','emails.bulk','emails.scan','blocklist.view','blocklist.manage','whitelist.view','whitelist.manage','audit.view','reports.view','health.view','alerts.view','alerts.acknowledge','export.csv','users.manage'] %}
+            {% for p in ['emails.view','emails.release','emails.quarantine','emails.override','emails.revert','emails.bulk','emails.scan','blocklist.view','blocklist.manage','whitelist.view','whitelist.manage','audit.view','reports.view','health.view','alerts.view','alerts.acknowledge','export.csv','users.manage','detonation.manual'] %}
             "{{ p }}": true{{ "," if not loop.last }}
             {% endfor %}
             {% elif permissions %}
