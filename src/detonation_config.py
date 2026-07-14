@@ -63,6 +63,29 @@ SUPPORTED_EXTENSIONS = {
 }
 
 # --------------------------------------------------------------------------
+# Manual-detonation page: the FULL set CAPEv2 can detonate (broader than the
+# curated auto-detonate SUPPORTED_EXTENSIONS above). Derived from CAPEv2's
+# analysis-package extension map (docs usage/packages.html). Operators may
+# submit any of these; CAPE aborts anything it can't handle, so we reject
+# unsupported types up front. Override via env (comma-separated) to match the
+# specific CAPE guest's installed packages.
+# --------------------------------------------------------------------------
+_DEFAULT_CAPE_DETONABLE = {
+    ".mdb", ".accdb", ".class", ".iso", ".vhd", ".chm", ".url", ".cpl", ".dll",
+    ".doc", ".docm", ".docx", ".eml", ".exe", ".hta", ".hwp", ".jar",
+    ".js", ".jse", ".lnk", ".mht", ".build", ".msg", ".msi", ".nsis", ".one",
+    ".pdf", ".ppt", ".pptm", ".pptx", ".ps1", ".pub", ".pubx", ".py", ".rar",
+    ".reg", ".scr", ".sct", ".swf", ".vbs", ".vbe", ".wsf",
+    ".xls", ".xlsm", ".xlsx", ".xslt", ".xps", ".zip",
+}
+_env_ext = os.getenv("CAPE_DETONABLE_EXTENSIONS", "").strip()
+CAPE_DETONABLE_EXTENSIONS = (
+    {e if e.startswith(".") else "." + e for e in
+     (x.strip().lower() for x in _env_ext.split(",")) if e}
+    if _env_ext else _DEFAULT_CAPE_DETONABLE
+)
+
+# --------------------------------------------------------------------------
 # Resource management — commands run on the WINDOWS HOST to free memory
 # before detonation and restore afterwards. Each is a shell command string;
 # set to "" to disable that step. Tune these to YOUR exact setup.
