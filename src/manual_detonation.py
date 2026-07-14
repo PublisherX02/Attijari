@@ -53,3 +53,88 @@ def store_upload(content: bytes, original_filename: str) -> tuple[str, str]:
     with open(stored_path, "wb") as fh:
         fh.write(content)
     return stored_path, sha
+
+
+# ---------------------------------------------------------------------------
+# Orchestration (Branch A/B) + confirm
+# ---------------------------------------------------------------------------
+
+import threading
+
+from database import (
+    SessionLocal, enqueue_detonation, add_audit_entry,
+    get_pending_detonation, promote_deferred_detonations,  # noqa: F401 (promote used by main.py)
+)
+
+
+def _window_active() -> bool:
+    import detonation_state
+    return detonation_state.is_active()
+
+
+def _start_window() -> None:
+    from detonation import process_detonation_queue
+    threading.Thread(
+        target=process_detonation_queue, daemon=True,
+        name="manual-detonation-window",
+    ).start()
+
+
+def handle_upload(content: bytes, original_filename: str, branch: str, username: str) -> dict:
+    """Validate, store, enqueue, audit. branch is 'now' (Branch A) or 'queue' (Branch B)."""
+    err = validate_upload(len(content or b""), original_filename)
+    if err:
+        return {"error": err}
+    if branch not in ("now", "queue"):
+        return {"error": "Unknown branch."}
+
+    stored_path, sha = store_upload(content, original_filename)
+    status = "queued" if branch == "now" else "deferred"
+    priority = branch == "queue"
+
+    db = SessionLocal()
+    try:
+        row = enqueue_detonation(
+            db, sha256=sha, stored_path=stored_path, filename=original_filename,
+            email_id=None, reason="manual upload", created_by=username,
+            priority=priority, status=status,
+        )
+        add_audit_entry(
+            db, action="detonation_manual_upload", actor=username,
+            details={"pending_id": row.id, "sha256": sha,
+                     "filename": original_filename, "branch": branch},
+        )
+    finally:
+        db.close()
+
+    if branch == "queue":
+        return {"id": row.id, "status": "deferred"}
+
+    if _window_active():
+        return {"id": row.id, "status": "queued", "window": "active"}
+    _start_window()
+    return {"id": row.id, "status": "queued", "window": "started"}
+
+
+def confirm_ready(pending_id: int, username: str) -> dict:
+    """Operator pressed OK on a Branch-B 'ready' row: promote to queued + start window."""
+    db = SessionLocal()
+    try:
+        row = get_pending_detonation(db, pending_id)
+        if not row:
+            return {"error": "Detonation not found."}
+        if row.status != "ready":
+            return {"error": f"Not awaiting confirmation (status: {row.status})."}
+        row.status = "queued"
+        db.commit()
+        add_audit_entry(
+            db, action="detonation_manual_confirm", actor=username,
+            details={"pending_id": row.id, "sha256": row.sha256},
+        )
+    finally:
+        db.close()
+
+    if _window_active():
+        return {"id": pending_id, "status": "queued", "window": "active"}
+    _start_window()
+    return {"id": pending_id, "status": "queued", "window": "started"}

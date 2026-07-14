@@ -133,3 +133,103 @@ def test_store_upload_uses_internal_id(tmp_path, monkeypatch):
     assert ".." not in os.path.basename(path)
     with open(path, "rb") as fh:
         assert fh.read() == content
+
+
+# ---------------------------------------------------------------------------
+# Task 6 — upload orchestration (Branch A/B) + confirm
+# ---------------------------------------------------------------------------
+
+def _install_fakes(monkeypatch):
+    """Wire manual_detonation to in-memory fakes; return (module, state)."""
+    import manual_detonation as m
+    state = {"enqueued": [], "audits": [], "window_started": 0, "active": False, "rows": {}}
+
+    class FakeRow:
+        _seq = 0
+        def __init__(self, **kw):
+            FakeRow._seq += 1
+            self.id = FakeRow._seq
+            self.__dict__.update(kw)
+
+    def fake_enqueue(db, sha256, stored_path, filename=None, email_id=None,
+                     idempotency_key=None, reason=None, created_by=None,
+                     priority=False, status="queued"):
+        row = FakeRow(sha256=sha256, stored_path=stored_path, filename=filename,
+                      email_id=email_id, created_by=created_by, priority=priority,
+                      status=status)
+        state["enqueued"].append(row)
+        state["rows"][row.id] = row
+        return row
+
+    def fake_audit(db, action, actor, email_id=None, details=None):
+        state["audits"].append({"action": action, "actor": actor, "details": details})
+
+    class FakeDB:
+        def close(self): pass
+        def commit(self): pass
+
+    monkeypatch.setattr(m, "SessionLocal", lambda: FakeDB())
+    monkeypatch.setattr(m, "enqueue_detonation", fake_enqueue)
+    monkeypatch.setattr(m, "add_audit_entry", fake_audit)
+    monkeypatch.setattr(m, "get_pending_detonation", lambda db, pid: state["rows"].get(pid))
+    monkeypatch.setattr(m, "_start_window", lambda: state.__setitem__("window_started", state["window_started"] + 1))
+    monkeypatch.setattr(m, "_window_active", lambda: state["active"])
+    monkeypatch.setattr(m, "store_upload", lambda content, name: ("/tmp/x.exe", "a" * 64))
+    return m, state
+
+
+def test_handle_upload_branch_now(monkeypatch):
+    m, state = _install_fakes(monkeypatch)
+    out = m.handle_upload(b"MZ...", "sample.exe", "now", "alice")
+    assert out["status"] == "queued"
+    assert out["window"] == "started"
+    row = state["enqueued"][0]
+    assert row.email_id is None and row.priority is False and row.status == "queued"
+    assert row.created_by == "alice"
+    assert state["window_started"] == 1
+    assert state["audits"][0]["action"] == "detonation_manual_upload"
+    assert state["audits"][0]["details"]["branch"] == "now"
+
+
+def test_handle_upload_branch_now_window_active(monkeypatch):
+    m, state = _install_fakes(monkeypatch)
+    state["active"] = True
+    out = m.handle_upload(b"MZ...", "sample.exe", "now", "alice")
+    assert out["status"] == "queued"
+    assert out["window"] == "active"
+    assert state["window_started"] == 0  # not started again
+
+
+def test_handle_upload_branch_queue(monkeypatch):
+    m, state = _install_fakes(monkeypatch)
+    out = m.handle_upload(b"MZ...", "sample.exe", "queue", "bob")
+    assert out["status"] == "deferred"
+    row = state["enqueued"][0]
+    assert row.status == "deferred" and row.priority is True
+    assert state["window_started"] == 0
+
+
+def test_handle_upload_rejects_bad_type(monkeypatch):
+    m, state = _install_fakes(monkeypatch)
+    out = m.handle_upload(b"hi", "notes.txt", "now", "alice")
+    assert "error" in out and "cannot detonate" in out["error"].lower()
+    assert state["enqueued"] == []
+
+
+def test_confirm_ready_promotes_and_starts(monkeypatch):
+    m, state = _install_fakes(monkeypatch)
+    m.handle_upload(b"MZ...", "sample.exe", "queue", "bob")
+    row = state["enqueued"][0]
+    row.status = "ready"
+    out = m.confirm_ready(row.id, "bob")
+    assert out["status"] == "queued"
+    assert row.status == "queued"
+    assert state["window_started"] == 1
+
+
+def test_confirm_ready_rejects_non_ready(monkeypatch):
+    m, state = _install_fakes(monkeypatch)
+    m.handle_upload(b"MZ...", "sample.exe", "now", "alice")
+    row = state["enqueued"][0]  # status "queued", not "ready"
+    out = m.confirm_ready(row.id, "alice")
+    assert "error" in out
