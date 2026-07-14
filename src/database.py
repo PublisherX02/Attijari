@@ -305,6 +305,7 @@ ALL_PERMISSIONS = {
     "alerts.acknowledge": True,  # acknowledge alerts
     "export.csv": True,          # export email data as CSV
     "users.manage": True,        # create/edit/delete users (admin only)
+    "detonation.manual": True,   # upload + detonate an arbitrary file in the sandbox
 }
 
 VIEWER_PERMISSIONS = {
