@@ -109,7 +109,7 @@
     </div>
 
     <!-- Override modal -->
-    <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal-overlay" id="modal-overlay" data-action="backdrop-close" data-close="closeModal">
         <div class="modal">
             <h3>Override Verdict</h3>
             <div class="form-group">
@@ -127,14 +127,14 @@
                 <textarea class="form-input" id="override-notes" rows="3" placeholder="Reason for override…"></textarea>
             </div>
             <div class="btn-group" style="justify-content: flex-end;">
-                <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="overrideEmail(document.getElementById('modal-overlay').dataset.emailId)">Confirm Override</button>
+                <button class="btn btn-outline" data-action="close-modal">Cancel</button>
+                <button class="btn btn-primary" data-action="confirm-override">Confirm Override</button>
             </div>
         </div>
     </div>
 
     <!-- Reason modal (release/quarantine feedback) -->
-    <div class="modal-overlay" id="reason-modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal-overlay" id="reason-modal-overlay" data-action="backdrop-close" data-close="closeReasonModal">
         <div class="modal">
             <h3>Provide Reasoning</h3>
             <p id="reason-hint" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px"></p>
@@ -143,8 +143,8 @@
                 <textarea class="form-input" id="reason-text" rows="4" placeholder="Why should this email be released/quarantined? This trains the pipeline..."></textarea>
             </div>
             <div class="btn-group" style="justify-content: flex-end;">
-                <button class="btn btn-outline" onclick="document.getElementById('reason-modal-overlay').classList.remove('open')">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmReasonAction()">Confirm</button>
+                <button class="btn btn-outline" data-action="close-reason-modal">Cancel</button>
+                <button class="btn btn-primary" data-action="confirm-reason-action">Confirm</button>
             </div>
         </div>
     </div>
