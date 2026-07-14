@@ -7,20 +7,20 @@
         <h2>Action History</h2>
         <p class="page-subtitle">Complete log of all analyst actions with reasoning</p>
     </div>
-    <button class="btn btn-outline" onclick="loadHistory()">Refresh</button>
+    <button class="btn btn-outline" data-action="refresh-history">Refresh</button>
 </div>
 
 <!-- Filters -->
 <div class="filter-chips" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px">
     <div>
         <label style="font-size:0.78rem;color:var(--text-muted);margin-right:6px">Actor:</label>
-        <select class="form-select" id="filter-actor" onchange="loadHistory()" style="min-width:140px;padding:6px 10px;font-size:0.85rem">
+        <select class="form-select" id="filter-actor" data-change-action="filter-history" style="min-width:140px;padding:6px 10px;font-size:0.85rem">
             <option value="">All</option>
         </select>
     </div>
     <div>
         <label style="font-size:0.78rem;color:var(--text-muted);margin-right:6px">Action:</label>
-        <select class="form-select" id="filter-action" onchange="loadHistory()" style="min-width:160px;padding:6px 10px;font-size:0.85rem">
+        <select class="form-select" id="filter-action" data-change-action="filter-history" style="min-width:160px;padding:6px 10px;font-size:0.85rem">
             <option value="">All</option>
             <option value="release">Release</option>
             <option value="quarantine">Quarantine</option>
@@ -271,9 +271,9 @@ async function loadHistory(page) {
         const pagDiv = document.getElementById('history-pagination');
         if (data.pages > 1) {
             let html = '';
-            if (currentPage > 1) html += `<button class="btn btn-outline btn-sm" onclick="loadHistory(${currentPage - 1})">Prev</button>`;
+            if (currentPage > 1) html += `<button class="btn btn-outline btn-sm" data-action="load-history-page" data-page="${currentPage - 1}">Prev</button>`;
             html += `<span style="color:var(--text-muted);font-size:0.85rem;padding:6px">Page ${data.page} of ${data.pages}</span>`;
-            if (currentPage < data.pages) html += `<button class="btn btn-outline btn-sm" onclick="loadHistory(${currentPage + 1})">Next</button>`;
+            if (currentPage < data.pages) html += `<button class="btn btn-outline btn-sm" data-action="load-history-page" data-page="${currentPage + 1}">Next</button>`;
             pagDiv.innerHTML = html;
         } else {
             pagDiv.innerHTML = '';
@@ -282,6 +282,10 @@ async function loadHistory(page) {
         container.innerHTML = `<div class="history-empty" style="color:var(--color-quarantined)">Failed to load history: ${err.message}</div>`;
     }
 }
+
+registerAction('refresh-history', () => loadHistory());
+registerChangeAction('filter-history', () => loadHistory());
+registerAction('load-history-page', (el) => loadHistory(parseInt(el.dataset.page)));
 
 document.addEventListener('DOMContentLoaded', () => loadHistory());
 </script>

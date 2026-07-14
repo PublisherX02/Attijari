@@ -7,12 +7,12 @@
         <h2>Admin Audit Panel</h2>
         <p class="page-subtitle">Component health, error tracking, and analyst feedback history</p>
     </div>
-    <button class="btn btn-outline" onclick="loadAuditPanel()">Refresh</button>
+    <button class="btn btn-outline" data-action="load-audit-panel">Refresh</button>
 </div>
 
 <!-- Tool filter -->
 <div class="filter-chips" id="tool-filters">
-    <button class="chip active" data-tool="" onclick="filterAuditTool('')">All Tools</button>
+    <button class="chip active" data-tool="" data-action="filter-audit-tool">All Tools</button>
 </div>
 
 <!-- Tool health cards -->

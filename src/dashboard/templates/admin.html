@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
     <h2>User Management</h2>
-    <button class="btn btn-primary" onclick="openCreateModal()">+ Create User</button>
+    <button class="btn btn-primary" data-action="open-create-modal">+ Create User</button>
 </div>
 
 <!-- User table -->
@@ -28,7 +28,7 @@
 </div>
 
 <!-- Create User Modal -->
-<div class="modal-overlay" id="create-modal" onclick="if(event.target===this)closeCreateModal()">
+<div class="modal-overlay" id="create-modal" data-action="backdrop-close" data-close="closeCreateModal">
     <div class="modal" style="max-width:520px;">
         <h3>Create New User</h3>
         <div class="form-group">
@@ -41,7 +41,7 @@
         </div>
         <div class="form-group">
             <label class="form-label">Role</label>
-            <select class="form-select" id="new-role" onchange="applyRoleDefaults()">
+            <select class="form-select" id="new-role" data-change-action="apply-role-defaults">
                 <option value="analyst">Analyst</option>
                 <option value="viewer">Viewer</option>
                 <option value="admin">Admin</option>
@@ -52,20 +52,20 @@
             <div id="perm-checkboxes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.85rem;"></div>
         </div>
         <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
-            <button class="btn btn-outline" onclick="closeCreateModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="createUser()">Create User</button>
+            <button class="btn btn-outline" data-action="close-create-modal">Cancel</button>
+            <button class="btn btn-primary" data-action="create-user">Create User</button>
         </div>
     </div>
 </div>
 
 <!-- Edit User Modal -->
-<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeEditModal()">
+<div class="modal-overlay" id="edit-modal" data-action="backdrop-close" data-close="closeEditModal">
     <div class="modal" style="max-width:520px;">
         <h3>Edit User: <span id="edit-username-label"></span></h3>
         <input type="hidden" id="edit-user-id">
         <div class="form-group">
             <label class="form-label">Role</label>
-            <select class="form-select" id="edit-role" onchange="applyEditRoleDefaults()">
+            <select class="form-select" id="edit-role" data-change-action="apply-edit-role-defaults">
                 <option value="analyst">Analyst</option>
                 <option value="viewer">Viewer</option>
                 <option value="admin">Admin</option>
@@ -83,14 +83,14 @@
             </select>
         </div>
         <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
-            <button class="btn btn-outline" onclick="closeEditModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="saveUser()">Save Changes</button>
+            <button class="btn btn-outline" data-action="close-edit-modal">Cancel</button>
+            <button class="btn btn-primary" data-action="save-user">Save Changes</button>
         </div>
     </div>
 </div>
 
 <!-- TOTP QR Modal -->
-<div class="modal-overlay" id="totp-modal" onclick="if(event.target===this)closeTotpModal()">
+<div class="modal-overlay" id="totp-modal" data-action="backdrop-close" data-close="closeTotpModal">
     <div class="modal" style="max-width:460px;text-align:center;">
         <h3>2FA Setup for <span id="totp-username"></span></h3>
         <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px;">
@@ -104,12 +104,12 @@
         <p style="color:#e74c3c;font-size:0.8rem;margin-top:8px;">
             This key will NOT be shown again. Make sure the user has saved it.
         </p>
-        <button class="btn btn-primary" onclick="closeTotpModal()" style="margin-top:12px;">Done</button>
+        <button class="btn btn-primary" data-action="close-totp-modal" style="margin-top:12px;">Done</button>
     </div>
 </div>
 
 <!-- Reset Password Modal -->
-<div class="modal-overlay" id="reset-pw-modal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="modal-overlay" id="reset-pw-modal" data-action="backdrop-close" data-close="closeResetPwModal">
     <div class="modal" style="max-width:400px;">
         <h3>Reset Password: <span id="reset-pw-username"></span></h3>
         <input type="hidden" id="reset-pw-user-id">
@@ -118,8 +118,8 @@
             <input class="form-input" id="reset-pw-value" type="password" placeholder="Min 8 characters" minlength="8">
         </div>
         <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
-            <button class="btn btn-outline" onclick="document.getElementById('reset-pw-modal').classList.remove('open')">Cancel</button>
-            <button class="btn btn-primary" onclick="confirmResetPassword()">Reset Password</button>
+            <button class="btn btn-outline" data-action="close-reset-pw-modal">Cancel</button>
+            <button class="btn btn-primary" data-action="confirm-reset-password">Reset Password</button>
         </div>
     </div>
 </div>
@@ -167,10 +167,10 @@ async function loadUsers() {
             <td>${created}</td>
             <td>
                 <div class="btn-group" style="gap:4px;">
-                    <button class="btn btn-outline btn-sm" onclick="openEditModal(${u.id})" title="Edit">Edit</button>
-                    <button class="btn btn-outline btn-sm" onclick="resetPassword(${u.id}, '${esc(u.username)}')" title="Reset password">PW</button>
-                    <button class="btn btn-outline btn-sm" onclick="resetTotp(${u.id}, '${esc(u.username)}')" title="Reset 2FA">2FA</button>
-                    ${u.role !== 'admin' ? `<button class="btn btn-outline btn-sm" style="color:#e74c3c;" onclick="deactivateUser(${u.id}, '${esc(u.username)}')" title="Deactivate">X</button>` : ''}
+                    <button class="btn btn-outline btn-sm" data-action="open-edit-modal" data-id="${u.id}" title="Edit">Edit</button>
+                    <button class="btn btn-outline btn-sm" data-action="reset-password" data-id="${u.id}" data-username="${esc(u.username)}" title="Reset password">PW</button>
+                    <button class="btn btn-outline btn-sm" data-action="reset-totp" data-id="${u.id}" data-username="${esc(u.username)}" title="Reset 2FA">2FA</button>
+                    ${u.role !== 'admin' ? `<button class="btn btn-outline btn-sm" style="color:#e74c3c;" data-action="deactivate-user" data-id="${u.id}" data-username="${esc(u.username)}" title="Deactivate">X</button>` : ''}
                 </div>
             </td>
         </tr>`;
@@ -289,6 +289,7 @@ async function openEditModal(userId) {
     document.getElementById('edit-modal').classList.add('open');
 }
 function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); editUserData = null; }
+function closeResetPwModal() { document.getElementById('reset-pw-modal').classList.remove('open'); }
 
 function applyEditRoleDefaults() {
     const role = document.getElementById('edit-role').value;
@@ -372,6 +373,22 @@ async function deactivateUser(userId, username) {
     s.onload = () => console.log('[Admin] QR library loaded');
     document.head.appendChild(s);
 })();
+
+// ----- Action registrations -----
+registerAction('open-create-modal', () => openCreateModal());
+registerAction('close-create-modal', () => closeCreateModal());
+registerAction('create-user', () => createUser());
+registerChangeAction('apply-role-defaults', () => applyRoleDefaults());
+registerAction('close-edit-modal', () => closeEditModal());
+registerAction('save-user', () => saveUser());
+registerChangeAction('apply-edit-role-defaults', () => applyEditRoleDefaults());
+registerAction('close-totp-modal', () => closeTotpModal());
+registerAction('close-reset-pw-modal', () => closeResetPwModal());
+registerAction('confirm-reset-password', () => confirmResetPassword());
+registerAction('open-edit-modal', (el) => openEditModal(parseInt(el.dataset.id)));
+registerAction('reset-password', (el) => resetPassword(parseInt(el.dataset.id), el.dataset.username));
+registerAction('reset-totp', (el) => resetTotp(parseInt(el.dataset.id), el.dataset.username));
+registerAction('deactivate-user', (el) => deactivateUser(parseInt(el.dataset.id), el.dataset.username));
 
 // Initial load
 loadUsers();
