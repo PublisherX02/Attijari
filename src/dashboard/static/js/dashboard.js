@@ -524,7 +524,7 @@ async function loadEmailDetail(emailId) {
 
             <div class="detail-grid">
                 <div class="detail-section">
-                    <h3>Email Metadata</h3>
+                    <h3>Claim Submission</h3>
                     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(e.status)}</span></div>
                     <div class="detail-row"><span class="detail-label">Sender</span><span class="detail-value">${esc(e.sender) || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}${e.domain_in_blocklist ? ' <span class="badge quarantined" style="font-size:0.7rem">blocklisted</span>' : ''}${e.domain_in_whitelist ? ' <span class="badge accepted" style="font-size:0.7rem">whitelisted</span>' : ''}</span></div>
@@ -536,7 +536,7 @@ async function loadEmailDetail(emailId) {
                 </div>
 
                 <div class="detail-section">
-                    <h3>Analyst Actions</h3>
+                    <h3>Adjuster Actions</h3>
                     <div class="detail-row"><span class="detail-label">Action taken</span><span class="detail-value">${e.analyst_action ? `<span class="badge ${e.analyst_action === 'release' ? 'released' : e.analyst_action === 'quarantine' ? 'quarantined' : 'recu'}">${esc(e.analyst_action)}</span>` : '<span style="color:var(--text-muted)">Pending review</span>'}</span></div>
                     <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${e.analyst_notes ? esc(e.analyst_notes) : '<span style="color:var(--text-muted)">No notes yet</span>'}</span></div>
                     ${e.parse_errors && e.parse_errors.length > 0 ? `
@@ -547,24 +547,24 @@ async function loadEmailDetail(emailId) {
 
             ${e.llm_reasoning ? `
                 <div class="reasoning-card">
-                    <h3>🤖 LLM Reasoning</h3>
+                    <h3>🤖 AI Assessment</h3>
                     <div class="reasoning-text">${esc(e.llm_reasoning)}</div>
                 </div>
             ` : ''}
 
-            ${signalsHtml ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Security Signals</h3>${signalsHtml}` : ''}
+            ${signalsHtml ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Risk Signals</h3>${signalsHtml}` : ''}
 
             <div id="detonation-panel"></div>
 
             ${auditHtml}
 
             <div class="action-bar">
-                ${userCan('emails.release') ? `<button class="btn btn-success" data-action="release-email" data-id="${parseInt(e.id)}">✓ Release</button>` : ''}
-                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" data-action="quarantine-email" data-id="${parseInt(e.id)}">🛡 Quarantine</button>` : ''}
-                ${userCan('emails.override') ? `<button class="btn btn-outline" data-action="open-override-modal" data-id="${parseInt(e.id)}">Override Verdict</button>` : ''}
+                ${userCan('emails.release') ? `<button class="btn btn-success" data-action="release-email" data-id="${parseInt(e.id)}">✓ Approve Claim</button>` : ''}
+                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" data-action="quarantine-email" data-id="${parseInt(e.id)}">🚩 Escalate to Adjuster</button>` : ''}
+                ${userCan('emails.override') ? `<button class="btn btn-outline" data-action="open-override-modal" data-id="${parseInt(e.id)}">Override Recommendation</button>` : ''}
                 ${e.analyst_action && userCan('emails.revert') ? `<button class="btn btn-outline" data-action="revert-action" data-id="${parseInt(e.id)}" title="Undo ${esc(e.analyst_action)} — return to escalated for re-review">Undo ${esc(e.analyst_action)}</button>` : ''}
                 <div style="flex:1"></div>
-                <span style="color:var(--text-muted);font-size:0.8rem">Email #${parseInt(e.id)}</span>
+                <span style="color:var(--text-muted);font-size:0.8rem">Claim #${parseInt(e.id)}</span>
             </div>
         `;
 

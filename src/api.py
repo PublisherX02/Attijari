@@ -1,4 +1,4 @@
-"""api.py — FastAPI application for the ImaniIA SOC Dashboard.
+"""api.py — FastAPI application for the ImaniIA Claims Dashboard.
 
 Serves:
   - REST API for email review, blocklist/whitelist management, reports
@@ -64,8 +64,8 @@ from routers.emails import _run_pipeline_sync
 from api_core import ws_manager
 
 app = FastAPI(
-    title="ImaniIA SOC Dashboard",
-    description="Email security triage system — analyst review interface",
+    title="ImaniIA Claims Dashboard",
+    description="Local-first AI copilot for insurance claims triage — adjuster review interface",
     version="2.0.0",
 )
 app.state.limiter = limiter
