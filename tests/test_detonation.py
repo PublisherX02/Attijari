@@ -27,7 +27,7 @@ def test_should_detonate_extension():
     assert should_detonate("invoice.docm") is True
     assert should_detonate("malware.exe") is True
     assert should_detonate("readme.txt") is False
-    assert should_detonate("photo.jpg") is False
+    assert should_detonate("photo.jpg") is True  # CAPE image package, added 2026-07-16
     assert should_detonate("report.pdf") is True
     assert should_detonate("script.ps1") is True
     assert should_detonate("data.csv") is False

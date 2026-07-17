@@ -18,10 +18,11 @@ def test_cape_detonable_extensions_present():
     import detonation_config as cfg
     ext = cfg.CAPE_DETONABLE_EXTENSIONS
     # CAPE-supported types are accepted
-    for e in (".exe", ".dll", ".docx", ".xlsx", ".pdf", ".js", ".msg", ".eml", ".iso", ".vhd", ".one", ".hwp"):
+    for e in (".exe", ".dll", ".docx", ".xlsx", ".pdf", ".js", ".msg", ".eml", ".iso", ".vhd", ".one", ".hwp",
+              ".png"):  # image package, added 2026-07-16
         assert e in ext, f"{e} should be detonable"
     # Non-detonable types are absent
-    for e in (".txt", ".png", ".mp3", ".csv"):
+    for e in (".txt", ".mp3", ".csv"):
         assert e not in ext
     # All entries are lowercase and dot-prefixed
     assert all(x.startswith(".") and x == x.lower() for x in ext)
@@ -111,7 +112,8 @@ def test_validate_upload():
     assert m.validate_upload(1000, "malware.exe") is None
     # unsupported extension
     assert "cannot detonate" in (m.validate_upload(1000, "notes.txt") or "").lower()
-    assert "cannot detonate" in (m.validate_upload(1000, "photo.png") or "").lower()
+    # image package added 2026-07-16 — .png is now detonable
+    assert m.validate_upload(1000, "photo.png") is None
     # oversized
     assert "too large" in (m.validate_upload(m.MAX_UPLOAD_BYTES + 1, "big.exe") or "").lower()
     # empty

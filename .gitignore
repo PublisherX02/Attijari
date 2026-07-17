@@ -20,7 +20,7 @@ src/__pycache__/
 *.weights
 models/
 
-# Leftover branding asset (reverted Attijari-rebrand logo, never shipped)
+# Leftover branding asset from an earlier reverted rebrand, never shipped
 src/dashboard/static/img/
 
 # Python bytecode (global)
