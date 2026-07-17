@@ -5,11 +5,23 @@ settings.local.json
 tesseract/
 doc/
 CLAUDE.md
-/data/
+/data/*
+!/data/yara_rules/
+/data/yara_rules/*
+!/data/yara_rules/README.md
+!/data/yara_rules/example.yar
 /src/data/
 src/ingestion/
 src/__pycache__/
-data/
+
+# CV model weights — proprietary, not shipped in public repo
+*.pt
+*.onnx
+*.weights
+models/
+
+# Leftover branding asset (reverted Attijari-rebrand logo, never shipped)
+src/dashboard/static/img/
 
 # Python bytecode (global)
 __pycache__/
