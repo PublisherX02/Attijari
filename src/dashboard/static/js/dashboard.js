@@ -220,7 +220,7 @@ async function loadInbox(page = 1, status = null, search = '') {
             const stats = await API.get('/api/stats');
             const s = stats.by_status || {};
             statsContainer.innerHTML = `
-                <div class="stat-card total"><div class="stat-value">${stats.total_emails || 0}</div><div class="stat-label">Total Emails</div></div>
+                <div class="stat-card total"><div class="stat-value">${stats.total_emails || 0}</div><div class="stat-label">Total Claims</div></div>
                 <div class="stat-card pending"><div class="stat-value">${s.pending || 0}</div><div class="stat-label">Scanning</div></div>
                 <div class="stat-card accepted"><div class="stat-value">${s.accepted || 0}</div><div class="stat-label">Accepted</div></div>
                 <div class="stat-card escalated"><div class="stat-value">${s.escalated || 0}</div><div class="stat-label">Escalated</div></div>
@@ -265,8 +265,8 @@ async function loadInbox(page = 1, status = null, search = '') {
                     ${e.status === 'pending' ? `<span class="badge pending">Scanning…</span>`
                     : e.status === 'escalated' || e.status === 'recu' ? `
                         <div class="btn-group">
-                            ${canRelease ? `<button class="btn btn-success btn-sm" data-action="release-email" data-id="${parseInt(e.id)}">Release</button>` : ''}
-                            ${canQuarantine ? `<button class="btn btn-danger btn-sm" data-action="quarantine-email" data-id="${parseInt(e.id)}">Quarantine</button>` : ''}
+                            ${canRelease ? `<button class="btn btn-success btn-sm" data-action="release-email" data-id="${parseInt(e.id)}">Approve</button>` : ''}
+                            ${canQuarantine ? `<button class="btn btn-danger btn-sm" data-action="quarantine-email" data-id="${parseInt(e.id)}">Escalate</button>` : ''}
                         </div>
                     ` : e.analyst_action ? `
                         <div class="btn-group">

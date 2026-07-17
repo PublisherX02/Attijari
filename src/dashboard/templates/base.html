@@ -28,7 +28,7 @@
                 {% if role == 'admin' or permissions.get('emails.view', False) %}
                 <a href="/" class="nav-link {% if active_page == 'inbox' %}active{% endif %}" id="nav-inbox">
                     <span class="nav-icon">📥</span>
-                    <span>Inbox Queue</span>
+                    <span>Claims Queue</span>
                     <span class="nav-badge" id="pending-badge">0</span>
                 </a>
                 {% endif %}
