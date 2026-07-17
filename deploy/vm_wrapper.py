@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""vm_wrapper.py — minimal VM recovery wrapper for the attijari CAPE box.
+"""vm_wrapper.py — minimal VM recovery wrapper for the imania CAPE box.
 
-Runs ON attijari (same operational pattern as cape.service). Exposes exactly
+Runs ON imania (same operational pattern as cape.service). Exposes exactly
 two actions over authenticated HTTP so the dashboard host never needs SSH:
 
     GET  /vm/status  -> {"cuckoo2": "<virsh domstate output>"}

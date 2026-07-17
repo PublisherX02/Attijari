@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from sandbox import run_tool as _sandbox_run, check_sandbox_status
+from detonation_config import CV_DAMAGE_MODEL_PATH
 
 # ---------- safe base paths ----------
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -244,6 +245,60 @@ def _local_tesseract(content: bytes) -> dict:
         return {"tool": "tesseract", "status": "error", "error": str(e)}
 
 
+_CV_MODEL_CACHE = {}
+
+
+def _load_cv_model(model_path: str):
+    if model_path not in _CV_MODEL_CACHE:
+        from ultralytics import YOLO
+        _CV_MODEL_CACHE[model_path] = YOLO(model_path)
+    return _CV_MODEL_CACHE[model_path]
+
+
+def _severity_from_confidence(confidence: float) -> str:
+    if confidence >= 0.75:
+        return "severe"
+    if confidence >= 0.45:
+        return "moderate"
+    return "minor"
+
+
+def _local_cv_damage(content: bytes) -> dict:
+    """Damage assessment on claim photos via a locally-hosted YOLO model.
+
+    Fail-safe: any failure (missing model, load error, inference error)
+    returns status != "ok" and damage_detected=False — never fabricates
+    a positive/negative damage signal on error.
+    """
+    if not CV_DAMAGE_MODEL_PATH:
+        return {"tool": "cv_damage", "status": "unavailable"}
+    try:
+        import io as _cv_io
+        from PIL import Image as _CvImage
+        model = _load_cv_model(CV_DAMAGE_MODEL_PATH)
+        img = _CvImage.open(_cv_io.BytesIO(content))
+        results = model(img)
+        classes = []
+        confidences = []
+        for r in results:
+            for box in getattr(r, "boxes", []):
+                cls_idx = int(box.cls[0].item())
+                classes.append(r.names.get(cls_idx, str(cls_idx)))
+                confidences.append(float(box.conf[0].item()))
+        damage_detected = len(classes) > 0
+        top_confidence = max(confidences) if confidences else 0.0
+        return {
+            "tool": "cv_damage",
+            "status": "ok",
+            "damage_detected": damage_detected,
+            "damage_classes": classes,
+            "confidence": round(top_confidence, 4),
+            "severity_estimate": _severity_from_confidence(top_confidence) if damage_detected else "none",
+        }
+    except Exception as e:
+        return {"tool": "cv_damage", "status": "error", "error": str(e), "damage_detected": False}
+
+
 def _local_yara(content: bytes) -> dict:
     if not _HAS_YARA:
         return {"tool": "yara", "status": "unavailable"}
@@ -344,6 +399,8 @@ def _run_tool(tool_name: str, content: bytes, stored_path: str,
         return _local_markitdown(content, filename)
     elif tool_name == "tesseract":
         return _local_tesseract(content)
+    elif tool_name == "cv_damage":
+        return _local_cv_damage(content)
     else:
         return {"tool": tool_name, "status": "unavailable"}
 
@@ -661,6 +718,16 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             result["escalate"] = True
             for flag in stego_flags:
                 result["flags"].append(flag)
+
+        # CV damage assessment — claim photos only, additive signal
+        cv_result = _run_tool("cv_damage", content, stored_path, filename)
+        result["tools_run"].append(cv_result)
+        result["cv_damage_assessment"] = cv_result
+        if cv_result.get("damage_detected"):
+            result["flags"].append(
+                f"cv_damage_detected: {', '.join(cv_result.get('damage_classes', []))} "
+                f"(severity={cv_result.get('severity_estimate')}, confidence={cv_result.get('confidence')})"
+            )
 
     # 5. MarkItDown — text extraction (complementary, NEVER standalone)
     if effective_mime not in _IMAGE_MIMES and effective_mime not in _ARCHIVE_MIMES:

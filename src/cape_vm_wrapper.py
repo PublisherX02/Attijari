@@ -1,7 +1,7 @@
 """cape_vm_wrapper.py — HTTP client for the imania VM wrapper service.
 
 The wrapper is a tiny authenticated HTTP service running ON the imania VM
-(source: deploy/imania/vm_wrapper.py). It exposes the cuckoo2 guest's
+(source: deploy/vm_wrapper.py). It exposes the cuckoo2 guest's
 libvirt state and a destroy+restart-CAPE recovery action. The host never
 shells into imania over SSH; this client is the only control path.
 
