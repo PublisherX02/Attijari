@@ -1,5 +1,5 @@
 /* =========================================================================
-   dashboard.js — Client-side logic for the Attijari SOC Dashboard
+   dashboard.js — Client-side logic for the ImaniIA SOC Dashboard
    Handles API calls, DOM updates, toast notifications, and interactivity
    ========================================================================= */
 
@@ -898,7 +898,7 @@ function notifyManualReady(ready, banner) {
         if (banner) { banner.style.display = 'block'; banner.textContent = '✅ ' + msg; }
         // 2) desktop notification
         if ('Notification' in window && Notification.permission === 'granted') {
-            try { new Notification('Attijari SOC — sandbox ready', { body: msg }); } catch (_) {}
+            try { new Notification('ImaniIA SOC — sandbox ready', { body: msg }); } catch (_) {}
         }
         // 3) sound cue (WebAudio beep — no asset, no CSP change)
         try {

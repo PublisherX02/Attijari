@@ -1,4 +1,4 @@
-"""api.py — FastAPI application for the Attijari SOC Dashboard.
+"""api.py — FastAPI application for the ImaniIA SOC Dashboard.
 
 Serves:
   - REST API for email review, blocklist/whitelist management, reports
@@ -64,7 +64,7 @@ from routers.emails import _run_pipeline_sync
 from api_core import ws_manager
 
 app = FastAPI(
-    title="Attijari SOC Dashboard",
+    title="ImaniIA SOC Dashboard",
     description="Email security triage system — analyst review interface",
     version="2.0.0",
 )

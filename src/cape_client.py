@@ -10,6 +10,7 @@ re-implement certificate handling.
 """
 from __future__ import annotations
 
+import os
 import time
 from typing import Any, Optional
 
@@ -18,8 +19,9 @@ import requests
 from detonation_config import (
     CAPE_API_URL, CAPE_API_TOKEN, CAPE_VERIFY_TLS,
     CAPE_HTTP_TIMEOUT, CAPE_POLL_INTERVAL, CAPE_TOTAL_TIMEOUT,
-    CAPE_ANALYSIS_TIMEOUT,
+    CAPE_ANALYSIS_TIMEOUT, CAPE_READY_TIMEOUT,
     CAPE_MALSCORE_ESCALATE, CAPE_MALSCORE_SUSPICIOUS,
+    CAPE_VM_WRAPPER_ENABLED, IMAGE_EXTENSIONS,
 )
 
 
@@ -52,8 +54,31 @@ def wait_until_ready(timeout: int) -> bool:
     return False
 
 
+def _preflight_cuckoo2() -> None:
+    """Recover cuckoo2 if a previous run left it powered on before this
+    submission — CAPE refuses 'tasks/create/file' unless the VM is found
+    powered off. Wrapper disabled/unreachable -> log and proceed: a failed
+    submission below still escalates the email safely (fail-safe, never
+    fail-open); never block submission on the wrapper.
+    """
+    if not CAPE_VM_WRAPPER_ENABLED:
+        return
+    try:
+        import cape_vm_wrapper
+        state = cape_vm_wrapper.cuckoo2_state()
+        if state == "running":
+            print("[CAPE] cuckoo2 left running — destroy + CAPE restart via wrapper before submit")
+            if cape_vm_wrapper.reset_cuckoo2():
+                wait_until_ready(CAPE_READY_TIMEOUT)
+            else:
+                print("[CAPE] cuckoo2 reset failed — proceeding anyway (fail-safe)")
+    except Exception as e:
+        print(f"[CAPE] cuckoo2 pre-flight skipped: {e}")
+
+
 def submit_file(file_path: str, filename: str) -> Optional[int]:
     """Submit a sample for analysis. Returns the CAPE task id, or None on error."""
+    _preflight_cuckoo2()
     try:
         with open(file_path, "rb") as fh:
             files = {"file": (filename, fh)}
@@ -62,6 +87,9 @@ def submit_file(file_path: str, filename: str) -> Optional[int]:
                 "enforce_timeout": True,
                 # keep it lean: no extra options that spawn more guests
             }
+            ext = os.path.splitext(filename or "")[1].lower()
+            if ext in IMAGE_EXTENSIONS:
+                data["package"] = "image"
             r = requests.post(
                 f"{CAPE_API_URL}/tasks/create/file/",
                 headers=_headers(), files=files, data=data,

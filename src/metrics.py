@@ -1,4 +1,4 @@
-"""metrics.py — Prometheus telemetry for the Attijari triage pipeline.
+"""metrics.py — Prometheus telemetry for the ImaniIA triage pipeline.
 
 Exposes counters, histograms, and gauges that can be scraped by Prometheus
 and visualized in Grafana.
@@ -26,21 +26,21 @@ REGISTRY = CollectorRegistry()
 # ---------------------------------------------------------------------------
 
 emails_processed_total = Counter(
-    "attijari_emails_processed_total",
+    "imania_emails_processed_total",
     "Total emails processed by the pipeline",
     labelnames=["status"],
     registry=REGISTRY,
 )
 
 api_requests_total = Counter(
-    "attijari_api_requests_total",
+    "imania_api_requests_total",
     "Total API requests to the dashboard",
     labelnames=["method", "endpoint", "status_code"],
     registry=REGISTRY,
 )
 
 blocklist_changes_total = Counter(
-    "attijari_blocklist_changes_total",
+    "imania_blocklist_changes_total",
     "Total blocklist additions/removals",
     labelnames=["action", "indicator_type"],
     registry=REGISTRY,
@@ -51,21 +51,21 @@ blocklist_changes_total = Counter(
 # ---------------------------------------------------------------------------
 
 pipeline_duration_seconds = Histogram(
-    "attijari_pipeline_duration_seconds",
+    "imania_pipeline_duration_seconds",
     "End-to-end pipeline execution time",
     buckets=[1, 5, 10, 30, 60, 120, 300],
     registry=REGISTRY,
 )
 
 llm_inference_seconds = Histogram(
-    "attijari_llm_inference_seconds",
+    "imania_llm_inference_seconds",
     "LLM (Ollama) inference time per email",
     buckets=[1, 3, 5, 10, 20, 30, 60, 120],
     registry=REGISTRY,
 )
 
 api_enrichment_seconds = Histogram(
-    "attijari_api_enrichment_seconds",
+    "imania_api_enrichment_seconds",
     "External API enrichment call latency",
     labelnames=["service"],
     buckets=[0.1, 0.5, 1, 2, 5, 10, 15, 30],
@@ -73,7 +73,7 @@ api_enrichment_seconds = Histogram(
 )
 
 api_request_duration_seconds = Histogram(
-    "attijari_api_request_duration_seconds",
+    "imania_api_request_duration_seconds",
     "Dashboard API request duration",
     labelnames=["method", "endpoint"],
     buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5],
@@ -85,39 +85,39 @@ api_request_duration_seconds = Histogram(
 # ---------------------------------------------------------------------------
 
 blocklist_size = Gauge(
-    "attijari_blocklist_size",
+    "imania_blocklist_size",
     "Current number of active blocklist entries",
     labelnames=["indicator_type"],
     registry=REGISTRY,
 )
 
 threat_feed_age_hours = Gauge(
-    "attijari_threat_feed_age_hours",
+    "imania_threat_feed_age_hours",
     "Hours since the last threat feed update",
     labelnames=["feed"],
     registry=REGISTRY,
 )
 
 emails_in_queue = Gauge(
-    "attijari_emails_in_queue",
+    "imania_emails_in_queue",
     "Emails pending analyst review",
     registry=REGISTRY,
 )
 
 scheduler_last_run = Gauge(
-    "attijari_scheduler_last_run_timestamp",
+    "imania_scheduler_last_run_timestamp",
     "Unix timestamp of last successful pipeline run",
     registry=REGISTRY,
 )
 
 ollama_available = Gauge(
-    "attijari_ollama_available",
+    "imania_ollama_available",
     "Whether the Ollama LLM service is reachable (1=yes, 0=no)",
     registry=REGISTRY,
 )
 
 db_connected = Gauge(
-    "attijari_db_connected",
+    "imania_db_connected",
     "Whether the database is connected (1=yes, 0=no)",
     registry=REGISTRY,
 )

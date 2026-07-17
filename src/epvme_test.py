@@ -97,7 +97,7 @@ def main():
     run_llm = args.with_llm
 
     print("=" * 60)
-    print("  ATTIJARI SOC — EPVME Dataset Test")
+    print("  IMANIA SOC — EPVME Dataset Test")
     print("=" * 60)
     print(f"  Sample size:  {args.count}")
     print(f"  LLM analysis: {'ON' if run_llm else 'OFF (rules + extraction only)'}")

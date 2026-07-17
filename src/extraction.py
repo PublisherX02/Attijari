@@ -394,7 +394,7 @@ def _check_pdf_urls_for_phishing(urls: list[str]) -> list[str]:
     from urllib.parse import urlparse
     flags = []
     # Bank domain patterns for typosquat detection
-    _BANK_KEYWORDS = ("attijari", "tijari", "attijar", "wafabank", "wafa")
+    _BANK_KEYWORDS = ("imania", "imania", "attijar", "wafabank", "wafa")
     # Phishing path keywords
     _PHISH_PATHS = ("login", "verify", "confirm", "secure", "account", "auth",
                     "signin", "session", "credential", "password", "update")
@@ -407,10 +407,10 @@ def _check_pdf_urls_for_phishing(urls: list[str]) -> list[str]:
             host = (parsed.hostname or "").lower()
             path = (parsed.path or "").lower()
             # 1. Typosquat of bank domain
-            if any(kw in host for kw in _BANK_KEYWORDS) and "attijaribank.com.tn" not in host:
+            if any(kw in host for kw in _BANK_KEYWORDS) and "imaniabank.com.tn" not in host:
                 flags.append(f"pdf_phishing_url: typosquat of bank domain in {host}")
             # 2. Login/verify path on non-bank domain
-            if any(p in path for p in _PHISH_PATHS) and "attijaribank.com.tn" not in host:
+            if any(p in path for p in _PHISH_PATHS) and "imaniabank.com.tn" not in host:
                 if not any(legit in host for legit in (
                     "google.com", "microsoft.com", "linkedin.com", "github.com",
                     "apple.com", "adobe.com", "sharepoint.com")):

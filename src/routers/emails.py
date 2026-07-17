@@ -717,7 +717,7 @@ async def api_export_emails(
         for email in emails:
             writer.writerow(_build_csv_row(email))
 
-        slug = f"attijari_emails_{days}d"
+        slug = f"imania_emails_{days}d"
         if status:
             slug += f"_{status}"
         filename = slug + ".csv"

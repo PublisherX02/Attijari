@@ -445,7 +445,7 @@ def init_db():
             db.commit()
             # Write credentials to a secure local file — NEVER print to console/logs
             totp_uri = pyotp.TOTP(totp_secret).provisioning_uri(
-                name=admin.username, issuer_name="Attijari SOC"
+                name=admin.username, issuer_name="ImaniIA SOC"
             )
             creds_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "admin_credentials.txt")
             os.makedirs(os.path.dirname(creds_file), exist_ok=True)

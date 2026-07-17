@@ -106,7 +106,7 @@ async def api_create_user(
         # Generate TOTP secret
         totp_secret = pyotp.random_base32()
         totp_uri = pyotp.TOTP(totp_secret).provisioning_uri(
-            name=body.username, issuer_name="Attijari SOC"
+            name=body.username, issuer_name="ImaniIA SOC"
         )
 
         # Determine permissions
@@ -266,7 +266,7 @@ async def api_reset_totp(
 
         new_secret = pyotp.random_base32()
         totp_uri = pyotp.TOTP(new_secret).provisioning_uri(
-            name=user.username, issuer_name="Attijari SOC"
+            name=user.username, issuer_name="ImaniIA SOC"
         )
         user.totp_secret = new_secret
 

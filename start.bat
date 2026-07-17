@@ -1,9 +1,9 @@
 @echo off
-title Attijari SOC Dashboard
+title ImaniIA SOC Dashboard
 cd /d "%~dp0"
 
 echo ==================================================
-echo          Starting Attijari SOC Dashboard
+echo          Starting ImaniIA SOC Dashboard
 echo ==================================================
 
 :: Kill existing process on port 8000

@@ -28,7 +28,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 YARA_RULES_DIR = _PROJECT_ROOT / "data" / "yara_rules"
 
 # Docker image name prefix
-IMAGE_PREFIX = "tijari-extract"
+IMAGE_PREFIX = "imania-extract"
 
 # Security constraints for all containers
 CONTAINER_LIMITS = {

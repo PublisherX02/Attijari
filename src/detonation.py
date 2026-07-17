@@ -129,7 +129,7 @@ def _start_docker() -> None:
 def _preflight_cuckoo2() -> None:
     """Recover cuckoo2 if a previous run left it powered on.
 
-    Runs after the attijari VM is up and CAPE answers, before submitting the
+    Runs after the imania VM is up and CAPE answers, before submitting the
     batch — prevents CAPE's 'Trying to start a virtual machine that has not
     been turned off' failure. Wrapper disabled/unreachable → log and proceed:
     a failed submission escalates safely; never block the drain window.
@@ -158,7 +158,9 @@ def _resume_vm() -> bool:
             _preflight_cuckoo2()
         return ok
     print(f"[DETONATION] Resuming CAPE VM '{cfg.CAPE_VM_NAME}'...")
-    _run(cfg.VM_RESUME_CMD, timeout=120)
+    if not _run(cfg.VM_RESUME_CMD, timeout=120):
+        print(f"[DETONATION] VM resume command failed — '{cfg.CAPE_VM_NAME}' was likely never started "
+              f"(check Hyper-V permissions for the account running this process)")
     if not cape_client.wait_until_ready(cfg.CAPE_READY_TIMEOUT):
         print("[DETONATION] CAPE API did not become ready after VM resume")
         return False

@@ -51,6 +51,12 @@ CAPE_MALSCORE_SUSPICIOUS = float(os.getenv("CAPE_MALSCORE_SUSPICIOUS", "3.0"))
 # --------------------------------------------------------------------------
 # Which file types are worth detonating
 # --------------------------------------------------------------------------
+# CAPE's "image" analysis package (analyzer/windows/modules/packages/image.py,
+# deployed on imania 2026-07-16) is what makes these detonable at all — CAPE
+# has no built-in detection for images and aborts them without it. cape_client
+# passes package=image for these extensions when submitting.
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".ico", ".webp"}
+
 SUPPORTED_EXTENSIONS = {
     ".exe", ".scr", ".com", ".bat", ".cmd", ".ps1",
     ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
@@ -60,7 +66,7 @@ SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".zip", ".rar", ".7z",
     ".lnk", ".jar",
-}
+} | IMAGE_EXTENSIONS
 
 # --------------------------------------------------------------------------
 # Manual-detonation page: the FULL set CAPEv2 can detonate (broader than the
@@ -77,7 +83,7 @@ _DEFAULT_CAPE_DETONABLE = {
     ".pdf", ".ppt", ".pptm", ".pptx", ".ps1", ".pub", ".pubx", ".py", ".rar",
     ".reg", ".scr", ".sct", ".swf", ".vbs", ".vbe", ".wsf",
     ".xls", ".xlsm", ".xlsx", ".xslt", ".xps", ".zip",
-}
+} | IMAGE_EXTENSIONS
 _env_ext = os.getenv("CAPE_DETONABLE_EXTENSIONS", "").strip()
 CAPE_DETONABLE_EXTENSIONS = (
     {e if e.startswith(".") else "." + e for e in
@@ -122,18 +128,18 @@ VM_SUSPEND_CMD = os.getenv("VM_SUSPEND_CMD", f'powershell -NoProfile -Command "S
 CAPE_READY_TIMEOUT = int(os.getenv("CAPE_READY_TIMEOUT", "180"))
 
 # --------------------------------------------------------------------------
-# Dashboard integration: attijari VM wrapper, websockify, CAPE web UI
+# Dashboard integration: imania VM wrapper, websockify, CAPE web UI
 # --------------------------------------------------------------------------
-# Tiny authenticated HTTP service running ON the attijari VM (source in
-# deploy/attijari/). Used ONLY to recover a cuckoo2 guest left stuck
+# Tiny authenticated HTTP service running ON the imania VM (source in
+# deploy/imania/). Used ONLY to recover a cuckoo2 guest left stuck
 # "running" (destroy + restart cape.service). Disabled by default until the
-# runbook (docs/attijari-sandbox-setup.md) has been executed.
+# runbook (docs/imania-sandbox-setup.md) has been executed.
 CAPE_VM_WRAPPER_ENABLED = os.getenv("CAPE_VM_WRAPPER_ENABLED", "0") != "0"
 CAPE_VM_WRAPPER_URL = os.getenv("CAPE_VM_WRAPPER_URL", "http://192.168.100.10:8090").rstrip("/")
 CAPE_VM_WRAPPER_TOKEN = os.getenv("CAPE_VM_WRAPPER_TOKEN", "")
 CAPE_VM_WRAPPER_TIMEOUT = int(os.getenv("CAPE_VM_WRAPPER_TIMEOUT", "20"))
 
-# websockify endpoint on attijari fronting cuckoo2's fixed VNC port. The
+# websockify endpoint on imania fronting cuckoo2's fixed VNC port. The
 # dashboard's /ws/vnc relay is the only consumer; the browser never sees this.
 WEBSOCKIFY_URL = os.getenv("WEBSOCKIFY_URL", "ws://192.168.100.10:6080")
 
