@@ -4235,7 +4235,7 @@ def main():
     run_llm = not args.no_llm
 
     print("=" * 60)
-    print("  IMANIA SOC — Pipeline Accuracy Test Suite")
+    print("  IMANIA — Pipeline Accuracy Test Suite")
     print("=" * 60)
     print(f"  LLM analysis: {'ON' if run_llm else 'OFF'}")
     print(f"  Live emails: {'YES' if args.live else 'NO'}")
