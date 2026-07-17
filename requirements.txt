@@ -63,3 +63,6 @@ ollama
 # Semantic prompt guard (Llama Guard 3)
 transformers==5.12.1
 torch==2.5.1
+
+# CV damage assessment (claim photos)
+ultralytics==8.4.98
