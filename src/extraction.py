@@ -245,7 +245,7 @@ def _local_tesseract(content: bytes) -> dict:
         return {"tool": "tesseract", "status": "error", "error": str(e)}
 
 
-_CV_MODEL_CACHE = {}
+_CV_MODEL_CACHE: dict[str, "object"] = {}
 
 
 def _load_cv_model(model_path: str):
@@ -264,19 +264,20 @@ def _severity_from_confidence(confidence: float) -> str:
 
 
 def _local_cv_damage(content: bytes) -> dict:
-    """Damage assessment on claim photos via a locally-hosted YOLO model.
+    """Damage assessment on claim photos via the trained YOLOv8 model.
 
     Fail-safe: any failure (missing model, load error, inference error)
-    returns status != "ok" and damage_detected=False — never fabricates
-    a positive/negative damage signal on error.
+    returns status != "ok" and damage_detected=False — never fabricates a
+    positive/negative damage signal on error.
     """
     if not CV_DAMAGE_MODEL_PATH:
         return {"tool": "cv_damage", "status": "unavailable"}
     try:
+        from PIL import Image as _CVImage
         import io as _cv_io
-        from PIL import Image as _CvImage
+
         model = _load_cv_model(CV_DAMAGE_MODEL_PATH)
-        img = _CvImage.open(_cv_io.BytesIO(content))
+        img = _CVImage.open(_cv_io.BytesIO(content))
         results = model(img)
         classes = []
         confidences = []
@@ -719,7 +720,7 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             for flag in stego_flags:
                 result["flags"].append(flag)
 
-        # CV damage assessment — claim photos only, additive signal
+        # CV damage assessment — claim photos only, additive signal, never blocks
         cv_result = _run_tool("cv_damage", content, stored_path, filename)
         result["tools_run"].append(cv_result)
         result["cv_damage_assessment"] = cv_result

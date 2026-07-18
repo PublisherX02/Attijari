@@ -13,6 +13,7 @@ over the CAPE REST API. All values are overridable via environment variables.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 # --------------------------------------------------------------------------
 # CAPE REST API (Ubuntu VM)
@@ -131,9 +132,9 @@ CAPE_READY_TIMEOUT = int(os.getenv("CAPE_READY_TIMEOUT", "180"))
 # Dashboard integration: imania VM wrapper, websockify, CAPE web UI
 # --------------------------------------------------------------------------
 # Tiny authenticated HTTP service running ON the imania VM (source in
-# deploy/). Used ONLY to recover a cuckoo2 guest left stuck
+# deploy/imania/). Used ONLY to recover a cuckoo2 guest left stuck
 # "running" (destroy + restart cape.service). Disabled by default until the
-# runbook (docs/sandbox-setup.md) has been executed.
+# runbook (docs/imania-sandbox-setup.md) has been executed.
 CAPE_VM_WRAPPER_ENABLED = os.getenv("CAPE_VM_WRAPPER_ENABLED", "0") != "0"
 CAPE_VM_WRAPPER_URL = os.getenv("CAPE_VM_WRAPPER_URL", "http://192.168.100.10:8090").rstrip("/")
 CAPE_VM_WRAPPER_TOKEN = os.getenv("CAPE_VM_WRAPPER_TOKEN", "")
@@ -151,9 +152,13 @@ CAPE_WEB_URL = os.getenv(
 ).rstrip("/")
 
 # --------------------------------------------------------------------------
-# CV damage assessment (claim photos)
+# Car-damage CV model (claims-triage extraction step)
 # --------------------------------------------------------------------------
-# Path to the trained YOLO damage-assessment model weights (.pt file).
-# Proprietary — not included in this repo. Unset (None) disables the
-# extraction step, which then fails safe to status="unavailable".
-CV_DAMAGE_MODEL_PATH = os.getenv("CV_DAMAGE_MODEL_PATH") or None
+# Path to the trained YOLOv8 damage-assessment model weights (.pt file).
+# Proprietary — gitignored, not shipped in the public repo. Leave unset to
+# disable the CV damage-assessment extraction step (fails safe to
+# "unavailable", never blocks the pipeline).
+_DEFAULT_CV_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "car_damage_yolov8.pt"
+CV_DAMAGE_MODEL_PATH = os.getenv("CV_DAMAGE_MODEL_PATH") or (
+    str(_DEFAULT_CV_MODEL_PATH) if _DEFAULT_CV_MODEL_PATH.exists() else None
+)
