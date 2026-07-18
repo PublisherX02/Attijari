@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="ImaniIA — AI-assisted email security triage dashboard">
+    <meta name="description" content="ImaniIA — local-first AI copilot for insurance claims triage">
     {% if ws_token %}<meta name="ws-token" content="{{ ws_token }}">{% endif %}
     <title>{% block title %}ImaniIA{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,15 +14,15 @@
 </head>
 <body>
     <div id="detonation-banner" class="detonation-banner" style="display:none">
-        🔬 Detonation window active — email analysis temporarily suspended.
-        Unprocessed mail stays on the IMAP server.
+        🔬 Detonation window active — claim intake temporarily suspended.
+        Unprocessed submissions stay queued for the next pass.
     </div>
     <div class="app-layout">
         <!-- Sidebar -->
         <nav class="sidebar">
             <div class="sidebar-brand">
                 <h1>ImaniIA</h1>
-                <div class="subtitle">Email Security Triage</div>
+                <div class="subtitle">Claims Triage Copilot</div>
             </div>
             <div class="sidebar-nav">
                 {% if role == 'admin' or permissions.get('emails.view', False) %}
