@@ -216,6 +216,9 @@ async def api_get_email(email_id: int, user: AuthenticatedUser = Depends(require
         domain_in_blocklist = is_blocked(db, "domain", _d) if _d else False
         domain_in_whitelist = is_whitelisted(db, "domain", _d) if _d else False
 
+        from database import Urgency
+        urgency_row = db.query(Urgency).filter(Urgency.email_id == email_id).first()
+
         return {
             "id": email.id,
             "idempotency_key": email.idempotency_key,
@@ -244,6 +247,7 @@ async def api_get_email(email_id: int, user: AuthenticatedUser = Depends(require
             ],
             "llm_result": email.llm_result,
             "llm_reasoning": email.llm_reasoning,
+            "settlement_confirmed": bool(urgency_row.settlement_confirmed) if urgency_row else False,
             "parse_errors": email.parse_errors,
             "analyst_action": email.analyst_action,
             "analyst_notes": email.analyst_notes,
@@ -1109,5 +1113,55 @@ async def api_acknowledge_alert(alert_id: int, user: AuthenticatedUser = Depends
         alert.acknowledged = True
         db.commit()
         return {"success": True, "alert_id": alert_id, "acknowledged_by": str(user)}
+    finally:
+        db.close()
+
+
+@emails_router.get("/api/urgency")
+def get_urgency_queue_api(
+    user: AuthenticatedUser = Depends(require_permission("emails.view")),
+):
+    from database import SessionLocal, get_urgency_queue, Email as _Email
+    db = SessionLocal()
+    try:
+        rows = get_urgency_queue(db)
+        out = []
+        for r in rows:
+            email = db.query(_Email).filter(_Email.id == r.email_id).first()
+            out.append({
+                "email_id": r.email_id,
+                "level": r.level,
+                "priority": r.priority,
+                "reasoning": r.reasoning,
+                "missing_information": r.missing_information,
+                "settlement_type": r.settlement_type,
+                "settlement_recommendation": r.settlement_recommendation,
+                "settlement_confirmed": r.settlement_confirmed,
+                "subject": email.subject if email else None,
+                "sender": email.sender if email else None,
+                "status": email.status if email else None,
+            })
+        return {"items": out}
+    finally:
+        db.close()
+
+
+@emails_router.post("/api/emails/{email_id}/settlement/confirm")
+def confirm_settlement_api(
+    email_id: int,
+    user: AuthenticatedUser = Depends(require_permission("claims.settle")),
+):
+    from database import SessionLocal, confirm_settlement, add_audit_entry
+    db = SessionLocal()
+    try:
+        row = confirm_settlement(db, email_id, user.username)
+        if not row:
+            raise HTTPException(404, "No urgency/settlement record for this claim")
+        add_audit_entry(
+            db, action="settlement_confirm", actor=user.username,
+            email_id=email_id,
+            details={"settlement_type": row.settlement_type, "recommendation": row.settlement_recommendation},
+        )
+        return {"success": True, "email_id": email_id, "settlement_confirmed": True}
     finally:
         db.close()

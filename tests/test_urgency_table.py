@@ -69,13 +69,15 @@ def test_upsert_urgency_returns_none_for_empty_claim_verdict(db_session):
 
 
 def test_get_urgency_queue_sorts_critical_first(db_session):
-    e1 = _make_email(db_session, "urgency-low")
-    e2 = _make_email(db_session, "urgency-critical")
-    e3 = _make_email(db_session, "urgency-medium")
+    e1 = _make_email(db_session)
+    e2 = _make_email(db_session)
+    e3 = _make_email(db_session)
     upsert_urgency(db_session, e1.id, {"urgency": "low"})
     upsert_urgency(db_session, e2.id, {"urgency": "critical"})
     upsert_urgency(db_session, e3.id, {"urgency": "medium"})
-    queue = get_urgency_queue(db_session)
+    # Scope to this test's own rows — the table is a real shared DB that
+    # other test files may also be populating in the same suite run.
+    queue = [r for r in get_urgency_queue(db_session, limit=10000) if r.email_id in (e1.id, e2.id, e3.id)]
     levels = [r.level for r in queue]
     assert levels == ["critical", "medium", "low"]
 
