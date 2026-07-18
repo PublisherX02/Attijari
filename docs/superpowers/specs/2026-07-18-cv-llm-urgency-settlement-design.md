@@ -19,7 +19,7 @@ Wire the car-damage CV model to the LLM so a claim photo gets assessed two ways 
 
 Single LLM call does extraction + fusion; the CV model grounds it rather than replacing it.
 
-```
+```text
 Extraction stage (existing, src/extraction.py, images block)
     │
     ├─ _local_cv_damage(content) → runs models/car_damage_yolov8.pt (already
