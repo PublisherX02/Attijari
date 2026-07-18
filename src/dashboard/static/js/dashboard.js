@@ -442,6 +442,40 @@ async function revertAction(id) {
 }
 
 /* =========================================================================
+   Urgency Queue page
+   ========================================================================= */
+
+const urgencyColorsMap = { low: '#7f8c8d', medium: '#2980b9', high: '#e67e22', critical: '#e74c3c' };
+
+async function loadUrgencyQueue() {
+    const tbody = document.getElementById('urgency-table-body');
+    if (!tbody) return;
+    try {
+        const data = await API.get('/api/urgency');
+        const items = data.items || [];
+        if (items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No claims in the urgency queue.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = items.map(i => `
+            <tr data-action="open-email" data-id="${parseInt(i.email_id)}" style="cursor:pointer">
+                <td><span class="badge" style="background:${urgencyColorsMap[i.level] || '#7f8c8d'};color:white">${esc(i.level)}</span></td>
+                <td>${esc(truncate(i.subject, 60)) || '—'}</td>
+                <td>${esc(i.sender) || '—'}</td>
+                <td>${(i.missing_information || []).length > 0 ? esc((i.missing_information || []).join(', ')) : '—'}</td>
+                <td>
+                    <span class="badge ${i.settlement_type === 'automated' ? 'accepted' : 'recu'}">${esc(i.settlement_type) || '—'}</span>
+                    ${i.settlement_confirmed ? ' <span style="color:var(--text-muted);font-size:0.75rem">confirmed</span>' : ''}
+                </td>
+                <td data-action="noop"><a href="/email/${parseInt(i.email_id)}" class="btn btn-outline btn-sm">View</a></td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Error: ${esc(err.message)}</td></tr>`;
+    }
+}
+
+/* =========================================================================
    Email detail page
    ========================================================================= */
 

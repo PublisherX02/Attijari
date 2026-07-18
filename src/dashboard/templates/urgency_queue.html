@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Urgency Queue — ImaniIA{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2>Urgency Queue</h2>
+        <p class="page-subtitle">Claims sorted critical-first</p>
+    </div>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Urgency</th>
+                <th>Subject</th>
+                <th>Sender</th>
+                <th>Missing Info</th>
+                <th>Settlement</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="urgency-table-body">
+            <tr><td colspan="6" class="loading-overlay"><div class="spinner"></div> Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">document.addEventListener('DOMContentLoaded', () => loadUrgencyQueue());</script>
+{% endblock %}

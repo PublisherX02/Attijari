@@ -101,3 +101,11 @@ async def dashboard_manual_detonation(request: Request):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(request, "manual_detonation.html", ctx)
+
+@dashboard_router.get("/urgency-queue", response_class=HTMLResponse)
+async def dashboard_urgency_queue(request: Request):
+    ctx = _ctx(request, "urgency_queue")
+    if not _has_perm(ctx, "emails.view"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(request, "urgency_queue.html", ctx)
