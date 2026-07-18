@@ -45,6 +45,65 @@ class LLMVerdict(BaseModel):
             return []
         return [str(i)[:500] for i in v[:20]]
 
+
+class ClaimVerdict(BaseModel):
+    """LLM-produced claim assessment. This is what the model is asked to
+    fill in; analyze_email_body() layers missing_information/damage_source/
+    settlement_type on top afterward — those are computed in code, never
+    trusted from the model's own self-report."""
+    policyholder_name: Optional[str] = Field(default=None, max_length=255)
+    policy_number: Optional[str] = Field(default=None, max_length=100)
+    policy_type: Optional[str] = Field(default=None, max_length=100)
+    incident_description: Optional[str] = Field(default=None, max_length=2000)
+    damage_classes: List[str] = Field(default_factory=list)
+    severity_estimate: str = Field(default="none")
+    full_report: str = Field(default="", max_length=3000)
+    urgency: str = Field(default="high")  # fail-safe: unknown -> high, never silently low
+    urgency_reasoning: str = Field(default="model output missing or invalid", max_length=1000)
+    settlement_recommendation: str = Field(default="", max_length=1000)
+
+    @field_validator("severity_estimate", mode="before")
+    @classmethod
+    def validate_severity(cls, v):
+        allowed = ("none", "minor", "moderate", "severe")
+        v = str(v or "none").strip().lower()
+        return v if v in allowed else "none"
+
+    @field_validator("urgency", mode="before")
+    @classmethod
+    def validate_urgency(cls, v):
+        allowed = ("low", "medium", "high", "critical")
+        v = str(v or "high").strip().lower()
+        return v if v in allowed else "high"
+
+    @field_validator("damage_classes", mode="before")
+    @classmethod
+    def truncate_damage_classes(cls, v):
+        if not isinstance(v, list):
+            return []
+        return [str(c)[:100] for c in v[:20]]
+
+    @field_validator("policyholder_name", "policy_number", "policy_type", "incident_description", mode="before")
+    @classmethod
+    def blank_to_none(cls, v):
+        if v is None:
+            return None
+        v = str(v).strip()
+        return v or None
+
+
+def _failsafe_claim_verdict() -> dict:
+    """claim_verdict payload for the analyze_email_body early-return paths
+    (LLM crash / unparseable / failed validation) — everything unknown,
+    forced to assistive/escalate, never a silent low-urgency accept."""
+    return ClaimVerdict().model_dump() | {
+        "missing_information": ["policyholder_name", "policy_number", "policy_type", "incident_description", "photo"],
+        "damage_detected": False,
+        "damage_source": "text_only",
+        "settlement_type": "assistive",
+    }
+
+
 SKILLS_PATH = os.path.join(os.path.dirname(__file__), "skills.md")
 
 DEFAULT_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
@@ -68,20 +127,23 @@ def _load_skills_prompt(path: str = SKILLS_PATH) -> str:
     return ""  # empty system prompt if not found
 
 
-def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> str:
+def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOKENS, images: Optional[list[str]] = None) -> str:
     try:
         from urllib import request
     except Exception as e:
         raise RuntimeError(f"urllib unavailable: {e}")
 
-    payload = json.dumps({
+    payload_dict = {
         "model": model,
         "prompt": prompt,
         "max_tokens": max_tokens,
         "temperature": DEFAULT_TEMPERATURE,
         "stream": False,
         "format": "json",
-    }).encode("utf-8")
+    }
+    if images:
+        payload_dict["images"] = images
+    payload = json.dumps(payload_dict).encode("utf-8")
 
     last_exc = None
     timeout = HTTP_TIMEOUT
@@ -110,7 +172,7 @@ def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOK
     raise RuntimeError(f"HTTP Ollama call failed after {HTTP_RETRIES} attempts: {last_exc}")
 
 
-def _call_ollama_client(model: str, prompt: str) -> str:
+def _call_ollama_client(model: str, prompt: str, images: Optional[list[str]] = None) -> str:
     try:
         # pyrefly: ignore [missing-import]
         import ollama
@@ -119,6 +181,8 @@ def _call_ollama_client(model: str, prompt: str) -> str:
 
     client = ollama.Ollama()
     kwargs = {"model": model, "prompt": prompt, "max_tokens": DEFAULT_MAX_TOKENS, "temperature": DEFAULT_TEMPERATURE, "stream": False, "format": "json"}
+    if images:
+        kwargs["images"] = images
     if hasattr(client, "generate"):
         try:
             return client.generate(**kwargs)
@@ -250,10 +314,16 @@ def free_guard_model() -> bool:
     return True
 
 
-def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_candidates: Optional[list[str]] = None, context: Optional[dict] = None) -> Dict[str, Any]:
+def _b64(data: bytes) -> str:
+    import base64
+    return base64.b64encode(data).decode("ascii")
+
+
+def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_candidates: Optional[list[str]] = None, context: Optional[dict] = None, image_bytes: Optional[bytes] = None) -> Dict[str, Any]:
     """Analyze email body text with Ollama and return structured verdict.
 
     context: optional dict with 'headers' and 'attachments' to aid the model.
+    image_bytes: optional claim-photo bytes, passed to the LLM's vision input.
     """
     model = model or DEFAULT_MODEL
     skills = _load_skills_prompt()
@@ -376,6 +446,18 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
             elif isinstance(enr_val, str):
                 ctx_parts.append(f"{enr_key.upper()}: {enr_val}")
 
+    # CV damage detection — grounding signal for the claim verdict, same
+    # pattern as the THREATFOX/ABUSEIPDB context lines above.
+    cv_damage_ctx = ctx.get("cv_damage") if isinstance(ctx.get("cv_damage"), dict) else None
+    if cv_damage_ctx and cv_damage_ctx.get("status") == "ok":
+        if cv_damage_ctx.get("damage_detected"):
+            ctx_parts.append(
+                f"CV-DAMAGE-DETECTION: classes={', '.join(cv_damage_ctx.get('damage_classes', []))} "
+                f"confidence={cv_damage_ctx.get('confidence')} severity={cv_damage_ctx.get('severity_estimate')}"
+            )
+        else:
+            ctx_parts.append("CV-DAMAGE-DETECTION: no damage detected by model")
+
     # ── DETERMINISTIC SIGNAL SCORING ──
     # Compute weighted pre-LLM score from enrichment signals (professor requirement)
     signal_score_result = compute_signal_score(enr or {}, ctx_parts)
@@ -452,16 +534,17 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
 
     # Call model
     model_output = None
+    _images = [_b64(image_bytes)] if image_bytes else None
     try:
         try:
-            model_output = _call_ollama_client(model, prompt)
+            model_output = _call_ollama_client(model, prompt, images=_images)
         except Exception:
-            model_output = _call_ollama_http(model, prompt)
+            model_output = _call_ollama_http(model, prompt, images=_images)
     except Exception as e:
         # Fail-safe: LLM failure must escalate, never accept silently
         import logging
         logging.getLogger("analysis").error("LLM analysis failed: %s", e)
-        return {"verdict": "escalated", "reasons": ["analysis_failed:internal_error"], "raw_model_output": None}
+        return {"verdict": "escalated", "reasons": ["analysis_failed:internal_error"], "raw_model_output": None, "claim_verdict": _failsafe_claim_verdict()}
 
     # Robust JSON extraction: look for 'verdict' key in balanced JSON block, else NDJSON reconstruction
     parsed = None
@@ -553,13 +636,13 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
                 parsed = json.loads(model_output)
     except Exception:
         # Fail-safe: unparseable LLM output must escalate for human review
-        return {"verdict": "escalated", "reasons": ["model_output_not_json"], "raw_model_output": model_output}
+        return {"verdict": "escalated", "reasons": ["model_output_not_json"], "raw_model_output": model_output, "claim_verdict": _failsafe_claim_verdict()}
 
     # Validate and sanitize LLM output through Pydantic schema
     try:
         validated = LLMVerdict(**parsed)
     except Exception:
-        return {"verdict": "escalated", "reasons": ["model_output_failed_validation"], "raw_model_output": model_output}
+        return {"verdict": "escalated", "reasons": ["model_output_failed_validation"], "raw_model_output": model_output, "claim_verdict": _failsafe_claim_verdict()}
 
     verdict = validated.verdict
     reasons = list(validated.reasons)
@@ -612,6 +695,59 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         triggers = [kw for kw in _enrichment_hit_keywords if any(kw in c for c in ctx_parts)]
         reasons.append(f"system_override: deterministic signal(s) present ({', '.join(triggers)}), LLM accept overridden")
 
+    # ── CLAIM VERDICT: validate LLM output, then layer computed (never
+    # LLM-trusted) fail-safe fields on top ──
+    raw_claim = parsed.get("claim_verdict") if isinstance(parsed.get("claim_verdict"), dict) else {}
+    try:
+        validated_claim = ClaimVerdict(**raw_claim)
+    except Exception:
+        validated_claim = ClaimVerdict()  # all fail-safe defaults: urgency=high, everything else empty
+
+    photo_present = bool(ctx.get("claim_photo_present"))
+    has_cv_signal = bool(cv_damage_ctx and cv_damage_ctx.get("status") == "ok")
+    if image_bytes is not None and has_cv_signal:
+        damage_source = "both"
+    elif image_bytes is not None:
+        damage_source = "llm_vision"
+    elif has_cv_signal:
+        damage_source = "cv_model"
+    else:
+        damage_source = "text_only"
+
+    required_fields = {
+        "policyholder_name": validated_claim.policyholder_name,
+        "policy_number": validated_claim.policy_number,
+        "policy_type": validated_claim.policy_type,
+        "incident_description": validated_claim.incident_description,
+    }
+    missing_information = [k for k, v in required_fields.items() if not v]
+    if not photo_present:
+        missing_information.append("photo")
+
+    damage_detected = bool(
+        (has_cv_signal and cv_damage_ctx.get("damage_detected"))
+        or validated_claim.damage_classes
+    )
+
+    settlement_type = (
+        "automated"
+        if (
+            validated_claim.severity_estimate == "minor"
+            and validated_claim.urgency == "low"
+            and confidence >= 0.75
+            and not missing_information
+        )
+        else "assistive"
+    )
+
+    claim_verdict_out = {
+        **validated_claim.model_dump(),
+        "missing_information": missing_information,
+        "damage_detected": damage_detected,
+        "damage_source": damage_source,
+        "settlement_type": settlement_type,
+    }
+
     return {
         "verdict": verdict,
         "reasons": reasons,
@@ -624,6 +760,7 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         "raw_model_output": model_output,
         "signal_score": det_score,
         "signal_breakdown": signal_score_result.breakdown(),
+        "claim_verdict": claim_verdict_out,
     }
 
 
