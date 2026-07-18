@@ -35,6 +35,13 @@ from api_core import (
 
 detonation_proxy_router = APIRouter()
 
+# Separate router for the VNC relay: it does its own token-based auth
+# (_ws_token_ok) since a WebSocket scope has no HTTP Request for verify_auth
+# to depend on. Must be included in api.py WITHOUT the router-level
+# Depends(verify_auth) that wraps detonation_proxy_router, or FastAPI raises
+# "verify_auth() missing 1 required positional argument: 'request'" on connect.
+detonation_ws_router = APIRouter()
+
 
 # ---------------------------------------------------------------------------
 # Attachment preview: magic-byte sniffing (never trust declared type)
@@ -188,7 +195,7 @@ def _ws_token_ok(token: Optional[str]) -> bool:
         return False
 
 
-@detonation_proxy_router.websocket("/ws/vnc/{task_id}")
+@detonation_ws_router.websocket("/ws/vnc/{task_id}")
 async def ws_vnc_relay(websocket: WebSocket, task_id: int,
                        token: Optional[str] = Query(None)):
     """Bidirectional binary relay browser <-> websockify (cuckoo2 VNC).

@@ -2,7 +2,7 @@
 
 Two log streams:
   1. Console: human-readable for operator (via print() in pipeline)
-  2. Audit file: machine-readable JSON lines for SOC compliance trail
+  2. Audit file: machine-readable JSON lines for the compliance trail
 
 The audit file (data/audit.log) contains one JSON object per line with:
   - ts: ISO-8601 timestamp

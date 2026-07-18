@@ -1,9 +1,9 @@
 @echo off
-title ImaniIA Claims Dashboard
+title ImaniIA SOC Dashboard
 cd /d "%~dp0"
 
 echo ==================================================
-echo          Starting ImaniIA Claims Dashboard
+echo          Starting ImaniIA SOC Dashboard
 echo ==================================================
 
 :: Kill existing process on port 8000

@@ -99,21 +99,24 @@ def handle_upload(content: bytes, original_filename: str, branch: str, username:
             email_id=None, reason="manual upload", created_by=username,
             priority=priority, status=status,
         )
+        row_id = row.id  # read while the session is still open (rule: never touch
+        # an ORM attribute after db.close() — it's a lazy-load that raises
+        # DetachedInstanceError once the session is gone)
         add_audit_entry(
             db, action="detonation_manual_upload", actor=username,
-            details={"pending_id": row.id, "sha256": sha,
+            details={"pending_id": row_id, "sha256": sha,
                      "filename": original_filename, "branch": branch},
         )
     finally:
         db.close()
 
     if branch == "queue":
-        return {"id": row.id, "status": "deferred"}
+        return {"id": row_id, "status": "deferred"}
 
     if _window_active():
-        return {"id": row.id, "status": "queued", "window": "active"}
+        return {"id": row_id, "status": "queued", "window": "active"}
     _start_window()
-    return {"id": row.id, "status": "queued", "window": "started"}
+    return {"id": row_id, "status": "queued", "window": "started"}
 
 
 def confirm_ready(pending_id: int, username: str) -> dict:

@@ -1,5 +1,5 @@
 /* =========================================================================
-   dashboard.js — Client-side logic for the ImaniIA Claims Dashboard
+   dashboard.js — Client-side logic for the ImaniIA Dashboard
    Handles API calls, DOM updates, toast notifications, and interactivity
    ========================================================================= */
 
@@ -220,7 +220,7 @@ async function loadInbox(page = 1, status = null, search = '') {
             const stats = await API.get('/api/stats');
             const s = stats.by_status || {};
             statsContainer.innerHTML = `
-                <div class="stat-card total"><div class="stat-value">${stats.total_emails || 0}</div><div class="stat-label">Total Claims</div></div>
+                <div class="stat-card total"><div class="stat-value">${stats.total_emails || 0}</div><div class="stat-label">Total Emails</div></div>
                 <div class="stat-card pending"><div class="stat-value">${s.pending || 0}</div><div class="stat-label">Scanning</div></div>
                 <div class="stat-card accepted"><div class="stat-value">${s.accepted || 0}</div><div class="stat-label">Accepted</div></div>
                 <div class="stat-card escalated"><div class="stat-value">${s.escalated || 0}</div><div class="stat-label">Escalated</div></div>
@@ -265,8 +265,8 @@ async function loadInbox(page = 1, status = null, search = '') {
                     ${e.status === 'pending' ? `<span class="badge pending">Scanning…</span>`
                     : e.status === 'escalated' || e.status === 'recu' ? `
                         <div class="btn-group">
-                            ${canRelease ? `<button class="btn btn-success btn-sm" data-action="release-email" data-id="${parseInt(e.id)}">Approve</button>` : ''}
-                            ${canQuarantine ? `<button class="btn btn-danger btn-sm" data-action="quarantine-email" data-id="${parseInt(e.id)}">Escalate</button>` : ''}
+                            ${canRelease ? `<button class="btn btn-success btn-sm" data-action="release-email" data-id="${parseInt(e.id)}">Release</button>` : ''}
+                            ${canQuarantine ? `<button class="btn btn-danger btn-sm" data-action="quarantine-email" data-id="${parseInt(e.id)}">Quarantine</button>` : ''}
                         </div>
                     ` : e.analyst_action ? `
                         <div class="btn-group">
@@ -524,7 +524,7 @@ async function loadEmailDetail(emailId) {
 
             <div class="detail-grid">
                 <div class="detail-section">
-                    <h3>Claim Submission</h3>
+                    <h3>Email Metadata</h3>
                     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(e.status)}</span></div>
                     <div class="detail-row"><span class="detail-label">Sender</span><span class="detail-value">${esc(e.sender) || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}${e.domain_in_blocklist ? ' <span class="badge quarantined" style="font-size:0.7rem">blocklisted</span>' : ''}${e.domain_in_whitelist ? ' <span class="badge accepted" style="font-size:0.7rem">whitelisted</span>' : ''}</span></div>
@@ -536,7 +536,7 @@ async function loadEmailDetail(emailId) {
                 </div>
 
                 <div class="detail-section">
-                    <h3>Adjuster Actions</h3>
+                    <h3>Analyst Actions</h3>
                     <div class="detail-row"><span class="detail-label">Action taken</span><span class="detail-value">${e.analyst_action ? `<span class="badge ${e.analyst_action === 'release' ? 'released' : e.analyst_action === 'quarantine' ? 'quarantined' : 'recu'}">${esc(e.analyst_action)}</span>` : '<span style="color:var(--text-muted)">Pending review</span>'}</span></div>
                     <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${e.analyst_notes ? esc(e.analyst_notes) : '<span style="color:var(--text-muted)">No notes yet</span>'}</span></div>
                     ${e.parse_errors && e.parse_errors.length > 0 ? `
@@ -547,24 +547,24 @@ async function loadEmailDetail(emailId) {
 
             ${e.llm_reasoning ? `
                 <div class="reasoning-card">
-                    <h3>🤖 AI Assessment</h3>
+                    <h3>🤖 LLM Reasoning</h3>
                     <div class="reasoning-text">${esc(e.llm_reasoning)}</div>
                 </div>
             ` : ''}
 
-            ${signalsHtml ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Risk Signals</h3>${signalsHtml}` : ''}
+            ${signalsHtml ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Security Signals</h3>${signalsHtml}` : ''}
 
             <div id="detonation-panel"></div>
 
             ${auditHtml}
 
             <div class="action-bar">
-                ${userCan('emails.release') ? `<button class="btn btn-success" data-action="release-email" data-id="${parseInt(e.id)}">✓ Approve Claim</button>` : ''}
-                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" data-action="quarantine-email" data-id="${parseInt(e.id)}">🚩 Escalate to Adjuster</button>` : ''}
-                ${userCan('emails.override') ? `<button class="btn btn-outline" data-action="open-override-modal" data-id="${parseInt(e.id)}">Override Recommendation</button>` : ''}
+                ${userCan('emails.release') ? `<button class="btn btn-success" data-action="release-email" data-id="${parseInt(e.id)}">✓ Release</button>` : ''}
+                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" data-action="quarantine-email" data-id="${parseInt(e.id)}">🛡 Quarantine</button>` : ''}
+                ${userCan('emails.override') ? `<button class="btn btn-outline" data-action="open-override-modal" data-id="${parseInt(e.id)}">Override Verdict</button>` : ''}
                 ${e.analyst_action && userCan('emails.revert') ? `<button class="btn btn-outline" data-action="revert-action" data-id="${parseInt(e.id)}" title="Undo ${esc(e.analyst_action)} — return to escalated for re-review">Undo ${esc(e.analyst_action)}</button>` : ''}
                 <div style="flex:1"></div>
-                <span style="color:var(--text-muted);font-size:0.8rem">Claim #${parseInt(e.id)}</span>
+                <span style="color:var(--text-muted);font-size:0.8rem">Email #${parseInt(e.id)}</span>
             </div>
         `;
 
@@ -721,7 +721,7 @@ async function refreshDetonationPanel(emailId) {
     } catch (_) { /* transient — next tick retries */ }
 }
 
-async function mountNoVnc(container, taskId) {
+async function mountNoVnc(container, taskId, onFail) {
     try {
         if (_activeRfb) { try { _activeRfb.disconnect(); } catch (_) {} _activeRfb = null; }
         const mod = await import('/static/novnc/core/rfb.js');
@@ -736,11 +736,17 @@ async function mountNoVnc(container, taskId) {
             if (!ev.detail.clean) {
                 container.innerHTML = `<div class="sandbox-empty"><p>Sandbox view unavailable
                     (window closed or relay refused). The verdict is unaffected.</p></div>`;
+                // Retry on the next status poll instead of staying stuck: the VM is
+                // often still booting (websockify not listening yet) when the first
+                // connection attempt lands, and the window can stay active for
+                // minutes after that transient failure.
+                if (onFail) onFail();
             }
         });
         _activeRfb = rfb;
     } catch (err) {
         container.innerHTML = `<div class="sandbox-empty"><p>Sandbox view unavailable: ${esc(err.message)}</p></div>`;
+        if (onFail) onFail();
     }
 }
 
@@ -776,7 +782,8 @@ async function openSandboxViewer(taskId) {
         if (st.window_active && running > 0) {
             if (!mounted) {
                 body.innerHTML = '<div class="sandbox-live" id="sandbox-viewer-screen"></div>';
-                mountNoVnc(document.getElementById('sandbox-viewer-screen'), parseInt(taskId) || 0);
+                mountNoVnc(document.getElementById('sandbox-viewer-screen'), parseInt(taskId) || 0,
+                    () => { mounted = false; });
                 mounted = true;
             }
         } else if (st.window_active) {

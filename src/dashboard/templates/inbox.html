@@ -4,8 +4,8 @@
 {% block content %}
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
     <div>
-        <h2>Claims Queue</h2>
-        <p class="page-subtitle">Review flagged claims and take action</p>
+        <h2>Inbox Queue</h2>
+        <p class="page-subtitle">Review flagged emails and take action</p>
     </div>
     {% if role == 'admin' or permissions.get('emails.scan', False) %}
     <div style="display:flex;gap:8px">

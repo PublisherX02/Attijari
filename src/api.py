@@ -1,4 +1,4 @@
-"""api.py — FastAPI application for the ImaniIA Claims Dashboard.
+"""api.py — FastAPI application for the ImaniIA Dashboard.
 
 Serves:
   - REST API for email review, blocklist/whitelist management, reports
@@ -58,14 +58,14 @@ from routers.dashboard import dashboard_router
 from routers.websockets import ws_router
 from routers.emails import emails_router
 from routers.users import users_router
-from routers.detonation_proxy import detonation_proxy_router
+from routers.detonation_proxy import detonation_proxy_router, detonation_ws_router
 from tasks.background import data_retention_and_backup_task
 from routers.emails import _run_pipeline_sync
 from api_core import ws_manager
 
 app = FastAPI(
-    title="ImaniIA Claims Dashboard",
-    description="Local-first AI copilot for insurance claims triage — adjuster review interface",
+    title="ImaniIA Dashboard",
+    description="Email security triage system — analyst review interface",
     version="2.0.0",
 )
 app.state.limiter = limiter
@@ -188,6 +188,9 @@ app.include_router(ws_router)
 app.include_router(emails_router, dependencies=[Depends(verify_auth)])
 app.include_router(users_router, dependencies=[Depends(verify_auth)])
 app.include_router(detonation_proxy_router, dependencies=[Depends(verify_auth)])
+# No verify_auth here: the WS route does its own token-based auth (_ws_token_ok) —
+# a WebSocket scope has no HTTP Request for verify_auth to depend on.
+app.include_router(detonation_ws_router)
 
 # Import metrics endpoint locally to avoid circular dependencies if it exists
 try:

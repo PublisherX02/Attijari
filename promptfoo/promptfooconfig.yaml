@@ -1,10 +1,10 @@
-# Promptfoo configuration for ImaniIA claims triage LLM
+# Promptfoo configuration for ImaniIA email triage LLM
 # Tests gemma3:4b verdict accuracy against known-good/known-bad emails
 #
 # Run:  cd promptfoo && npx promptfoo@latest eval --no-cache
 # View: npx promptfoo@latest view
 
-description: "ImaniIA - Claim Verdict Accuracy"
+description: "ImaniIA - Email Verdict Accuracy"
 
 prompts:
   - file://prompt_template.txt

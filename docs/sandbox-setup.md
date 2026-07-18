@@ -1,11 +1,11 @@
 # ImaniIA sandbox setup runbook — dashboard integration
 
 One linear pass. Do the steps IN ORDER; each ends with a verify command —
-do not continue past a failed verify. All commands run **on the sandbox VM**
+do not continue past a failed verify. All commands run **on imania**
 (192.168.100.10) unless marked HOST (the Windows dashboard machine).
 
-Files referenced below live in this repo under `deploy/` — copy them
-to the sandbox VM first (e.g. `scp deploy/* user@192.168.100.10:~/`).
+Files referenced below live in this repo under `deploy/imania/` — copy them
+to imania first (e.g. `scp deploy/imania/* user@192.168.100.10:~/`).
 
 ## 0. Prerequisites
 
@@ -104,7 +104,7 @@ the curl check above.
 
 ## 4. noVNC assets
 
-Nothing to do on the sandbox VM — the dashboard serves its own vendored copy at
+Nothing to do on imania — the dashboard serves its own vendored copy at
 `/static/novnc/`.
 
 **Verify (HOST):** browse to `http://<dashboard>/static/novnc/core/rfb.js`
