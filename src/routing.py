@@ -28,6 +28,8 @@ from database import (
     is_blocked,
     is_whitelisted,
     save_feedback,
+    mark_claim_released,
+    unmark_claim_released,
 )
 from vault import encrypt_and_store
 from validators import is_valid_domain, is_valid_sha256
@@ -158,6 +160,7 @@ def release_email(email_id: int, actor: str = "analyst",
                 "whitelisted_email": whitelisted_email,
             },
         )
+        mark_claim_released(db, email.id, released_by=actor)
         db.commit()
 
         print(f"[ROUTING] Released email {email.id}: {email.subject}")
@@ -199,6 +202,11 @@ def quarantine_email(email_id: int, actor: str = "analyst",
 
         prev_status = email.status
         email.analyst_notes = reason or None
+
+        if prev_status == "released":
+            # Previously cleared for insurance review — pull it back now that
+            # it's being quarantined.
+            unmark_claim_released(db, email.id)
 
         # Step 1: Find raw .eml file
         raw_path = RAW_EMAILS_DIR / f"{email.raw_sha256}.eml"
@@ -316,6 +324,11 @@ def override_verdict(email_id: int, new_status: str, actor: str = "analyst",
         email.analyst_action = "override"
         email.analyst_notes = notes
 
+        if new_status == "released":
+            mark_claim_released(db, email.id, released_by=actor)
+        elif prev_status == "released":
+            unmark_claim_released(db, email.id)
+
         add_audit_entry(
             db, action="override", actor=actor,
             email_id=email.id,
@@ -375,6 +388,7 @@ def revert_action(email_id: int, actor: str = "analyst") -> dict:
             reverted_indicators = _revert_quarantine_blocklist(db, audit_entry)
         elif prev_action == "release":
             reverted_whitelist = _revert_release_whitelist(db, audit_entry)
+            unmark_claim_released(db, email.id)
 
         email.status = "escalated"
         email.analyst_action = None

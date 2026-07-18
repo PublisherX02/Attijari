@@ -145,6 +145,13 @@ async def api_list_emails(
             Email.created_at
         ).order_by(Email.email_date.desc().nullslast(), Email.created_at.desc())
 
+        if user.role == "insurance_operator":
+            # A SOC operator (analyst/admin) must review and release a claim
+            # before it becomes visible here — join against the release gate
+            # table rather than the raw email feed.
+            from database import ReleasedClaim
+            q = q.join(ReleasedClaim, ReleasedClaim.email_id == Email.id)
+
         if status:
             q = q.filter(Email.status == status)
         if search:
@@ -192,6 +199,13 @@ async def api_get_email(email_id: int, user: AuthenticatedUser = Depends(require
         email = db.query(Email).filter(Email.id == email_id).first()
         if not email:
             raise HTTPException(404, "Email not found")
+
+        if user.role == "insurance_operator":
+            from database import ReleasedClaim
+            released = db.query(ReleasedClaim).filter(ReleasedClaim.email_id == email_id).first()
+            if not released:
+                # 404, not 403 — don't reveal that an unreleased claim exists.
+                raise HTTPException(404, "Email not found")
 
         # Get audit history for this email
         audit = db.query(AuditLog).filter(
@@ -1121,10 +1135,15 @@ async def api_acknowledge_alert(alert_id: int, user: AuthenticatedUser = Depends
 def get_urgency_queue_api(
     user: AuthenticatedUser = Depends(require_permission("emails.view")),
 ):
-    from database import SessionLocal, get_urgency_queue, Email as _Email
+    from database import SessionLocal, get_urgency_queue, Email as _Email, ReleasedClaim
     db = SessionLocal()
     try:
         rows = get_urgency_queue(db)
+        if user.role == "insurance_operator":
+            released_ids = {
+                row.email_id for row in db.query(ReleasedClaim.email_id).all()
+            }
+            rows = [r for r in rows if r.email_id in released_ids]
         out = []
         for r in rows:
             email = db.query(_Email).filter(_Email.id == r.email_id).first()

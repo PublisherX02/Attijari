@@ -1,0 +1,18 @@
+\begin{table}[h]
+\centering
+\caption{Per-Email Pipeline Latency (gemma3:4b)}
+\label{tab:e7_latency}
+\begin{tabular}{l r r r r r r r}
+\hline
+Stage & Mean & Median & Std & Min & Max & P95 & P99 \\
+\hline
+Rules Engine & 0.024s & 0.007s & 0.122s & 0.004s & 1.082s & 0.042s & 0.312s \\
+Extraction & 0.235s & 0.040s & 0.934s & 0.000s & 8.232s & 0.518s & 2.669s \\
+LLM (when called) & 6.213s & 5.832s & 1.450s & 4.985s & 13.544s & 8.106s & 12.234s \\
+Total Pipeline & 3.422s & 5.291s & 3.275s & 0.011s & 13.794s & 7.219s & 11.156s \\
+\hline
+\multicolumn{8}{l}{\textbf{Throughput: 17.5 emails/minute}} \\
+\multicolumn{8}{l}{LLM called: 39/77 (38 resolved deterministically)} \\
+\hline
+\end{tabular}
+\end{table}

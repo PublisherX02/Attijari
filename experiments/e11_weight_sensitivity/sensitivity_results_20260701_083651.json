@@ -1,0 +1,1219 @@
+{
+  "baseline": {
+    "accuracy": 0.23376623376623376,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "confusion_matrix": [
+      [
+        18,
+        0
+      ],
+      [
+        59,
+        0
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.23      1.00      0.38        18\n   malicious       0.00      0.00      0.00        59\n\n    accuracy                           0.23        77\n   macro avg       0.12      0.50      0.19        77\nweighted avg       0.05      0.23      0.09        77\n"
+  },
+  "threshold": 30,
+  "multipliers": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    1.25,
+    1.5,
+    1.75,
+    2.0
+  ],
+  "signals": {
+    "virustotal_detected": {
+      "default_weight": 30,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 22,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 30,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 38,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 45,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 52,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 60,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "threatfox_match": {
+      "default_weight": 25,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 6,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 19,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 25,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 31,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 38,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 44,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 50,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "abuseipdb_malicious": {
+      "default_weight": 15,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 4,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 11,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 19,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 22,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 26,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 30,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "abuseipdb_suspicious": {
+      "default_weight": 8,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 2,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 4,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 6,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 10,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 14,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 16,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "otx_match": {
+      "default_weight": 12,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 3,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 6,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 9,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 18,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 21,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 24,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "dnstwist_typosquat": {
+      "default_weight": 25,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 6,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 19,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 25,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 31,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 38,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 44,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 50,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "domain_new": {
+      "default_weight": 20,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 5,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 10,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 20,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 25,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 30,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 35,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 40,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "domain_very_new": {
+      "default_weight": 10,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 2,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 5,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 10,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 18,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 20,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "spf_fail": {
+      "default_weight": 10,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 2,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 5,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 10,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 18,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 20,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "dkim_fail": {
+      "default_weight": 10,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 2,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 5,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 10,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 18,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 20,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "dmarc_fail": {
+      "default_weight": 8,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 2,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 4,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 6,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 10,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 14,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 16,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "extraction_flag": {
+      "default_weight": 15,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 4,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 11,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 19,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 22,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 26,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 30,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "llama_guard_flag": {
+      "default_weight": 5,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 1,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 2,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 4,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 5,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 6,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 8,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 9,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 10,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "encrypted_attachment": {
+      "default_weight": 12,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 3,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 6,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 9,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 12,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 15,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 18,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 21,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 24,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    },
+    "vt_unknown_hash": {
+      "default_weight": 3,
+      "multiplier_results": [
+        {
+          "multiplier": 0.0,
+          "effective_weight": 0,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.25,
+          "effective_weight": 1,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.5,
+          "effective_weight": 2,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 0.75,
+          "effective_weight": 2,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.0,
+          "effective_weight": 3,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.25,
+          "effective_weight": 4,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.5,
+          "effective_weight": 4,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 1.75,
+          "effective_weight": 5,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        {
+          "multiplier": 2.0,
+          "effective_weight": 6,
+          "accuracy": 0.23376623376623376,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0
+        }
+      ],
+      "f1_range": 0.0,
+      "f1_at_default": 0.0
+    }
+  },
+  "corpus_size": 77
+}

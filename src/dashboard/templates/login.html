@@ -31,10 +31,12 @@
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
             </div>
+            {% if mfa_required %}
             <div class="form-group">
                 <label for="totp">Authenticator Code (2FA)</label>
                 <input type="text" id="totp" name="totp" pattern="[0-9]*" inputmode="numeric" required>
             </div>
+            {% endif %}
             <button type="submit">Secure Login</button>
         </form>
     </div>

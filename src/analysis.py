@@ -109,6 +109,9 @@ SKILLS_PATH = os.path.join(os.path.dirname(__file__), "skills.md")
 DEFAULT_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.0
+# Ollama's built-in default (2048) is smaller than skills.md alone (~3.5k tokens);
+# must be set explicitly under options.num_ctx or the prompt gets silently truncated.
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 OLLAMA_HTTP_URL = "http://localhost:11434/api/generate"
 HTTP_TIMEOUT = 120
 HTTP_RETRIES = 3
@@ -136,10 +139,19 @@ def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOK
     payload_dict = {
         "model": model,
         "prompt": prompt,
-        "max_tokens": max_tokens,
-        "temperature": DEFAULT_TEMPERATURE,
         "stream": False,
         "format": "json",
+        # Ollama's /api/generate ignores unrecognized top-level keys — generation
+        # params (and the context window!) MUST live under "options", or they're
+        # silently no-ops. num_ctx matters most: skills.md alone is ~3.5k tokens,
+        # and Ollama's own context-window default (2048) is smaller than that
+        # before the email body/enrichment context is even added, which was
+        # silently truncating prompts into unparseable JSON output.
+        "options": {
+            "temperature": DEFAULT_TEMPERATURE,
+            "num_predict": max_tokens,
+            "num_ctx": OLLAMA_NUM_CTX,
+        },
     }
     if images:
         payload_dict["images"] = images

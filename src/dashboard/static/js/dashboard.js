@@ -483,44 +483,34 @@ function renderVerdictSections(e) {
     const llm = e.llm_result;
     if (!llm) return '';
 
-    const securityHtml = `
-        <div class="detail-section" style="grid-column: 1 / -1">
-            <h3>🔒 Security Concerns</h3>
-            <div class="detail-row"><span class="detail-label">Sender Risk</span><span class="detail-value">${parseInt(llm.sender_risk) || 0}/100</span></div>
-            <div class="detail-row"><span class="detail-label">Intent</span><span class="detail-value">${esc(llm.intent_classification) || '—'}</span></div>
-            ${(llm.social_engineering_indicators || []).length > 0 ? `
-                <div class="detail-row"><span class="detail-label">Indicators</span><span class="detail-value">${(llm.social_engineering_indicators || []).map(esc).join(', ')}</span></div>
-            ` : ''}
-        </div>`;
-
     const cv = llm.claim_verdict;
-    if (!cv) return securityHtml;
-
     const urgencyColors = { low: '#7f8c8d', medium: '#2980b9', high: '#e67e22', critical: '#e74c3c' };
-    const urgencyColor = urgencyColors[cv.urgency] || '#7f8c8d';
-    const missing = cv.missing_information || [];
 
-    const verdictHtml = `
+    const claimHtml = cv ? (() => {
+        const urgencyColor = urgencyColors[cv.urgency] || '#7f8c8d';
+        const missing = cv.missing_information || [];
+        const policyLine = [
+            cv.policy_number ? esc(cv.policy_number) : 'Policy not identified',
+            cv.policyholder_name ? esc(cv.policyholder_name) : null,
+            cv.policy_type ? `(${esc(cv.policy_type)})` : null,
+        ].filter(Boolean).join(' — ');
+
+        return `
         <div class="detail-section" style="grid-column: 1 / -1">
-            <h3>🚗 Verdict</h3>
+            <h3>📋 Claim Assessment</h3>
+            <div class="detail-row"><span class="detail-label">Policy</span><span class="detail-value">${policyLine}</span></div>
+            <div class="detail-row"><span class="detail-label">Claim summary</span><span class="detail-value">${esc(cv.incident_description) || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Photo evidence</span><span class="detail-value">${esc(cv.full_report) || 'No photo evidence assessed.'}${(cv.damage_classes || []).length > 0 ? ' — damage detected: ' + (cv.damage_classes || []).map(esc).join(', ') : ''}</span></div>
+            <div class="detail-row"><span class="detail-label">Severity</span><span class="detail-value">${esc(cv.severity_estimate) || 'none'}</span></div>
             <div class="detail-row">
                 <span class="detail-label">Urgency</span>
-                <span class="detail-value"><span class="badge" style="background:${urgencyColor};color:white">${esc(cv.urgency)}</span></span>
+                <span class="detail-value"><span class="badge" style="background:${urgencyColor};color:white">${esc(cv.urgency)}</span> ${esc(cv.urgency_reasoning) || ''}</span>
             </div>
-            <div class="detail-row"><span class="detail-label">Urgency reasoning</span><span class="detail-value">${esc(cv.urgency_reasoning) || '—'}</span></div>
-            <div class="detail-row"><span class="detail-label">Severity</span><span class="detail-value">${esc(cv.severity_estimate) || 'none'}</span></div>
-            ${(cv.damage_classes || []).length > 0 ? `
-                <div class="detail-row"><span class="detail-label">Damage detected</span><span class="detail-value">${(cv.damage_classes || []).map(esc).join(', ')}</span></div>
-            ` : ''}
-            <div class="detail-row"><span class="detail-label">Damage source</span><span class="detail-value">${esc(cv.damage_source) || '—'}</span></div>
-            ${cv.full_report ? `
-                <div class="detail-row"><span class="detail-label">Full report</span><span class="detail-value">${esc(cv.full_report)}</span></div>
-            ` : ''}
             ${missing.length > 0 ? `
                 <div class="detail-row"><span class="detail-label" style="color:var(--color-escalated,#f59e0b)">Missing information</span><span class="detail-value" style="color:var(--color-escalated,#f59e0b)">${missing.map(esc).join(', ')}</span></div>
             ` : ''}
             <div class="detail-row">
-                <span class="detail-label">Settlement recommendation</span>
+                <span class="detail-label">Suggested action</span>
                 <span class="detail-value">
                     <span class="badge ${cv.settlement_type === 'automated' ? 'accepted' : 'recu'}" style="margin-right:8px">${esc(cv.settlement_type)}</span>
                     ${esc(cv.settlement_recommendation) || '—'}
@@ -532,8 +522,24 @@ function renderVerdictSections(e) {
                 ` : e.settlement_confirmed ? `<span style="color:var(--text-muted);font-size:0.85rem">Settlement confirmed</span>` : ''}
             </div>
         </div>`;
+    })() : `
+        <div class="detail-section" style="grid-column: 1 / -1">
+            <h3>📋 Claim Assessment</h3>
+            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">No structured claim data extracted for this submission.</span></div>
+        </div>`;
 
-    return securityHtml + verdictHtml;
+    const riskHtml = `
+        <div class="detail-section" style="grid-column: 1 / -1">
+            <h3>🛡️ Fraud Risk Indicators</h3>
+            <div class="detail-row"><span class="detail-label">Fraud risk score</span><span class="detail-value">${parseInt(llm.sender_risk) || 0}/100</span></div>
+            <div class="detail-row"><span class="detail-label">Assessment</span><span class="detail-value">${esc(llm.intent_classification) || '—'}</span></div>
+            ${(llm.social_engineering_indicators || []).length > 0 ? `
+                <div class="detail-row"><span class="detail-label">Indicators</span><span class="detail-value">${(llm.social_engineering_indicators || []).map(esc).join(', ')}</span></div>
+            ` : ''}
+        </div>`;
+
+    if (window.USER_ROLE === 'insurance_operator') return claimHtml;
+    return claimHtml + riskHtml;
 }
 
 async function confirmSettlement(emailId) {
@@ -555,10 +561,15 @@ async function loadEmailDetail(emailId) {
     try {
         const e = await API.get(`/api/emails/${emailId}`);
 
+        // Insurance Operator sees claim/policy data only — nothing from the
+        // cybersecurity surfaces (threat-intel signals, blocklist/whitelist
+        // status, sandbox detonation, fraud-risk model output).
+        const showCyberSecurity = window.USER_ROLE !== 'insurance_operator';
+
         // Build enrichment signals HTML
         let signalsHtml = '';
         const rules = e.rules_result;
-        if (rules && rules.details) {
+        if (showCyberSecurity && rules && rules.details) {
             signalsHtml = '<div class="signals-grid">';
             for (const d of rules.details) {
                 const cls = d.flagged ? 'flagged' : 'clean';
@@ -590,7 +601,7 @@ async function loadEmailDetail(emailId) {
         // Domain conflict warning: shown when domain appears in BOTH blocklist and whitelist.
         // This means a previous quarantine blocked the domain, but a release whitelisted
         // a specific sender on that domain — the conflict is expected but must be visible.
-        const domainConflictHtml = (e.domain_in_blocklist && e.domain_in_whitelist)
+        const domainConflictHtml = (showCyberSecurity && e.domain_in_blocklist && e.domain_in_whitelist)
             ? `<div style="
                     background:rgba(234,179,8,0.12);
                     border:1px solid rgba(234,179,8,0.5);
@@ -628,7 +639,7 @@ async function loadEmailDetail(emailId) {
                     <h3>Claim Submission</h3>
                     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(e.status)}</span></div>
                     <div class="detail-row"><span class="detail-label">Sender</span><span class="detail-value">${esc(e.sender) || '—'}</span></div>
-                    <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}${e.domain_in_blocklist ? ' <span class="badge quarantined" style="font-size:0.7rem">blocklisted</span>' : ''}${e.domain_in_whitelist ? ' <span class="badge accepted" style="font-size:0.7rem">whitelisted</span>' : ''}</span></div>
+                    <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}${(showCyberSecurity && e.domain_in_blocklist) ? ' <span class="badge quarantined" style="font-size:0.7rem">blocklisted</span>' : ''}${(showCyberSecurity && e.domain_in_whitelist) ? ' <span class="badge accepted" style="font-size:0.7rem">whitelisted</span>' : ''}</span></div>
                     <div class="detail-row"><span class="detail-label">Date Sent</span><span class="detail-value">${formatDate(e.email_date) || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Scanned At</span><span class="detail-value">${formatDate(e.created_at)}</span></div>
                     <div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">${parseInt(e.attachment_count) || 0}</span></div>
@@ -650,18 +661,18 @@ async function loadEmailDetail(emailId) {
                 ${renderVerdictSections(e)}
             </div>
 
-            ${e.llm_reasoning ? `
+            ${(showCyberSecurity && e.llm_reasoning) ? `
                 <div class="reasoning-card">
                     <h3>🤖 AI Assessment</h3>
                     <div class="reasoning-text">${esc(e.llm_reasoning)}</div>
                 </div>
             ` : ''}
 
-            ${signalsHtml ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Risk Signals</h3>${signalsHtml}` : ''}
+            ${(showCyberSecurity && signalsHtml) ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Risk Signals</h3>${signalsHtml}` : ''}
 
-            <div id="detonation-panel"></div>
+            ${showCyberSecurity ? '<div id="detonation-panel"></div>' : ''}
 
-            ${auditHtml}
+            ${showCyberSecurity ? auditHtml : ''}
 
             <div class="action-bar">
                 ${userCan('emails.release') ? `<button class="btn btn-success" data-action="release-email" data-id="${parseInt(e.id)}">✓ Approve Claim</button>` : ''}
@@ -673,7 +684,7 @@ async function loadEmailDetail(emailId) {
             </div>
         `;
 
-        renderDetonationPanel(e);
+        if (showCyberSecurity) renderDetonationPanel(e);
 
     } catch (err) {
         container.innerHTML = `<div class="empty-state"><div class="emoji">❌</div><p>Error: ${esc(err.message)}</p></div>`;

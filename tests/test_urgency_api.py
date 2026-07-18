@@ -48,7 +48,7 @@ def test_get_urgency_queue_api_returns_sorted_items(db_session):
     upsert_urgency(db_session, e1.id, {"urgency": "low"})
     upsert_urgency(db_session, e2.id, {"urgency": "critical"})
 
-    out = get_urgency_queue_api(user=SimpleNamespace(username="admin"))
+    out = get_urgency_queue_api(user=SimpleNamespace(username="admin", role="admin"))
     levels = [i["level"] for i in out["items"] if i["email_id"] in (e1.id, e2.id)]
     assert levels.index("critical") < levels.index("low")
 
@@ -67,7 +67,7 @@ def test_confirm_settlement_api_sets_audit_entry(db_session, monkeypatch):
         return original_add_audit(db, **kw)
     monkeypatch.setattr(database, "add_audit_entry", _spy_add_audit)
 
-    out = confirm_settlement_api(email.id, user=SimpleNamespace(username="admin"))
+    out = confirm_settlement_api(email.id, user=SimpleNamespace(username="admin", role="admin"))
     assert out["settlement_confirmed"] is True
     assert audits and audits[0]["action"] == "settlement_confirm"
     assert audits[0]["actor"] == "admin"
@@ -80,7 +80,7 @@ def test_confirm_settlement_api_404_when_no_urgency_row(db_session):
     email = _make_email(db_session)
 
     try:
-        confirm_settlement_api(email.id, user=SimpleNamespace(username="admin"))
+        confirm_settlement_api(email.id, user=SimpleNamespace(username="admin", role="admin"))
         assert False, "expected HTTPException 404"
     except HTTPException as e:
         assert e.status_code == 404
@@ -93,12 +93,12 @@ def test_get_email_api_includes_settlement_confirmed(db_session):
     email = _make_email(db_session)
     upsert_urgency(db_session, email.id, {"urgency": "low", "settlement_type": "assistive"})
 
-    out = asyncio.run(api_get_email(email.id, user=SimpleNamespace(username="admin")))
+    out = asyncio.run(api_get_email(email.id, user=SimpleNamespace(username="admin", role="admin")))
     assert out["settlement_confirmed"] is False
 
     from database import confirm_settlement
     confirm_settlement(db_session, email.id, "admin")
-    out2 = asyncio.run(api_get_email(email.id, user=SimpleNamespace(username="admin")))
+    out2 = asyncio.run(api_get_email(email.id, user=SimpleNamespace(username="admin", role="admin")))
     assert out2["settlement_confirmed"] is True
 
 
@@ -108,5 +108,5 @@ def test_get_email_api_settlement_confirmed_false_when_no_urgency_row(db_session
 
     email = _make_email(db_session)
 
-    out = asyncio.run(api_get_email(email.id, user=SimpleNamespace(username="admin")))
+    out = asyncio.run(api_get_email(email.id, user=SimpleNamespace(username="admin", role="admin")))
     assert out["settlement_confirmed"] is False

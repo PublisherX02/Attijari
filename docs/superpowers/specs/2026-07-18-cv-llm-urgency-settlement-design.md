@@ -151,7 +151,7 @@ class Urgency(Base):
 - **New Urgency Queue page** (nav entry next to Inbox, same list/row pattern as `inbox.html`): claims sorted critical-first via the `urgency` table's `priority`, each row shows level badge + one-line reasoning + link to detail page.
 - **Settlement confirm**: `POST /api/claims/{email_id}/settlement/confirm` (permission-gated like the existing detonation retry endpoint), sets `settlement_confirmed`, `settlement_confirmed_by`, `settlement_confirmed_at`, audit-logged via the existing `add_audit_entry` pattern.
 
-## Testing
+## Testingc
 
 - Fill in `tests/test_extraction_cv_damage.py`'s currently-failing tests (real `_local_cv_damage` implementation against `models/car_damage_yolov8.pt`).
 - New: `ClaimVerdict` fail-safe tests — missing-field forces escalate/assistive; CV-unavailable falls back to llm_vision/text_only; automated-settlement gate only fires when all four conditions hold.

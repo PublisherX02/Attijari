@@ -49,3 +49,36 @@ def test_call_ollama_http_omits_images_key_when_none():
         analysis._call_ollama_http("gemma3:4b", "prompt text")
 
     assert "images" not in captured["payload"]
+
+
+def test_call_ollama_http_nests_generation_params_under_options():
+    """temperature/num_predict/num_ctx must live under payload['options'] —
+    Ollama's /api/generate silently ignores them as top-level keys, which
+    was the root cause of truncated (unparseable) JSON verdicts on prompts
+    that combine skills.md + enrichment context + email body (regularly
+    >2048 tokens, Ollama's context-window default)."""
+    captured = {}
+
+    class FakeResponse:
+        def read(self):
+            return b'{"response": "{}"}'
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout=None):
+        import json as _json
+        captured["payload"] = _json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        analysis._call_ollama_http("gemma3:4b", "prompt text")
+
+    payload = captured["payload"]
+    assert "max_tokens" not in payload
+    assert "temperature" not in payload
+    options = payload["options"]
+    assert options["temperature"] == analysis.DEFAULT_TEMPERATURE
+    assert options["num_predict"] == analysis.DEFAULT_MAX_TOKENS
+    assert options["num_ctx"] >= 8192

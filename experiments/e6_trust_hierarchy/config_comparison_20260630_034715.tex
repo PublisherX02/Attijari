@@ -1,0 +1,15 @@
+\begin{table}[h]
+\centering
+\caption{Trust Configuration Comparison (gemma3:4b)}
+\label{tab:e6_config_comparison}
+\begin{tabular}{l r r r r r r}
+\hline
+Configuration & Accuracy & Precision & Recall & F1 & FN & FP \\
+\hline
+LLM Only & 0.809 & 0.841 & 0.949 & 0.892 & 2 & 7 \\
+LLM + Signals (Flat) & 0.787 & 0.854 & 0.897 & 0.875 & 4 & 6 \\
+LLM + Signals (Trust Hierarchy) & 0.787 & 0.854 & 0.897 & 0.875 & 4 & 6 \\
+Full Pipeline (Production) & 0.979 & 0.975 & 1.000 & 0.987 & 0 & 1 \\
+\hline
+\end{tabular}
+\end{table}

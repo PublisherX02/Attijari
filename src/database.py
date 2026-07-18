@@ -200,6 +200,45 @@ class Urgency(Base):
     email = relationship("Email")
 
 
+class ReleasedClaim(Base):
+    """Gate table: a claim only appears here once a SOC operator (analyst/admin)
+    has reviewed the raw email and explicitly released it. The Insurance
+    Operator role reads its inbox/urgency feed through this table (joined
+    back to Email for content) instead of the raw Email table — so nothing
+    reaches insurance review before a human has cleared it. Removed again
+    if the release is later reverted or the claim is quarantined after the
+    fact (see routing.py)."""
+
+    __tablename__ = "released_claims"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email_id = Column(Integer, ForeignKey("emails.id"), nullable=False, unique=True, index=True)
+    released_by = Column(String(255), nullable=True)
+    released_at = Column(DateTime(timezone=True), default=utcnow)
+
+    email = relationship("Email")
+
+
+def mark_claim_released(db: Session, email_id: int, released_by: Optional[str] = None) -> None:
+    """Idempotent: make a claim visible to Insurance Operators.
+
+    Flushes immediately — SessionLocal is autoflush=False, so without an
+    explicit flush a second call in the same session (before any commit)
+    would not see the first call's pending insert and would violate the
+    email_id unique constraint instead of being a no-op.
+    """
+    existing = db.query(ReleasedClaim).filter(ReleasedClaim.email_id == email_id).first()
+    if existing:
+        return
+    db.add(ReleasedClaim(email_id=email_id, released_by=released_by))
+    db.flush()
+
+
+def unmark_claim_released(db: Session, email_id: int) -> None:
+    """Pull a claim back out of Insurance Operator visibility (revert / re-quarantine)."""
+    db.query(ReleasedClaim).filter(ReleasedClaim.email_id == email_id).delete()
+
+
 class AnalystFeedback(Base):
     """Analyst feedback on verdicts — used to train the pipeline over time.
 
@@ -360,10 +399,20 @@ ANALYST_PERMISSIONS = {
     "export.csv": True,
 }
 
+# Read-only, same power level as viewer — sees claim/insurance data (via
+# emails.view) but none of the cybersecurity-only surfaces (blocklist,
+# whitelist, security alerts, audit/action history of quarantine actions).
+INSURANCE_OPERATOR_PERMISSIONS = {
+    "emails.view": True,
+    "reports.view": True,
+    "health.view": True,
+}
+
 ROLE_DEFAULTS = {
     "admin": ALL_PERMISSIONS,
     "analyst": ANALYST_PERMISSIONS,
     "viewer": VIEWER_PERMISSIONS,
+    "insurance_operator": INSURANCE_OPERATOR_PERMISSIONS,
 }
 
 

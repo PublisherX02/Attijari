@@ -31,12 +31,12 @@ _admin_dep = require_permission("users.manage")
 class CreateUserRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9._-]+$")
     password: str = Field(..., min_length=8, max_length=128)
-    role: str = Field(default="analyst", pattern=r"^(admin|analyst|viewer)$")
+    role: str = Field(default="analyst", pattern=r"^(admin|analyst|viewer|insurance_operator)$")
     permissions: Optional[dict] = None  # if None, use role defaults
 
 
 class UpdateUserRequest(BaseModel):
-    role: Optional[str] = Field(default=None, pattern=r"^(admin|analyst|viewer)$")
+    role: Optional[str] = Field(default=None, pattern=r"^(admin|analyst|viewer|insurance_operator)$")
     permissions: Optional[dict] = None
     is_active: Optional[bool] = None
 

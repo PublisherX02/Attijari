@@ -1,0 +1,1156 @@
+{
+  "timestamp": "20260630_171425",
+  "config": {
+    "llm_enabled": false,
+    "limit_per_category": 30
+  },
+  "corpus_summary": {
+    "Synthetic_Malicious": {
+      "count": 39,
+      "expected": {
+        "malicious": 39
+      }
+    },
+    "Synthetic_Benign": {
+      "count": 8,
+      "expected": {
+        "benign": 8
+      }
+    },
+    "SpamAssassin": {
+      "count": 60,
+      "expected": {
+        "benign": 30,
+        "malicious": 30
+      }
+    }
+  },
+  "overall_metrics": {
+    "accuracy": 0.6915887850467289,
+    "precision": 0.9736842105263158,
+    "recall": 0.5362318840579711,
+    "f1": 0.6915887850467289,
+    "confusion_matrix": [
+      [
+        37,
+        1
+      ],
+      [
+        32,
+        37
+      ]
+    ]
+  },
+  "per_source": {
+    "Synthetic_Malicious": 0.7948717948717948,
+    "Synthetic_Benign": 0.875,
+    "SpamAssassin": 0.6
+  },
+  "per_email": [
+    {
+      "name": "OLE_VBA_macro_doc",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 5.38,
+      "deterministic": true
+    },
+    {
+      "name": "PDF_javascript_launch",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.2,
+      "deterministic": true
+    },
+    {
+      "name": "PE_as_PDF_type_mismatch",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.1,
+      "deterministic": true
+    },
+    {
+      "name": "encrypted_zip_password_in_body",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.03,
+      "deterministic": true
+    },
+    {
+      "name": "OOXML_remote_template",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.07,
+      "deterministic": true
+    },
+    {
+      "name": "HTML_smuggling",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.11,
+      "deterministic": true
+    },
+    {
+      "name": "SVG_embedded_script",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.13,
+      "deterministic": true
+    },
+    {
+      "name": "ISO_with_LNK_payload",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.1,
+      "deterministic": true
+    },
+    {
+      "name": "polyglot_PDF_JAR",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "spear_phish_credential_harvest",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "CEO_wire_fraud",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "double_extension_screensaver",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.06,
+      "deterministic": true
+    },
+    {
+      "name": "qr_code_phishing",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.14,
+      "deterministic": false
+    },
+    {
+      "name": "DDE_exploit_docx",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.08,
+      "deterministic": false
+    },
+    {
+      "name": "RTF_embedded_OLE",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "OneNote_embedded_payload",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.1,
+      "deterministic": true
+    },
+    {
+      "name": "zip_bomb_timeout",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.02,
+      "deterministic": false
+    },
+    {
+      "name": "steganography_payload",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 1.38,
+      "deterministic": true
+    },
+    {
+      "name": "standalone_LNK_shortcut",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.11,
+      "deterministic": true
+    },
+    {
+      "name": "HTA_application",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.1,
+      "deterministic": true
+    },
+    {
+      "name": "PDF_phishing_url_only",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.12,
+      "deterministic": true
+    },
+    {
+      "name": "XLL_excel_addin",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "MHTML_credential_harvester",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "xlsm_obfuscated_macro",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.09,
+      "deterministic": false
+    },
+    {
+      "name": "ICS_calendar_phishing",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.07,
+      "deterministic": false
+    },
+    {
+      "name": "spoofed_reply_chain",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "zero_width_unicode_evasion",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "homoglyph_domain_phishing",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "CHM_help_file_exploit",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.07,
+      "deterministic": true
+    },
+    {
+      "name": "PPSX_autoplay_OLE",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.1,
+      "deterministic": false
+    },
+    {
+      "name": "nested_zip_evasion",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.02,
+      "deterministic": false
+    },
+    {
+      "name": "VHD_virtual_disk_payload",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "base64_powershell_txt",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.09,
+      "deterministic": true
+    },
+    {
+      "name": "WSF_script_dropper",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.51,
+      "deterministic": true
+    },
+    {
+      "name": "CPL_control_panel",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.06,
+      "deterministic": true
+    },
+    {
+      "name": "PDF_launch_embedded_exe",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "thread_hijack_BEC",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "polyglot_PDF_PE",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.07,
+      "deterministic": true
+    },
+    {
+      "name": "polyglot_OLE_PDF_PE",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "legitimate_invoice",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.07,
+      "deterministic": false
+    },
+    {
+      "name": "linkedin_notification",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.02,
+      "deterministic": false
+    },
+    {
+      "name": "marketing_promo",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "proposed_reject",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "github_notification",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "conference_registration",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "internal_team_doc",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.07,
+      "deterministic": false
+    },
+    {
+      "name": "delivery_notification",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "newsletter_multilink",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00001.7c53336b37003a9286aba55d2945844c",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00002.9c4069e25e1ef370c078db7ee85ff9ac",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00003.860e3c3cee1b42ead714c5c874fe25f7",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00004.864220c5b6930b209cc287c361c99af1",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.02,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00005.bf27cdeaf0b8c4647ecd61b1d09da613",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00006.253ea2f9a9cc36fa0b1129b04b806608",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00007.37a8af848caae585af4fe35779656d55",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00008.5891548d921601906337dcf1ed8543cb",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00009.371eca25b0169ce5cb4f71d3e07b9e2d",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00010.145d22c053c1a0c410242e46c01635b3",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00011.fbcde1b4833bdbaaf0ced723edd6e355",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00012.48a387bc38d1316a6f6b49e8c2e43a03",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00013.81c34741dbed59c6dde50777e27e7ea3",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00014.cb20e10b2bfcb8210a1c310798532a57",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.06,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00015.4d7026347ba7478c9db04c70913e68fd",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00016.ef397cef16f8041242e3b6560e168053",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00017.08ef2d89f14cf7e2a458b80697eb1837",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00018.6fee38026193b5adde4b56892a6f14bc",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00019.5322cb10d8819b39499924d852819c27",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00020.d10651e31fcb92630c6229ec773cfe26",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00021.607c41268c5b0d66e81b58713a66d12c",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00022.48098f942c31097d2ef605df44dd8593",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00023.e0e815ea1d7fd40e7e70b4c0035bef0c",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00024.59c2cb781c60594315241e2b50ea70e2",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00025.d685245bdc4444f44fa091e6620b20b3",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00026.f9755fb0cee92676d7bd76d32bc5f50f",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00027.4d456dd9ce0afde7629f94dc3034e0bb",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00028.ddbae7c7b229813409ae50c47624ddb9",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00029.56d4310a82386b76b9e771523d571e67",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00030.cc78e84cd398ff4a2e9e287263de928f",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00001.317e78fa8ee2f54cd4890fdc09ba8176",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00002.9438920e9a55591b18e60d1ed37d992b",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00003.590eff932f8704d8b0fcbe69d023b54d",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00004.bdcc075fa4beb5157b5dd6cd41d8887b",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00005.ed0aba4d386c5e62bc737cf3f0ed9589",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00006.3ca1f399ccda5d897fecb8c57669a283",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00151.6abbf42bc1bfb6c36b749372da0cffae",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00008.ccf927a6aec028f5472ca7b9db9eee20",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00009.1e1a8cb4b57532ab38aa23287523659d",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "proposed_reject",
+      "correct": true,
+      "elapsed_s": 0.13,
+      "deterministic": true
+    },
+    {
+      "name": "SA_spam_00010.2558d935f6439cb40d3acb8b8569aa9b",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00011.bd8c904d9f7b161a813d222230214d50",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00012.cb9c9f2a25196f5b16512338625a85b4",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00013.372ec9dc663418ca71f7d880a76f117a",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00014.13574737e55e51fe6737a475b88b5052",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00015.206d5a5d1d34272ae32fc286788fdf55",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00016.4fb07c8dff1a5a2b4889dc5024c55023",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00017.6430f3b8dedf51ba3c3fcb9304e722e7",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00018.336cb9e7b0358594cf002e7bf669eaf5",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00019.86ce6f6c2e9f4ae0415860fecdf055db",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00020.7d36d16fd2be07c4f6a5616590cdea07",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.02,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00021.07d9ab534bbfba9020145659008a3a14",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00022.be66c630a142f0d862c2294a2d911ce1",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00023.5bec0fc32cfc42c9cc5c941d94258567",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00024.621bea2c6e0ebb2eb7ac00a38dfe6b00",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00025.9054470cb5193db2955a4d4a003698d6",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00026.c62c9f08db4ee1b99626dbae575008fe",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00027.b7b61e4624a29097cf55b578089c6110",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00028.60393e49c90f750226bee6381eb3e69d",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.02,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00029.cc0c62b49c1df0ad08ae49a7e1904531",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00030.b360f27c098b3ab5cff96433e7963d4a",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 0.0,
+      "deterministic": false
+    }
+  ],
+  "misclassified": [
+    "qr_code_phishing",
+    "DDE_exploit_docx",
+    "zip_bomb_timeout",
+    "xlsm_obfuscated_macro",
+    "ICS_calendar_phishing",
+    "spoofed_reply_chain",
+    "PPSX_autoplay_OLE",
+    "nested_zip_evasion",
+    "marketing_promo",
+    "SA_spam_00001.317e78fa8ee2f54cd4890fdc09ba8176",
+    "SA_spam_00151.6abbf42bc1bfb6c36b749372da0cffae",
+    "SA_spam_00008.ccf927a6aec028f5472ca7b9db9eee20",
+    "SA_spam_00010.2558d935f6439cb40d3acb8b8569aa9b",
+    "SA_spam_00011.bd8c904d9f7b161a813d222230214d50",
+    "SA_spam_00012.cb9c9f2a25196f5b16512338625a85b4",
+    "SA_spam_00013.372ec9dc663418ca71f7d880a76f117a",
+    "SA_spam_00014.13574737e55e51fe6737a475b88b5052",
+    "SA_spam_00015.206d5a5d1d34272ae32fc286788fdf55",
+    "SA_spam_00016.4fb07c8dff1a5a2b4889dc5024c55023",
+    "SA_spam_00017.6430f3b8dedf51ba3c3fcb9304e722e7",
+    "SA_spam_00018.336cb9e7b0358594cf002e7bf669eaf5",
+    "SA_spam_00019.86ce6f6c2e9f4ae0415860fecdf055db",
+    "SA_spam_00020.7d36d16fd2be07c4f6a5616590cdea07",
+    "SA_spam_00021.07d9ab534bbfba9020145659008a3a14",
+    "SA_spam_00022.be66c630a142f0d862c2294a2d911ce1",
+    "SA_spam_00023.5bec0fc32cfc42c9cc5c941d94258567",
+    "SA_spam_00024.621bea2c6e0ebb2eb7ac00a38dfe6b00",
+    "SA_spam_00025.9054470cb5193db2955a4d4a003698d6",
+    "SA_spam_00026.c62c9f08db4ee1b99626dbae575008fe",
+    "SA_spam_00027.b7b61e4624a29097cf55b578089c6110",
+    "SA_spam_00028.60393e49c90f750226bee6381eb3e69d",
+    "SA_spam_00029.cc0c62b49c1df0ad08ae49a7e1904531",
+    "SA_spam_00030.b360f27c098b3ab5cff96433e7963d4a"
+  ]
+}

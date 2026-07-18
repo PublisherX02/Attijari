@@ -1,0 +1,69 @@
+\begin{table}[h]
+\centering
+\caption{Bootstrap 95\% Confidence Intervals by Configuration (10,000 resamples)}
+\label{tab:e8_bootstrap_ci}
+\begin{tabular}{l c c c c}
+\hline
+Configuration & Accuracy & Precision & Recall & F1 \\
+\hline
+LLM Only & 0.809 [0.681, 0.915] & 0.841 [0.727, 0.935] & 0.949 [0.872, 1.000] & 0.892 [0.810, 0.955] \\
+LLM + Signals (Flat) & 0.787 [0.660, 0.894] & 0.854 [0.738, 0.952] & 0.897 [0.794, 0.976] & 0.875 [0.789, 0.943] \\
+LLM + Signals (Trust Hierarchy) & 0.787 [0.660, 0.894] & 0.854 [0.738, 0.951] & 0.897 [0.795, 0.976] & 0.875 [0.789, 0.943] \\
+Full Pipeline (Production) & 0.979 [0.936, 1.000] & 0.975 [0.917, 1.000] & 1.000 [1.000, 1.000] & 0.987 [0.959, 1.000] \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{McNemar's Test: Pairwise Configuration Comparisons}
+\label{tab:e8_mcnemar}
+\begin{tabular}{l l r r r c}
+\hline
+Config A & Config B & $b$ & $c$ & $p$-value & Sig. \\
+\hline
+LLM Only & LLM + Signals (Flat) & 4 & 3 & 1.0000 & ns \\
+LLM Only & LLM + Signals (Trust Hierarchy) & 4 & 3 & 1.0000 & ns \\
+LLM Only & Full Pipeline (Production) & 0 & 8 & 0.0078 & $\ast$ \\
+LLM + Signals (Flat) & LLM + Signals (Trust Hierarchy) & 0 & 0 & 1.0000 & ns \\
+LLM + Signals (Flat) & Full Pipeline (Production) & 0 & 9 & 0.0039 & $\ast$ \\
+LLM + Signals (Trust Hierarchy) & Full Pipeline (Production) & 0 & 9 & 0.0039 & $\ast$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Cohen's Kappa: Inter-Configuration Agreement}
+\label{tab:e8_kappa}
+\begin{tabular}{l l r l}
+\hline
+Config A & Config B & $\kappa$ & Interpretation \\
+\hline
+LLM Only & LLM + Signals (Flat) & 0.1499 & Slight \\
+LLM Only & LLM + Signals (Trust Hierarchy) & 0.1499 & Slight \\
+LLM Only & Full Pipeline (Production) & 0.1215 & Slight \\
+LLM + Signals (Flat) & LLM + Signals (Trust Hierarchy) & 1.0000 & Almost Perfect \\
+LLM + Signals (Flat) & Full Pipeline (Production) & 0.1973 & Slight \\
+LLM + Signals (Trust Hierarchy) & Full Pipeline (Production) & 0.1973 & Slight \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Corpus Validation: Bootstrap 95\% Confidence Intervals}
+\label{tab:e8_corpus_ci}
+\begin{tabular}{l c c c c}
+\hline
+Source & Accuracy & Precision & Recall & F1 \\
+\hline
+\textbf{Overall} & 0.852 [0.787, 0.910] & 0.851 [0.780, 0.917] & 0.966 [0.924, 1.000] & 0.905 [0.859, 0.946] \\
+\hline
+Nazario & 0.920 [0.800, 1.000] & 1.000 [1.000, 1.000] & 0.920 [0.800, 1.000] & 0.958 [0.889, 1.000] \\
+SpamAssassin & 0.720 [0.600, 0.840] & 0.641 [0.487, 0.784] & 1.000 [1.000, 1.000] & 0.781 [0.655, 0.882] \\
+Synthetic\_Benign & 0.875 [0.625, 1.000] & 0.000 [0.000, 0.000] & 0.000 [0.000, 0.000] & 0.000 [0.000, 0.000] \\
+Synthetic\_Malicious & 0.974 [0.923, 1.000] & 1.000 [1.000, 1.000] & 0.974 [0.923, 1.000] & 0.987 [0.960, 1.000] \\
+\hline
+\end{tabular}
+\end{table}
