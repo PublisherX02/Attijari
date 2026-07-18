@@ -175,6 +175,31 @@ class AuditLog(Base):
     email = relationship("Email", back_populates="audit_entries")
 
 
+class Urgency(Base):
+    """Per-claim urgency classification and settlement recommendation.
+
+    One row per email/claim. `priority` is a plain int derived from `level`
+    so the triage queue sorts with a simple ORDER BY, no enum-sort hacks.
+    """
+
+    __tablename__ = "urgency"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email_id = Column(Integer, ForeignKey("emails.id"), nullable=False, unique=True, index=True)
+    level = Column(String(20), nullable=False)              # low/medium/high/critical
+    priority = Column(Integer, nullable=False, index=True)   # 0-3, derived from level
+    reasoning = Column(Text, nullable=True)
+    missing_information = Column(JSONB, nullable=True)
+    settlement_type = Column(String(20), nullable=True)      # assistive/automated
+    settlement_recommendation = Column(Text, nullable=True)
+    settlement_confirmed = Column(Boolean, default=False)
+    settlement_confirmed_by = Column(String(255), nullable=True)
+    settlement_confirmed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+
+    email = relationship("Email")
+
+
 class AnalystFeedback(Base):
     """Analyst feedback on verdicts — used to train the pipeline over time.
 
@@ -308,6 +333,7 @@ ALL_PERMISSIONS = {
     "export.csv": True,          # export email data as CSV
     "users.manage": True,        # create/edit/delete users (admin only)
     "detonation.manual": True,   # upload + detonate an arbitrary file in the sandbox
+    "claims.settle": True,       # confirm an assistive/automated settlement recommendation
 }
 
 VIEWER_PERMISSIONS = {
@@ -548,6 +574,68 @@ def add_audit_entry(db: Session, action: str, actor: str = "system",
         "details": details
     }
     audit_logger.info(json.dumps(log_event))
+
+
+_URGENCY_PRIORITY = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
+
+def upsert_urgency(db: Session, email_id: int, claim_verdict: Optional[dict]) -> Optional["Urgency"]:
+    """Create or update the urgency row for a claim from its claim_verdict dict.
+
+    Returns None if claim_verdict is empty/missing — not every processed
+    email is a claim with a verdict worth tracking in the triage queue.
+    """
+    if not claim_verdict:
+        return None
+    level = claim_verdict.get("urgency", "high")
+    priority = _URGENCY_PRIORITY.get(level, 2)
+    existing = db.query(Urgency).filter(Urgency.email_id == email_id).first()
+    if existing:
+        existing.level = level
+        existing.priority = priority
+        existing.reasoning = claim_verdict.get("urgency_reasoning")
+        existing.missing_information = claim_verdict.get("missing_information")
+        existing.settlement_type = claim_verdict.get("settlement_type")
+        existing.settlement_recommendation = claim_verdict.get("settlement_recommendation")
+        db.commit()
+        db.refresh(existing)
+        return existing
+    row = Urgency(
+        email_id=email_id,
+        level=level,
+        priority=priority,
+        reasoning=claim_verdict.get("urgency_reasoning"),
+        missing_information=claim_verdict.get("missing_information"),
+        settlement_type=claim_verdict.get("settlement_type"),
+        settlement_recommendation=claim_verdict.get("settlement_recommendation"),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def get_urgency_queue(db: Session, limit: int = 100) -> list["Urgency"]:
+    """Triage queue, critical-first."""
+    return (
+        db.query(Urgency)
+        .order_by(Urgency.priority.desc(), Urgency.created_at.asc())
+        .limit(limit)
+        .all()
+    )
+
+
+def confirm_settlement(db: Session, email_id: int, actor: str) -> Optional["Urgency"]:
+    """Human confirmation of a settlement recommendation (assistive or automated)."""
+    row = db.query(Urgency).filter(Urgency.email_id == email_id).first()
+    if not row:
+        return None
+    row.settlement_confirmed = True
+    row.settlement_confirmed_by = actor
+    row.settlement_confirmed_at = utcnow()
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def is_blocked(db: Session, indicator_type: str, value: str) -> bool:
