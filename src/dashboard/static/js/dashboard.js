@@ -445,6 +445,73 @@ async function revertAction(id) {
    Email detail page
    ========================================================================= */
 
+function renderVerdictSections(e) {
+    const llm = e.llm_result;
+    if (!llm) return '';
+
+    const securityHtml = `
+        <div class="detail-section" style="grid-column: 1 / -1">
+            <h3>🔒 Security Concerns</h3>
+            <div class="detail-row"><span class="detail-label">Sender Risk</span><span class="detail-value">${parseInt(llm.sender_risk) || 0}/100</span></div>
+            <div class="detail-row"><span class="detail-label">Intent</span><span class="detail-value">${esc(llm.intent_classification) || '—'}</span></div>
+            ${(llm.social_engineering_indicators || []).length > 0 ? `
+                <div class="detail-row"><span class="detail-label">Indicators</span><span class="detail-value">${(llm.social_engineering_indicators || []).map(esc).join(', ')}</span></div>
+            ` : ''}
+        </div>`;
+
+    const cv = llm.claim_verdict;
+    if (!cv) return securityHtml;
+
+    const urgencyColors = { low: '#7f8c8d', medium: '#2980b9', high: '#e67e22', critical: '#e74c3c' };
+    const urgencyColor = urgencyColors[cv.urgency] || '#7f8c8d';
+    const missing = cv.missing_information || [];
+
+    const verdictHtml = `
+        <div class="detail-section" style="grid-column: 1 / -1">
+            <h3>🚗 Verdict</h3>
+            <div class="detail-row">
+                <span class="detail-label">Urgency</span>
+                <span class="detail-value"><span class="badge" style="background:${urgencyColor};color:white">${esc(cv.urgency)}</span></span>
+            </div>
+            <div class="detail-row"><span class="detail-label">Urgency reasoning</span><span class="detail-value">${esc(cv.urgency_reasoning) || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Severity</span><span class="detail-value">${esc(cv.severity_estimate) || 'none'}</span></div>
+            ${(cv.damage_classes || []).length > 0 ? `
+                <div class="detail-row"><span class="detail-label">Damage detected</span><span class="detail-value">${(cv.damage_classes || []).map(esc).join(', ')}</span></div>
+            ` : ''}
+            <div class="detail-row"><span class="detail-label">Damage source</span><span class="detail-value">${esc(cv.damage_source) || '—'}</span></div>
+            ${cv.full_report ? `
+                <div class="detail-row"><span class="detail-label">Full report</span><span class="detail-value">${esc(cv.full_report)}</span></div>
+            ` : ''}
+            ${missing.length > 0 ? `
+                <div class="detail-row"><span class="detail-label" style="color:var(--color-escalated,#f59e0b)">Missing information</span><span class="detail-value" style="color:var(--color-escalated,#f59e0b)">${missing.map(esc).join(', ')}</span></div>
+            ` : ''}
+            <div class="detail-row">
+                <span class="detail-label">Settlement recommendation</span>
+                <span class="detail-value">
+                    <span class="badge ${cv.settlement_type === 'automated' ? 'accepted' : 'recu'}" style="margin-right:8px">${esc(cv.settlement_type)}</span>
+                    ${esc(cv.settlement_recommendation) || '—'}
+                </span>
+            </div>
+            <div class="action-bar" style="margin-top:12px">
+                ${userCan('claims.settle') && !e.settlement_confirmed ? `
+                    <button class="btn btn-primary btn-sm" data-action="confirm-settlement" data-id="${parseInt(e.id)}">✓ Confirm settlement</button>
+                ` : e.settlement_confirmed ? `<span style="color:var(--text-muted);font-size:0.85rem">Settlement confirmed</span>` : ''}
+            </div>
+        </div>`;
+
+    return securityHtml + verdictHtml;
+}
+
+async function confirmSettlement(emailId) {
+    try {
+        await API.post(`/api/emails/${emailId}/settlement/confirm`);
+        showToast('Settlement confirmed', 'success');
+        loadEmailDetail(emailId);
+    } catch (err) {
+        showToast(`Confirm failed: ${err.message}`, 'error');
+    }
+}
+
 async function loadEmailDetail(emailId) {
     const container = document.getElementById('email-detail');
     if (!container) return;
@@ -543,6 +610,10 @@ async function loadEmailDetail(emailId) {
                         <div class="detail-row"><span class="detail-label">Parse Errors</span><span class="detail-value" style="color:var(--color-escalated)">${esc(e.parse_errors.join(', '))}</span></div>
                     ` : ''}
                 </div>
+            </div>
+
+            <div class="detail-grid">
+                ${renderVerdictSections(e)}
             </div>
 
             ${e.llm_reasoning ? `
@@ -1286,6 +1357,7 @@ registerAction('release-email', (el) => releaseEmail(parseInt(el.dataset.id)));
 registerAction('quarantine-email', (el) => quarantineEmail(parseInt(el.dataset.id)));
 registerAction('revert-action', (el) => revertAction(parseInt(el.dataset.id)));
 registerAction('open-override-modal', (el) => openOverrideModal(parseInt(el.dataset.id)));
+registerAction('confirm-settlement', (el) => confirmSettlement(parseInt(el.dataset.id)));
 registerAction('load-inbox-page', (el) => loadInbox(parseInt(el.dataset.page), currentStatus, currentSearch));
 registerAction('filter-by-status', (el) => filterByStatus(el.dataset.status));
 registerAction('search-emails', () => searchEmails());
