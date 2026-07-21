@@ -94,20 +94,20 @@ Written in `main.py`, once per attachment, right after `_save_email()` succeeds 
 
 ## Endpoints (`src/routers/detonation_proxy.py`)
 
-- `GET /api/emails/{email_id}/attachments` — lists every `Attachment` row for the email with computed `status` and, when available, `malscore` / report URL. Permission: `emails.view`.
+- **No separate list endpoint.** `GET /api/emails/{email_id}` (existing) gains an `"attachments"` key — one entry per `Attachment` row with computed `status`. This follows the same convention the existing `"detonation_queue"` key on that same response already uses, rather than a second round-trip; the frontend already fetches this endpoint on every detail-page load. Permission: unchanged (`emails.view`, already required for the endpoint).
 - `GET /api/emails/{email_id}/attachments/{attachment_id}/raw` — rewritten to key on the new `Attachment.id` (currently keys on `PendingDetonation.id`, which only exists for detonation candidates). Computes status first: `"safe"` serves the bytes exactly as today (magic-byte sniffed content type, inline only for verified PDF/image, internal id in `Content-Disposition`, never the attacker filename); anything else returns `403` with `{"status": "<status>"}` and no bytes. Permission: `emails.view`.
 - `POST /api/emails/{email_id}/attachments/{attachment_id}/insist` — the on-demand flow described above. Permission: `emails.scan` (same gate as the existing "See in VM" button, since it consumes VM/CAPE resources).
 
 Both `{attachment_id}`-taking endpoints look the row up filtered by **both** `Attachment.id == attachment_id` AND `Attachment.email_id == email_id` (same pattern the existing `/raw` implementation already uses for `PendingDetonation`) — an attachment id valid on one email must 404, not 403, when requested under a different `email_id` in the path. Prevents an analyst from probing attachment ids across emails they may not have reason to be looking at.
 
-Safety-status computation lives as a small, pure, unit-testable function (e.g. `_attachment_safety_status(sha256: str) -> str`) — no HTTP or ORM session state baked into the logic itself, so it can be tested against a list of fake `PendingDetonation`-shaped rows.
+Safety-status computation lives as a small, pure, unit-testable function, `attachment_safety_status(db, sha256: str) -> str` in a new `src/attachments.py` module — no FastAPI/HTTP state baked into the logic itself, so it can be tested against a list of fake `PendingDetonation`-shaped rows.
 
 ## Frontend (`dashboard.js`, `detail.html`)
 
-The existing detonation-only section of the email detail page is replaced by one "Attachments" panel driven by `GET /api/emails/{id}/attachments`, rendering one row per attachment:
+The existing detonation-only section of the email detail page is replaced by one "Attachments" panel, driven by the `attachments` key embedded in the existing `GET /api/emails/{id}` response, rendering one row per attachment:
 
-- `safe` → today's inline preview/download (`_attachmentPreviewHtml`, unchanged).
-- `pending` → today's spinner / live-VNC view (`_detonationRowHtml`, unchanged).
+- `safe` → inline preview/download (today's `_attachmentPreviewHtml` behavior, reimplemented against the new per-attachment status).
+- `pending` → today's spinner / live-VNC view (same pattern as today's `_detonationRowHtml`, reimplemented against the new data shape).
 - `unverified` / `unsafe` → a warning line plus an "⚠ Not verified safe — insist and open in VM" button, hidden for analysts without `emails.scan`. Clicking it calls the insist endpoint, then the row switches into the same live/queued view `pending` uses.
 
 This panel only ever renders inside the existing per-email detail view — it is not a new page, route, or modal.
