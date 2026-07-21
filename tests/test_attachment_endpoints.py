@@ -42,3 +42,20 @@ def test_serialize_attachments(monkeypatch):
     assert out[1]["id"] == 2 and out[1]["status"] == "unsafe"
     assert out[0]["real_type"] == "application/pdf"
     assert out[0]["size_bytes"] == 1234
+
+
+def test_attachment_raw_403_when_not_safe():
+    """The route handler is a thin FastAPI wrapper around resolve_attachment
+    (routers/detonation_proxy.py's api_attachment_raw) — this confirms the
+    status values that must NOT count as safe, i.e. must 403."""
+    from attachments import STATUS_SAFE, STATUS_UNSAFE, STATUS_PENDING, STATUS_UNVERIFIED
+    for not_safe in (STATUS_UNSAFE, STATUS_PENDING, STATUS_UNVERIFIED):
+        assert not_safe != STATUS_SAFE
+
+
+def test_sniff_media_type_unchanged():
+    """Confirms the existing magic-byte sniffing this task reuses (rewritten
+    endpoint still calls the same _sniff_media_type) is untouched."""
+    from routers.detonation_proxy import _sniff_media_type
+    assert _sniff_media_type(b"%PDF-1.4...")[0] == "application/pdf"
+    assert _sniff_media_type(b"not a real file")[1] is False

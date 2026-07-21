@@ -3,10 +3,14 @@
 Everything the analyst's browser needs from the detonation subsystem, served
 same-origin so the strict CSP stays intact:
 
-  - GET  /api/emails/{email_id}/attachments/{att_id}/raw  — stored attachment
-    bytes for the preview pane. att_id is the PendingDetonation row id (the
-    only place stored_path is persisted). Content-type is forced from magic
-    bytes — the declared type and filename are hostile data (CLAUDE.md 6+7).
+  - GET  /api/emails/{email_id}/attachments/{attachment_id}/raw  — stored
+    attachment bytes for the preview pane, ONLY for attachments verified
+    safe by CAPE (see attachments.attachment_safety_status). attachment_id
+    is the Attachment row id. Content-type is forced from magic bytes — the
+    declared type and filename are hostile data (CLAUDE.md 6+7).
+  - POST /api/emails/{email_id}/attachments/{attachment_id}/insist  — analyst
+    insists on opening an attachment that isn't verified safe; submits it to
+    CAPE now (on-demand, not the batch queue) and starts a live VM session.
   - GET  /api/detonation/report/{task_id}/{path}  — reverse proxy of CAPE's
     Django report (path-allowlisted; never an open proxy into CAPE).
   - WS   /ws/vnc/{task_id} — relay to websockify on imania, open only
@@ -65,27 +69,28 @@ def _sniff_media_type(head: bytes) -> tuple[str, bool]:
     return "application/octet-stream", False
 
 
-@detonation_proxy_router.get("/api/emails/{email_id}/attachments/{att_id}/raw")
+@detonation_proxy_router.get("/api/emails/{email_id}/attachments/{attachment_id}/raw")
 def api_attachment_raw(
-    email_id: int, att_id: int,
+    email_id: int, attachment_id: int,
     user: AuthenticatedUser = Depends(require_permission("emails.view")),
 ):
-    """Serve the stored attachment bytes for the detail-page preview pane."""
-    from database import SessionLocal, PendingDetonation
+    """Serve stored attachment bytes for the detail-page preview pane —
+    ONLY for attachments verified safe by CAPE detonation. Anything else
+    (unverified, pending, or confirmed unsafe) is blocked here; the analyst
+    must use POST .../insist to view it live in the VM instead."""
+    from database import SessionLocal
+    from attachments import resolve_attachment, STATUS_SAFE
     db = SessionLocal()
     try:
-        row = (
-            db.query(PendingDetonation)
-            .filter(PendingDetonation.id == att_id,
-                    PendingDetonation.email_id == email_id)
-            .first()
-        )
-        stored_path = row.stored_path if row else None
+        resolved = resolve_attachment(db, email_id, attachment_id)
+        if not resolved["found"]:
+            raise HTTPException(404, "Attachment not found")
+        if resolved["status"] != STATUS_SAFE:
+            raise HTTPException(403, detail={"status": resolved["status"]})
+        stored_path = resolved["attachment"].stored_path
     finally:
         db.close()
 
-    if not stored_path:
-        raise HTTPException(404, "Attachment not found")
     stored = os.path.realpath(stored_path)
     if not os.path.isfile(stored):
         raise HTTPException(404, "Original file no longer available")
@@ -99,7 +104,7 @@ def api_attachment_raw(
         media_type=media_type,
         headers={
             # Internal id, never the attacker-provided filename (rule 6)
-            "Content-Disposition": f'{disposition}; filename="attachment-{att_id}"',
+            "Content-Disposition": f'{disposition}; filename="attachment-{attachment_id}"',
             "X-Content-Type-Options": "nosniff",
         },
     )
