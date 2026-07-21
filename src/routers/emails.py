@@ -17,6 +17,7 @@ from reporting import generate_report
 from fastapi import Depends
 from api_core import ws_manager, mask_pii, verify_auth, require_permission, AuthenticatedUser
 from metrics import db_connected, ollama_available, get_metrics_text
+from attachments import attachment_safety_status
 
 emails_router = APIRouter()
 _scan_lock = asyncio.Lock()
@@ -259,6 +260,7 @@ async def api_get_email(email_id: int, user: AuthenticatedUser = Depends(require
                 }
                 for r in det_rows
             ],
+            "attachments": _serialize_attachments(db, email_id),
             "llm_result": email.llm_result,
             "llm_reasoning": email.llm_reasoning,
             "settlement_confirmed": bool(urgency_row.settlement_confirmed) if urgency_row else False,
@@ -858,6 +860,28 @@ async def api_health_alerts(limit: int = Query(50, ge=1, le=500), user: Authenti
 # ---------------------------------------------------------------------------
 # REST API — Detonation sandbox status
 # ---------------------------------------------------------------------------
+
+def _serialize_attachments(db, email_id: int) -> list[dict]:
+    """Every attachment for this email with its live-computed safety status."""
+    from database import Attachment
+    rows = (
+        db.query(Attachment)
+        .filter(Attachment.email_id == email_id)
+        .order_by(Attachment.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": a.id,
+            "filename": a.filename,
+            "sha256": a.sha256,
+            "real_type": a.real_type,
+            "size_bytes": a.size_bytes,
+            "status": attachment_safety_status(db, a.sha256),
+        }
+        for a in rows
+    ]
+
 
 def _manual_ready_rows(db) -> list[dict]:
     """Branch-B rows awaiting operator confirmation (status 'ready', no email)."""
