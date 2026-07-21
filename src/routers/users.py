@@ -103,7 +103,10 @@ async def api_create_user(
             body.password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
 
-        # Generate TOTP secret
+        # Generate TOTP secret. The plaintext seed is used to build the
+        # provisioning URI returned to the admin ONCE; only the encrypted form
+        # is persisted (SEC-H2).
+        from vault import encrypt_field
         totp_secret = pyotp.random_base32()
         totp_uri = pyotp.TOTP(totp_secret).provisioning_uri(
             name=body.username, issuer_name="Attijari SOC"
@@ -123,7 +126,7 @@ async def api_create_user(
         user = User(
             username=body.username,
             password_hash=hashed,
-            totp_secret=totp_secret,
+            totp_secret=encrypt_field(totp_secret),
             role=body.role,
             permissions=perms,
             created_by=admin.username,
@@ -264,11 +267,12 @@ async def api_reset_totp(
         if not user:
             raise HTTPException(404, "User not found")
 
+        from vault import encrypt_field
         new_secret = pyotp.random_base32()
         totp_uri = pyotp.TOTP(new_secret).provisioning_uri(
             name=user.username, issuer_name="Attijari SOC"
         )
-        user.totp_secret = new_secret
+        user.totp_secret = encrypt_field(new_secret)
 
         add_audit_entry(
             db, action="user_totp_reset", actor=admin.username,

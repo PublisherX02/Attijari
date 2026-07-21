@@ -1,0 +1,92 @@
+{
+  "experiment": "e2_scale_test",
+  "hypothesis": "Larger models make different errors, not fewer. Error rate does not converge to zero.",
+  "models_tested": 3,
+  "corpus_size": 47,
+  "results": [
+    {
+      "label": "ollama:gemma3:4b",
+      "model": {
+        "provider": "ollama",
+        "model": "gemma3:4b",
+        "params": "4B",
+        "type": "local"
+      },
+      "metrics": {
+        "accuracy": 0.8297872340425532,
+        "precision": 0.8297872340425532,
+        "recall": 1.0,
+        "f1": 0.9069767441860465,
+        "confusion_matrix": [
+          [
+            0,
+            8
+          ],
+          [
+            0,
+            39
+          ]
+        ]
+      },
+      "avg_latency_s": 8.951,
+      "fn_count": 0,
+      "false_negatives": []
+    },
+    {
+      "label": "ollama:qwen3:8b",
+      "model": {
+        "provider": "ollama",
+        "model": "qwen3:8b",
+        "params": "8B",
+        "type": "local"
+      },
+      "metrics": {
+        "accuracy": 0.8297872340425532,
+        "precision": 0.8297872340425532,
+        "recall": 1.0,
+        "f1": 0.9069767441860465,
+        "confusion_matrix": [
+          [
+            0,
+            8
+          ],
+          [
+            0,
+            39
+          ]
+        ]
+      },
+      "avg_latency_s": 0.0,
+      "fn_count": 0,
+      "false_negatives": []
+    },
+    {
+      "label": "nvidia:meta/llama-3.3-70b-instruct",
+      "model": {
+        "provider": "nvidia",
+        "model": "meta/llama-3.3-70b-instruct",
+        "params": "70B",
+        "type": "cloud"
+      },
+      "metrics": {
+        "accuracy": 0.8297872340425532,
+        "precision": 0.8297872340425532,
+        "recall": 1.0,
+        "f1": 0.9069767441860465,
+        "confusion_matrix": [
+          [
+            0,
+            8
+          ],
+          [
+            0,
+            39
+          ]
+        ]
+      },
+      "avg_latency_s": 22.014,
+      "fn_count": 0,
+      "false_negatives": []
+    }
+  ]
+}

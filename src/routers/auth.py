@@ -1,4 +1,5 @@
 import os
+import secrets
 import bcrypt
 import pyotp
 import jwt
@@ -61,7 +62,10 @@ async def login_post(request: Request, username: str = Form(...), password: str 
     if not user.totp_secret:
         # MFA is mandatory — reject users without TOTP configured
         return templates.TemplateResponse(request, "login.html", {"request": request, "error": "MFA not configured. Contact administrator."})
-    totp_obj = pyotp.TOTP(user.totp_secret)
+    # totp_secret is encrypted at rest (SEC-H2); decrypt_field transparently
+    # handles legacy plaintext rows so login works before the migration runs.
+    from vault import decrypt_field
+    totp_obj = pyotp.TOTP(decrypt_field(user.totp_secret))
     if not totp_obj.verify(totp, valid_window=0):
         return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Invalid MFA code"})
     # Prevent TOTP replay — reject codes already used in this 30s window
@@ -79,6 +83,7 @@ async def login_post(request: Request, username: str = Form(...), password: str 
     payload = {
         "sub": username,
         "role": user.role or "viewer",
+        "jti": secrets.token_urlsafe(16),  # unique id so this token can be revoked (SEC-H3)
         "exp": datetime.now(timezone.utc) + timedelta(hours=8)
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)

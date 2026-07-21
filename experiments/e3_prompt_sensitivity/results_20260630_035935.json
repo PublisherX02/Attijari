@@ -1,0 +1,3046 @@
+{
+  "experiment": "e3_prompt_sensitivity",
+  "provider": "ollama",
+  "model": "gemma3:4b",
+  "n_emails": 47,
+  "n_variants": 6,
+  "variant_names": [
+    "baseline",
+    "safety_first",
+    "minimal",
+    "english_verdict",
+    "roleplay_soc",
+    "reversed_order"
+  ],
+  "variant_metrics": {
+    "baseline": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    },
+    "safety_first": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    },
+    "minimal": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    },
+    "english_verdict": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    },
+    "roleplay_soc": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    },
+    "reversed_order": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    }
+  },
+  "pairwise_agreement": [
+    [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  ],
+  "baseline_agreements": {
+    "baseline": 1.0,
+    "safety_first": 1.0,
+    "minimal": 1.0,
+    "english_verdict": 1.0,
+    "roleplay_soc": 1.0,
+    "reversed_order": 1.0
+  },
+  "per_email": [
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "malicious",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "benign",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "benign",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "benign",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "benign",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "benign",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "benign",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "benign",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    },
+    {
+      "id": "unknown",
+      "expected": "benign",
+      "category": "unknown",
+      "variants": [
+        {
+          "variant": "baseline",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "safety_first",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "minimal",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "english_verdict",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "roleplay_soc",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        },
+        {
+          "variant": "reversed_order",
+          "verdict": "reject",
+          "score_risque": 95,
+          "confiance": 0.95,
+          "binary": "malicious",
+          "error": null
+        }
+      ],
+      "unique_verdicts": [
+        "reject"
+      ],
+      "agreement_rate": 1.0,
+      "is_stable": true,
+      "binary_stable": true
+    }
+  ]
+}

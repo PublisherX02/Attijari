@@ -51,6 +51,12 @@ CAPE_MALSCORE_SUSPICIOUS = float(os.getenv("CAPE_MALSCORE_SUSPICIOUS", "3.0"))
 # --------------------------------------------------------------------------
 # Which file types are worth detonating
 # --------------------------------------------------------------------------
+# CAPE's "image" analysis package (analyzer/windows/modules/packages/image.py,
+# deployed on attijari 2026-07-16) is what makes these detonable at all — CAPE
+# has no built-in detection for images and aborts them without it. cape_client
+# passes package=image for these extensions when submitting.
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".ico", ".webp"}
+
 SUPPORTED_EXTENSIONS = {
     ".exe", ".scr", ".com", ".bat", ".cmd", ".ps1",
     ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
@@ -60,7 +66,7 @@ SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".zip", ".rar", ".7z",
     ".lnk", ".jar",
-}
+} | IMAGE_EXTENSIONS
 
 # --------------------------------------------------------------------------
 # Manual-detonation page: the FULL set CAPEv2 can detonate (broader than the
@@ -77,7 +83,7 @@ _DEFAULT_CAPE_DETONABLE = {
     ".pdf", ".ppt", ".pptm", ".pptx", ".ps1", ".pub", ".pubx", ".py", ".rar",
     ".reg", ".scr", ".sct", ".swf", ".vbs", ".vbe", ".wsf",
     ".xls", ".xlsm", ".xlsx", ".xslt", ".xps", ".zip",
-}
+} | IMAGE_EXTENSIONS
 _env_ext = os.getenv("CAPE_DETONABLE_EXTENSIONS", "").strip()
 CAPE_DETONABLE_EXTENSIONS = (
     {e if e.startswith(".") else "." + e for e in

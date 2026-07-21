@@ -1,0 +1,26 @@
+\begin{table}[htbp]
+\centering
+\caption{Signal Weight Sensitivity Analysis (One-at-a-Time)}
+\label{tab:weight-sensitivity}
+\begin{tabular}{lcccc}
+\toprule
+Signal & Default $w$ & F1 Range & F1 at $w$=0 & F1 at $w$=2$\times$ \\
+\midrule
+  extraction\_flag & 15 & 0.7033 & 0.000 & 0.703 \\
+  spf\_fail & 10 & 0.3793 & 0.127 & 0.506 \\
+  dkim\_fail & 10 & 0.3793 & 0.127 & 0.506 \\
+  dmarc\_fail & 8 & 0.3793 & 0.127 & 0.506 \\
+  domain\_new & 20 & 0.1465 & 0.066 & 0.212 \\
+  virustotal\_detected & 30 & 0.0000 & 0.127 & 0.127 \\
+  threatfox\_match & 25 & 0.0000 & 0.127 & 0.127 \\
+  abuseipdb\_malicious & 15 & 0.0000 & 0.127 & 0.127 \\
+  abuseipdb\_suspicious & 8 & 0.0000 & 0.127 & 0.127 \\
+  otx\_match & 12 & 0.0000 & 0.127 & 0.127 \\
+  dnstwist\_typosquat & 25 & 0.0000 & 0.127 & 0.127 \\
+  domain\_very\_new & 10 & 0.0000 & 0.127 & 0.127 \\
+  llama\_guard\_flag & 5 & 0.0000 & 0.127 & 0.127 \\
+  encrypted\_attachment & 12 & 0.0000 & 0.127 & 0.127 \\
+  vt\_unknown\_hash & 3 & 0.0000 & 0.127 & 0.127 \\
+\bottomrule
+\end{tabular}
+\end{table}

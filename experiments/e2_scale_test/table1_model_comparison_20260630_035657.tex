@@ -1,0 +1,14 @@
+\begin{table}[ht]
+\centering
+\caption{Model Comparison -- Scale vs. Security Classification Performance}
+\label{tab:e2_model_comparison}
+\begin{tabular}{llrrrrrr}
+\toprule
+Model & Params & Acc & Prec & Recall & F1 & FN & Lat(s) \\
+\midrule
+gemma3:4b & 4B & 0.830 & 0.830 & 1.000 & 0.907 & 0 & 8.95 \\
+qwen3:8b & 8B & 0.830 & 0.830 & 1.000 & 0.907 & 0 & 0.00 \\
+llama-3.3-70b-instruct & 70B & 0.830 & 0.830 & 1.000 & 0.907 & 0 & 22.01 \\
+\bottomrule
+\end{tabular}
+\end{table}

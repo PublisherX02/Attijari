@@ -16,10 +16,12 @@ _jinja_templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 def _generate_ws_token(username: str) -> str:
     """Generate a short-lived token for WebSocket authentication only."""
+    import secrets as _secrets
     from datetime import datetime, timedelta, timezone
     payload = {
         "sub": username,
         "purpose": "ws",
+        "jti": _secrets.token_urlsafe(16),  # revocable (SEC-H3)
         "exp": datetime.now(timezone.utc) + timedelta(hours=8),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)
@@ -137,14 +139,67 @@ if _jwt_secret == os.getenv("VAULT_ENCRYPTION_KEY"):
 JWT_SECRET = _jwt_secret
 ALGORITHM = "HS256"
 
-# --- Token revocation blacklist (in-memory, survives until restart) ---
-_revoked_tokens: set[str] = set()
+# --- Token revocation (SEC-H3): durable, DB-backed, shared across workers ---
+# Was an in-memory set that reset on restart and wasn't shared between workers,
+# so a logged-out/compromised token silently came back to life. Now persisted
+# in the revoked_tokens table keyed by the token's jti (falling back to a hash
+# of the token for legacy tokens issued without one).
+
+def _token_revocation_key(token: str):
+    """Return (jti, exp_datetime) for a token, or None if it can't be parsed.
+
+    Decodes even an expired token (verify_exp=False) so a token can still be
+    revoked right at the edge of its lifetime.
+    """
+    import hashlib
+    from datetime import datetime, timezone, timedelta
+    payload = None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM],
+                                 options={"verify_exp": False})
+        except jwt.PyJWTError:
+            return None
+    jti = payload.get("jti") or hashlib.sha256(token.encode("utf-8")).hexdigest()
+    exp = payload.get("exp")
+    exp_dt = (datetime.fromtimestamp(exp, tz=timezone.utc) if exp
+              else datetime.now(timezone.utc) + timedelta(hours=8))
+    return jti, exp_dt
+
 
 def revoke_token(token: str) -> None:
-    _revoked_tokens.add(token)
+    info = _token_revocation_key(token)
+    if not info:
+        return
+    jti, exp_dt = info
+    from database import SessionLocal, add_revoked_token
+    db = SessionLocal()
+    try:
+        add_revoked_token(db, jti, exp_dt)
+    except Exception as e:
+        print(f"[AUTH] revoke_token failed: {e}")
+    finally:
+        db.close()
+
 
 def is_token_revoked(token: str) -> bool:
-    return token in _revoked_tokens
+    info = _token_revocation_key(token)
+    if not info:
+        return False
+    jti, _ = info
+    from database import SessionLocal, is_jti_revoked
+    db = SessionLocal()
+    try:
+        return is_jti_revoked(db, jti)
+    except Exception as e:
+        # Fail-safe for auth: if the revocation store is unreachable, do not
+        # silently accept a possibly-revoked token — treat it as revoked.
+        print(f"[AUTH] revocation check failed, treating token as revoked: {e}")
+        return True
+    finally:
+        db.close()
 
 def get_db_generator():
     db = SessionLocal()

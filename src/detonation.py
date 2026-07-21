@@ -158,7 +158,9 @@ def _resume_vm() -> bool:
             _preflight_cuckoo2()
         return ok
     print(f"[DETONATION] Resuming CAPE VM '{cfg.CAPE_VM_NAME}'...")
-    _run(cfg.VM_RESUME_CMD, timeout=120)
+    if not _run(cfg.VM_RESUME_CMD, timeout=120):
+        print(f"[DETONATION] VM resume command failed — '{cfg.CAPE_VM_NAME}' was likely never started "
+              f"(check Hyper-V permissions for the account running this process)")
     if not cape_client.wait_until_ready(cfg.CAPE_READY_TIMEOUT):
         print("[DETONATION] CAPE API did not become ready after VM resume")
         return False
@@ -247,10 +249,22 @@ def process_detonation_queue() -> dict[str, Any]:
     Returns a summary dict. Guaranteed to restore the pipeline via the watchdog
     pattern (try/finally) regardless of how any single detonation fails.
     """
-    from database import SessionLocal, get_queued_detonations, count_queued_detonations
+    from database import (
+        SessionLocal, get_queued_detonations, count_queued_detonations,
+        recover_stale_running_detonations,
+    )
 
     db = SessionLocal()
     try:
+        # A 'running' row can only legitimately stay that way for one drain
+        # cycle; anything older survived a crashed/restarted server process
+        # and would otherwise block re-queueing the same file forever
+        # (enqueue_detonation de-dupes on queued/running). Opportunistic
+        # cleanup — must never break the drain, so a failure here is swallowed.
+        try:
+            recover_stale_running_detonations(db, cfg.DETONATION_CYCLE_TIMEOUT + 300)
+        except Exception as _rec_err:
+            print(f"[DETONATION] stale-row recovery skipped: {_rec_err}")
         if count_queued_detonations(db) == 0:
             return {"processed": 0, "status": "empty"}
     finally:

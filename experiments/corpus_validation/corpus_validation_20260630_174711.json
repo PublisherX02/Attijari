@@ -1,0 +1,1298 @@
+{
+  "timestamp": "20260630_174711",
+  "config": {
+    "llm_enabled": true,
+    "limit_per_category": 25
+  },
+  "corpus_summary": {
+    "Synthetic_Malicious": {
+      "count": 39,
+      "expected": {
+        "malicious": 39
+      }
+    },
+    "Synthetic_Benign": {
+      "count": 8,
+      "expected": {
+        "benign": 8
+      }
+    },
+    "SpamAssassin": {
+      "count": 50,
+      "expected": {
+        "benign": 25,
+        "malicious": 25
+      }
+    },
+    "Nazario": {
+      "count": 25,
+      "expected": {
+        "malicious": 25
+      }
+    }
+  },
+  "overall_metrics": {
+    "accuracy": 0.8524590163934426,
+    "precision": 0.8514851485148515,
+    "recall": 0.9662921348314607,
+    "f1": 0.9052631578947369,
+    "confusion_matrix": [
+      [
+        18,
+        15
+      ],
+      [
+        3,
+        86
+      ]
+    ]
+  },
+  "per_source": {
+    "Synthetic_Malicious": 0.9743589743589743,
+    "Synthetic_Benign": 0.875,
+    "SpamAssassin": 0.72,
+    "Nazario": 0.92
+  },
+  "per_email": [
+    {
+      "name": "OLE_VBA_macro_doc",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 4.0,
+      "deterministic": true
+    },
+    {
+      "name": "PDF_javascript_launch",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "PE_as_PDF_type_mismatch",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "encrypted_zip_password_in_body",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.03,
+      "deterministic": true
+    },
+    {
+      "name": "OOXML_remote_template",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.07,
+      "deterministic": true
+    },
+    {
+      "name": "HTML_smuggling",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.1,
+      "deterministic": true
+    },
+    {
+      "name": "SVG_embedded_script",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.1,
+      "deterministic": true
+    },
+    {
+      "name": "ISO_with_LNK_payload",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "polyglot_PDF_JAR",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "spear_phish_credential_harvest",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "CEO_wire_fraud",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "double_extension_screensaver",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.06,
+      "deterministic": true
+    },
+    {
+      "name": "qr_code_phishing",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 42.32,
+      "deterministic": false
+    },
+    {
+      "name": "DDE_exploit_docx",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 6.44,
+      "deterministic": false
+    },
+    {
+      "name": "RTF_embedded_OLE",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.12,
+      "deterministic": true
+    },
+    {
+      "name": "OneNote_embedded_payload",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.1,
+      "deterministic": true
+    },
+    {
+      "name": "zip_bomb_timeout",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 6.45,
+      "deterministic": false
+    },
+    {
+      "name": "steganography_payload",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.36,
+      "deterministic": true
+    },
+    {
+      "name": "standalone_LNK_shortcut",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.17,
+      "deterministic": true
+    },
+    {
+      "name": "HTA_application",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.2,
+      "deterministic": true
+    },
+    {
+      "name": "PDF_phishing_url_only",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.29,
+      "deterministic": true
+    },
+    {
+      "name": "XLL_excel_addin",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.24,
+      "deterministic": true
+    },
+    {
+      "name": "MHTML_credential_harvester",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.02,
+      "deterministic": false
+    },
+    {
+      "name": "xlsm_obfuscated_macro",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.99,
+      "deterministic": false
+    },
+    {
+      "name": "ICS_calendar_phishing",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.21,
+      "deterministic": false
+    },
+    {
+      "name": "spoofed_reply_chain",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.69,
+      "deterministic": false
+    },
+    {
+      "name": "zero_width_unicode_evasion",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "homoglyph_domain_phishing",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "CHM_help_file_exploit",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.09,
+      "deterministic": true
+    },
+    {
+      "name": "PPSX_autoplay_OLE",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.39,
+      "deterministic": false
+    },
+    {
+      "name": "nested_zip_evasion",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.39,
+      "deterministic": false
+    },
+    {
+      "name": "VHD_virtual_disk_payload",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.15,
+      "deterministic": true
+    },
+    {
+      "name": "base64_powershell_txt",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.06,
+      "deterministic": true
+    },
+    {
+      "name": "WSF_script_dropper",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "CPL_control_panel",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.06,
+      "deterministic": true
+    },
+    {
+      "name": "PDF_launch_embedded_exe",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "thread_hijack_BEC",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": true
+    },
+    {
+      "name": "polyglot_PDF_PE",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "polyglot_OLE_PDF_PE",
+      "source": "Synthetic_Malicious",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.08,
+      "deterministic": true
+    },
+    {
+      "name": "legitimate_invoice",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.77,
+      "deterministic": false
+    },
+    {
+      "name": "linkedin_notification",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.24,
+      "deterministic": false
+    },
+    {
+      "name": "marketing_promo",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "proposed_reject",
+      "correct": false,
+      "elapsed_s": 6.69,
+      "deterministic": true
+    },
+    {
+      "name": "github_notification",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.37,
+      "deterministic": false
+    },
+    {
+      "name": "conference_registration",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.71,
+      "deterministic": false
+    },
+    {
+      "name": "internal_team_doc",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.09,
+      "deterministic": false
+    },
+    {
+      "name": "delivery_notification",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.33,
+      "deterministic": false
+    },
+    {
+      "name": "newsletter_multilink",
+      "source": "Synthetic_Benign",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.02,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00001.7c53336b37003a9286aba55d2945844c",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 8.26,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00002.9c4069e25e1ef370c078db7ee85ff9ac",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 7.32,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00003.860e3c3cee1b42ead714c5c874fe25f7",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 9.41,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00004.864220c5b6930b209cc287c361c99af1",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 8.58,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00005.bf27cdeaf0b8c4647ecd61b1d09da613",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 7.38,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00006.253ea2f9a9cc36fa0b1129b04b806608",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 7.1,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00007.37a8af848caae585af4fe35779656d55",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 8.21,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00008.5891548d921601906337dcf1ed8543cb",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 8.67,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00009.371eca25b0169ce5cb4f71d3e07b9e2d",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 9.73,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00010.145d22c053c1a0c410242e46c01635b3",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 8.17,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00011.fbcde1b4833bdbaaf0ced723edd6e355",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 7.18,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00012.48a387bc38d1316a6f6b49e8c2e43a03",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 7.69,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00013.81c34741dbed59c6dde50777e27e7ea3",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 7.17,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00014.cb20e10b2bfcb8210a1c310798532a57",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 8.65,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00015.4d7026347ba7478c9db04c70913e68fd",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 7.19,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00016.ef397cef16f8041242e3b6560e168053",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 7.39,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00017.08ef2d89f14cf7e2a458b80697eb1837",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 9.08,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00018.6fee38026193b5adde4b56892a6f14bc",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 7.06,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00019.5322cb10d8819b39499924d852819c27",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.94,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00020.d10651e31fcb92630c6229ec773cfe26",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.59,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00021.607c41268c5b0d66e81b58713a66d12c",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 8.25,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00022.48098f942c31097d2ef605df44dd8593",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.65,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00023.e0e815ea1d7fd40e7e70b4c0035bef0c",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": false,
+      "elapsed_s": 8.51,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00024.59c2cb781c60594315241e2b50ea70e2",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 8.49,
+      "deterministic": false
+    },
+    {
+      "name": "SA_ham_00025.d685245bdc4444f44fa091e6620b20b3",
+      "source": "SpamAssassin",
+      "expected": "benign",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": true,
+      "elapsed_s": 6.67,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00001.317e78fa8ee2f54cd4890fdc09ba8176",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 9.91,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00002.9438920e9a55591b18e60d1ed37d992b",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00003.590eff932f8704d8b0fcbe69d023b54d",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00004.bdcc075fa4beb5157b5dd6cd41d8887b",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00005.ed0aba4d386c5e62bc737cf3f0ed9589",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.02,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00006.3ca1f399ccda5d897fecb8c57669a283",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 0.01,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00151.6abbf42bc1bfb6c36b749372da0cffae",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.43,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00008.ccf927a6aec028f5472ca7b9db9eee20",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 20.14,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00009.1e1a8cb4b57532ab38aa23287523659d",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 11.74,
+      "deterministic": true
+    },
+    {
+      "name": "SA_spam_00010.2558d935f6439cb40d3acb8b8569aa9b",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.07,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00011.bd8c904d9f7b161a813d222230214d50",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.29,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00012.cb9c9f2a25196f5b16512338625a85b4",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 9.41,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00013.372ec9dc663418ca71f7d880a76f117a",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 10.23,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00014.13574737e55e51fe6737a475b88b5052",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.98,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00015.206d5a5d1d34272ae32fc286788fdf55",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.19,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00016.4fb07c8dff1a5a2b4889dc5024c55023",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 17.22,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00017.6430f3b8dedf51ba3c3fcb9304e722e7",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 9.24,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00018.336cb9e7b0358594cf002e7bf669eaf5",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 9.45,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00019.86ce6f6c2e9f4ae0415860fecdf055db",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.73,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00020.7d36d16fd2be07c4f6a5616590cdea07",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 22.79,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00021.07d9ab534bbfba9020145659008a3a14",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 9.35,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00022.be66c630a142f0d862c2294a2d911ce1",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.5,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00023.5bec0fc32cfc42c9cc5c941d94258567",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.35,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00024.621bea2c6e0ebb2eb7ac00a38dfe6b00",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 9.94,
+      "deterministic": false
+    },
+    {
+      "name": "SA_spam_00025.9054470cb5193db2955a4d4a003698d6",
+      "source": "SpamAssassin",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 9.63,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_0",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.64,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_1",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.65,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_2",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.91,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_3",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.57,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_4",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.65,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_5",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.71,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_6",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.65,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_7",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.74,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_8",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.59,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_9",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.06,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_10",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.99,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_11",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.02,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_12",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.26,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_13",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.08,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_14",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 5.98,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_15",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.89,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_16",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "benign",
+      "pipeline_status": "accepted",
+      "correct": false,
+      "elapsed_s": 6.28,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_17",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.21,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_18",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.6,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_19",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.88,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_20",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.09,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_21",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.75,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_22",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 8.07,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_23",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.27,
+      "deterministic": false
+    },
+    {
+      "name": "nazario_phish_24",
+      "source": "Nazario",
+      "expected": "malicious",
+      "predicted": "malicious",
+      "pipeline_status": "escalated",
+      "correct": true,
+      "elapsed_s": 7.25,
+      "deterministic": false
+    }
+  ],
+  "misclassified": [
+    "DDE_exploit_docx",
+    "marketing_promo",
+    "SA_ham_00001.7c53336b37003a9286aba55d2945844c",
+    "SA_ham_00002.9c4069e25e1ef370c078db7ee85ff9ac",
+    "SA_ham_00003.860e3c3cee1b42ead714c5c874fe25f7",
+    "SA_ham_00004.864220c5b6930b209cc287c361c99af1",
+    "SA_ham_00007.37a8af848caae585af4fe35779656d55",
+    "SA_ham_00008.5891548d921601906337dcf1ed8543cb",
+    "SA_ham_00009.371eca25b0169ce5cb4f71d3e07b9e2d",
+    "SA_ham_00010.145d22c053c1a0c410242e46c01635b3",
+    "SA_ham_00011.fbcde1b4833bdbaaf0ced723edd6e355",
+    "SA_ham_00012.48a387bc38d1316a6f6b49e8c2e43a03",
+    "SA_ham_00014.cb20e10b2bfcb8210a1c310798532a57",
+    "SA_ham_00017.08ef2d89f14cf7e2a458b80697eb1837",
+    "SA_ham_00021.607c41268c5b0d66e81b58713a66d12c",
+    "SA_ham_00023.e0e815ea1d7fd40e7e70b4c0035bef0c",
+    "nazario_phish_14",
+    "nazario_phish_16"
+  ]
+}

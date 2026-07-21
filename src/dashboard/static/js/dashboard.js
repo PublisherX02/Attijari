@@ -721,7 +721,7 @@ async function refreshDetonationPanel(emailId) {
     } catch (_) { /* transient — next tick retries */ }
 }
 
-async function mountNoVnc(container, taskId) {
+async function mountNoVnc(container, taskId, onFail) {
     try {
         if (_activeRfb) { try { _activeRfb.disconnect(); } catch (_) {} _activeRfb = null; }
         const mod = await import('/static/novnc/core/rfb.js');
@@ -736,11 +736,17 @@ async function mountNoVnc(container, taskId) {
             if (!ev.detail.clean) {
                 container.innerHTML = `<div class="sandbox-empty"><p>Sandbox view unavailable
                     (window closed or relay refused). The verdict is unaffected.</p></div>`;
+                // Retry on the next status poll instead of staying stuck: the VM is
+                // often still booting (websockify not listening yet) when the first
+                // connection attempt lands, and the window can stay active for
+                // minutes after that transient failure.
+                if (onFail) onFail();
             }
         });
         _activeRfb = rfb;
     } catch (err) {
         container.innerHTML = `<div class="sandbox-empty"><p>Sandbox view unavailable: ${esc(err.message)}</p></div>`;
+        if (onFail) onFail();
     }
 }
 
@@ -776,7 +782,8 @@ async function openSandboxViewer(taskId) {
         if (st.window_active && running > 0) {
             if (!mounted) {
                 body.innerHTML = '<div class="sandbox-live" id="sandbox-viewer-screen"></div>';
-                mountNoVnc(document.getElementById('sandbox-viewer-screen'), parseInt(taskId) || 0);
+                mountNoVnc(document.getElementById('sandbox-viewer-screen'), parseInt(taskId) || 0,
+                    () => { mounted = false; });
                 mounted = true;
             }
         } else if (st.window_active) {

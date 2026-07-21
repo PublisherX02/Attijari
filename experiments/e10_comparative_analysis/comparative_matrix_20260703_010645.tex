@@ -1,0 +1,19 @@
+\begin{table}[h]
+\centering
+\caption{Comparative Analysis: Trust No Email vs Baselines (gemma3:4b)}
+\label{tab:e10_comparative}
+\begin{tabular}{l r r r r r r}
+\hline
+Approach & Accuracy & Precision & Recall & F1 & FN & FP \\
+\hline
+Naive Keyword & 0.444 & 0.625 & 0.169 & 0.267 & 49 & 6 \\
+Header-Auth Only & 0.586 & 1.000 & 0.305 & 0.468 & 41 & 0 \\
+Rules Engine Only & 0.535 & 0.933 & 0.237 & 0.378 & 45 & 1 \\
+LLM Only & 0.758 & 0.716 & 0.983 & 0.829 & 1 & 23 \\
+SpamAssassin-style & 0.515 & 0.923 & 0.203 & 0.333 & 47 & 1 \\
+\textbf{Full Pipeline (TNE)} & \textbf{0.990} & \textbf{0.983} & \textbf{1.000} & \textbf{0.992} & \textbf{0} & \textbf{1} \\
+\hline
+\end{tabular}
+\vspace{2mm}
+\footnotesize{FN = false negatives (missed threats); FP = false positives (benign flagged). Full Pipeline (TNE) = Trust No Email multi-stage deterministic pipeline.}
+\end{table}

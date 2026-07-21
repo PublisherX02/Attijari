@@ -1,0 +1,2211 @@
+{
+  "guard_records": [
+    {
+      "email_id": "OLE_VBA_macro_doc",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 162,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "PDF_javascript_launch",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 126,
+      "category": "PDF"
+    },
+    {
+      "email_id": "PE_as_PDF_type_mismatch",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 104,
+      "category": "PDF"
+    },
+    {
+      "email_id": "encrypted_zip_password_in_body",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 173,
+      "category": "Archive/Container"
+    },
+    {
+      "email_id": "OOXML_remote_template",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 122,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "HTML_smuggling",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 117,
+      "category": "HTML/Script"
+    },
+    {
+      "email_id": "SVG_embedded_script",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 69,
+      "category": "HTML/Script"
+    },
+    {
+      "email_id": "ISO_with_LNK_payload",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 81,
+      "category": "Shortcut/Script"
+    },
+    {
+      "email_id": "polyglot_PDF_JAR",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 119,
+      "category": "PDF"
+    },
+    {
+      "email_id": "spear_phish_credential_harvest",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 325,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "CEO_wire_fraud",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 251,
+      "category": "BEC/Social"
+    },
+    {
+      "email_id": "double_extension_screensaver",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 65,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "qr_code_phishing",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 190,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "DDE_exploit_docx",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 120,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "RTF_embedded_OLE",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 119,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "OneNote_embedded_payload",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 126,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "zip_bomb_timeout",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 74,
+      "category": "Archive/Container"
+    },
+    {
+      "email_id": "steganography_payload",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 111,
+      "category": "Evasion"
+    },
+    {
+      "email_id": "standalone_LNK_shortcut",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 118,
+      "category": "Shortcut/Script"
+    },
+    {
+      "email_id": "HTA_application",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 131,
+      "category": "Executable"
+    },
+    {
+      "email_id": "PDF_phishing_url_only",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 138,
+      "category": "PDF"
+    },
+    {
+      "email_id": "XLL_excel_addin",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 128,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "MHTML_credential_harvester",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 94,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "xlsm_obfuscated_macro",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 134,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "ICS_calendar_phishing",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 95,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "spoofed_reply_chain",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 864,
+      "category": "BEC/Social"
+    },
+    {
+      "email_id": "zero_width_unicode_evasion",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 347,
+      "category": "Evasion"
+    },
+    {
+      "email_id": "homoglyph_domain_phishing",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 288,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "CHM_help_file_exploit",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 116,
+      "category": "HTML/Script"
+    },
+    {
+      "email_id": "PPSX_autoplay_OLE",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 117,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "nested_zip_evasion",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 131,
+      "category": "Archive/Container"
+    },
+    {
+      "email_id": "VHD_virtual_disk_payload",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 115,
+      "category": "Archive/Container"
+    },
+    {
+      "email_id": "base64_powershell_txt",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 147,
+      "category": "Evasion"
+    },
+    {
+      "email_id": "WSF_script_dropper",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 131,
+      "category": "Shortcut/Script"
+    },
+    {
+      "email_id": "CPL_control_panel",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 112,
+      "category": "Executable"
+    },
+    {
+      "email_id": "PDF_launch_embedded_exe",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 136,
+      "category": "PDF"
+    },
+    {
+      "email_id": "thread_hijack_BEC",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 363,
+      "category": "BEC/Social"
+    },
+    {
+      "email_id": "polyglot_PDF_PE",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 86,
+      "category": "PDF"
+    },
+    {
+      "email_id": "polyglot_OLE_PDF_PE",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 88,
+      "category": "Office/Macro"
+    },
+    {
+      "email_id": "swift_transfer_phish_FR",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 608,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "coordonnees_bancaires_phish",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 667,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "BEC_vendor_IBAN_change",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 560,
+      "category": "BEC/Social"
+    },
+    {
+      "email_id": "M365_credential_harvest",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 622,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "invoice_fraud_excel",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 473,
+      "category": "Invoice/Billing"
+    },
+    {
+      "email_id": "spear_phish_personal",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 572,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "whaling_board_member",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 813,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "quishing_2FA_reset",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 420,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "supply_chain_compromise",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 629,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "tax_authority_phish_FR",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 638,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "multistage_initial_contact",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 638,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "payroll_credential_harvest",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 477,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "fake_docusign_malicious",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 474,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "fake_helpdesk_remote_access",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 612,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "callback_phishing_vishing",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 551,
+      "category": "Phishing"
+    },
+    {
+      "email_id": "lookalike_domain_attijari",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 573,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "malicious_calendar_invite",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 455,
+      "category": "Calendar"
+    },
+    {
+      "email_id": "fake_antivirus_alert",
+      "expected": "malicious",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 639,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "thread_hijack_attachment",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 429,
+      "category": "BEC/Social"
+    },
+    {
+      "email_id": "crypto_scam_employee",
+      "expected": "malicious",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 721,
+      "category": "Other Malicious"
+    },
+    {
+      "email_id": "legitimate_invoice",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 172,
+      "category": "Invoice/Billing"
+    },
+    {
+      "email_id": "linkedin_notification",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 201,
+      "category": "Social Notification"
+    },
+    {
+      "email_id": "marketing_promo",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 219,
+      "category": "Marketing"
+    },
+    {
+      "email_id": "github_notification",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 166,
+      "category": "Social Notification"
+    },
+    {
+      "email_id": "conference_registration",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 236,
+      "category": "Business Comms"
+    },
+    {
+      "email_id": "internal_team_doc",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 97,
+      "category": "Business Comms"
+    },
+    {
+      "email_id": "delivery_notification",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 193,
+      "category": "Transactional"
+    },
+    {
+      "email_id": "newsletter_multilink",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 285,
+      "category": "Marketing"
+    },
+    {
+      "email_id": "legit_attijari_correspondence",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 507,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_password_reset",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 489,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_2fa_setup",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 420,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_french_newsletter",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 518,
+      "category": "Marketing"
+    },
+    {
+      "email_id": "legit_receipt_ooredoo",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 368,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_meeting_invite",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 478,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_linkedin_connection",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 544,
+      "category": "Social Notification"
+    },
+    {
+      "email_id": "legit_system_report",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 542,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_bct_circular",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 620,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_training_invite",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 727,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_slack_notification",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 308,
+      "category": "Transactional"
+    },
+    {
+      "email_id": "legit_jira_assignment",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 416,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_google_admin_alert",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 588,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_aws_billing",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 405,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_teams_recap",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 443,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_datacamp_certificate",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 550,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_tunisian_gov_circular",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 739,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_supplier_payment_fr",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 571,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_hr_onboarding",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 546,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_apple_receipt",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 448,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_colleague_plain",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 180,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_alumni_newsletter",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 587,
+      "category": "Marketing"
+    },
+    {
+      "email_id": "legit_glovo_delivery",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 419,
+      "category": "Transactional"
+    },
+    {
+      "email_id": "legit_ieee_acceptance",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 551,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_tunisie_telecom_bill",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 420,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_zoom_invite",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 388,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_docusign_real",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 557,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_ovh_monitoring",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 494,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_arabic_newsletter",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 353,
+      "category": "Marketing"
+    },
+    {
+      "email_id": "legit_github_ci",
+      "expected": "benign",
+      "guard_verdict": "unsafe",
+      "guard_binary": "malicious",
+      "body_length": 492,
+      "category": "Social Notification"
+    },
+    {
+      "email_id": "legit_stripe_receipt",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 441,
+      "category": "Other Benign"
+    },
+    {
+      "email_id": "legit_derija_mix",
+      "expected": "benign",
+      "guard_verdict": "safe",
+      "guard_binary": "benign",
+      "body_length": 481,
+      "category": "Other Benign"
+    }
+  ],
+  "guard_metrics": {
+    "accuracy": 0.48484848484848486,
+    "precision": 0.5909090909090909,
+    "recall": 0.4406779661016949,
+    "f1": 0.5048543689320388,
+    "confusion_matrix": [
+      [
+        22,
+        18
+      ],
+      [
+        33,
+        26
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.40      0.55      0.46        40\n   malicious       0.59      0.44      0.50        59\n\n    accuracy                           0.48        99\n   macro avg       0.50      0.50      0.48        99\nweighted avg       0.51      0.48      0.49        99\n",
+    "fp_count": 18,
+    "fn_count": 33,
+    "fp_rate": 0.45,
+    "fn_rate": 0.559322033898305
+  },
+  "fp_by_category": {
+    "Invoice/Billing": {
+      "fp_count": 0,
+      "total_benign": 1,
+      "fp_rate": 0.0
+    },
+    "Social Notification": {
+      "fp_count": 4,
+      "total_benign": 4,
+      "fp_rate": 1.0
+    },
+    "Marketing": {
+      "fp_count": 2,
+      "total_benign": 5,
+      "fp_rate": 0.4
+    },
+    "Business Comms": {
+      "fp_count": 2,
+      "total_benign": 2,
+      "fp_rate": 1.0
+    },
+    "Transactional": {
+      "fp_count": 0,
+      "total_benign": 3,
+      "fp_rate": 0.0
+    },
+    "Other Benign": {
+      "fp_count": 10,
+      "total_benign": 25,
+      "fp_rate": 0.4
+    }
+  },
+  "category_stats": {
+    "Office/Macro": {
+      "total": 9,
+      "fp": 0,
+      "fn": 6,
+      "expected_benign": 0,
+      "expected_malicious": 9
+    },
+    "PDF": {
+      "total": 6,
+      "fp": 0,
+      "fn": 2,
+      "expected_benign": 0,
+      "expected_malicious": 6
+    },
+    "Archive/Container": {
+      "total": 4,
+      "fp": 0,
+      "fn": 2,
+      "expected_benign": 0,
+      "expected_malicious": 4
+    },
+    "HTML/Script": {
+      "total": 3,
+      "fp": 0,
+      "fn": 1,
+      "expected_benign": 0,
+      "expected_malicious": 3
+    },
+    "Shortcut/Script": {
+      "total": 3,
+      "fp": 0,
+      "fn": 3,
+      "expected_benign": 0,
+      "expected_malicious": 3
+    },
+    "Phishing": {
+      "total": 12,
+      "fp": 0,
+      "fn": 7,
+      "expected_benign": 0,
+      "expected_malicious": 12
+    },
+    "BEC/Social": {
+      "total": 5,
+      "fp": 0,
+      "fn": 3,
+      "expected_benign": 0,
+      "expected_malicious": 5
+    },
+    "Other Malicious": {
+      "total": 10,
+      "fp": 0,
+      "fn": 7,
+      "expected_benign": 0,
+      "expected_malicious": 10
+    },
+    "Evasion": {
+      "total": 3,
+      "fp": 0,
+      "fn": 2,
+      "expected_benign": 0,
+      "expected_malicious": 3
+    },
+    "Executable": {
+      "total": 2,
+      "fp": 0,
+      "fn": 0,
+      "expected_benign": 0,
+      "expected_malicious": 2
+    },
+    "Invoice/Billing": {
+      "total": 2,
+      "fp": 0,
+      "fn": 0,
+      "expected_benign": 1,
+      "expected_malicious": 1
+    },
+    "Calendar": {
+      "total": 1,
+      "fp": 0,
+      "fn": 0,
+      "expected_benign": 0,
+      "expected_malicious": 1
+    },
+    "Social Notification": {
+      "total": 4,
+      "fp": 4,
+      "fn": 0,
+      "expected_benign": 4,
+      "expected_malicious": 0
+    },
+    "Marketing": {
+      "total": 5,
+      "fp": 2,
+      "fn": 0,
+      "expected_benign": 5,
+      "expected_malicious": 0
+    },
+    "Business Comms": {
+      "total": 2,
+      "fp": 2,
+      "fn": 0,
+      "expected_benign": 2,
+      "expected_malicious": 0
+    },
+    "Transactional": {
+      "total": 3,
+      "fp": 0,
+      "fn": 0,
+      "expected_benign": 3,
+      "expected_malicious": 0
+    },
+    "Other Benign": {
+      "total": 25,
+      "fp": 10,
+      "fn": 0,
+      "expected_benign": 25,
+      "expected_malicious": 0
+    }
+  },
+  "pipeline_results": {
+    "with_guard": [
+      {
+        "email_id": "OLE_VBA_macro_doc",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "PDF_javascript_launch",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "PE_as_PDF_type_mismatch",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "encrypted_zip_password_in_body",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "OOXML_remote_template",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "HTML_smuggling",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "SVG_embedded_script",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "ISO_with_LNK_payload",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "polyglot_PDF_JAR",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "spear_phish_credential_harvest",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "CEO_wire_fraud",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "double_extension_screensaver",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "qr_code_phishing",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "DDE_exploit_docx",
+        "expected": "malicious",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "RTF_embedded_OLE",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "OneNote_embedded_payload",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "zip_bomb_timeout",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "steganography_payload",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "standalone_LNK_shortcut",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "HTA_application",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "PDF_phishing_url_only",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "XLL_excel_addin",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "MHTML_credential_harvester",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "xlsm_obfuscated_macro",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "ICS_calendar_phishing",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "spoofed_reply_chain",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "zero_width_unicode_evasion",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "homoglyph_domain_phishing",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "CHM_help_file_exploit",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "PPSX_autoplay_OLE",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "nested_zip_evasion",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "VHD_virtual_disk_payload",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "base64_powershell_txt",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "WSF_script_dropper",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "CPL_control_panel",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "PDF_launch_embedded_exe",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "thread_hijack_BEC",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "polyglot_PDF_PE",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "polyglot_OLE_PDF_PE",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "swift_transfer_phish_FR",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "coordonnees_bancaires_phish",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "BEC_vendor_IBAN_change",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "M365_credential_harvest",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "invoice_fraud_excel",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "spear_phish_personal",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "whaling_board_member",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "quishing_2FA_reset",
+        "expected": "malicious",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "supply_chain_compromise",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "tax_authority_phish_FR",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "multistage_initial_contact",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "payroll_credential_harvest",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "fake_docusign_malicious",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "fake_helpdesk_remote_access",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "callback_phishing_vishing",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "lookalike_domain_attijari",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "malicious_calendar_invite",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "fake_antivirus_alert",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "thread_hijack_attachment",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "crypto_scam_employee",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legitimate_invoice",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "linkedin_notification",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "marketing_promo",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "github_notification",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "conference_registration",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "internal_team_doc",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "delivery_notification",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "newsletter_multilink",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_attijari_correspondence",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_password_reset",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_2fa_setup",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_french_newsletter",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_receipt_ooredoo",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_meeting_invite",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_linkedin_connection",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_system_report",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_bct_circular",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_training_invite",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_slack_notification",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_jira_assignment",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_google_admin_alert",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_aws_billing",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_teams_recap",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_datacamp_certificate",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_tunisian_gov_circular",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_supplier_payment_fr",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_hr_onboarding",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_apple_receipt",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_colleague_plain",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_alumni_newsletter",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_glovo_delivery",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_ieee_acceptance",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_tunisie_telecom_bill",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_zoom_invite",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_docusign_real",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_ovh_monitoring",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_arabic_newsletter",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_github_ci",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_stripe_receipt",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_derija_mix",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      }
+    ],
+    "without_guard": [
+      {
+        "email_id": "OLE_VBA_macro_doc",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "PDF_javascript_launch",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "PE_as_PDF_type_mismatch",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "encrypted_zip_password_in_body",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "OOXML_remote_template",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "HTML_smuggling",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "SVG_embedded_script",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "ISO_with_LNK_payload",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "polyglot_PDF_JAR",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "spear_phish_credential_harvest",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "CEO_wire_fraud",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "double_extension_screensaver",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "qr_code_phishing",
+        "expected": "malicious",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "DDE_exploit_docx",
+        "expected": "malicious",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "RTF_embedded_OLE",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "OneNote_embedded_payload",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "zip_bomb_timeout",
+        "expected": "malicious",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "steganography_payload",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "standalone_LNK_shortcut",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "HTA_application",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "PDF_phishing_url_only",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "XLL_excel_addin",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "MHTML_credential_harvester",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "xlsm_obfuscated_macro",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "ICS_calendar_phishing",
+        "expected": "malicious",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "spoofed_reply_chain",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "zero_width_unicode_evasion",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "homoglyph_domain_phishing",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "CHM_help_file_exploit",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "PPSX_autoplay_OLE",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "nested_zip_evasion",
+        "expected": "malicious",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "VHD_virtual_disk_payload",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "base64_powershell_txt",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "WSF_script_dropper",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "CPL_control_panel",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "PDF_launch_embedded_exe",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "thread_hijack_BEC",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "polyglot_PDF_PE",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "polyglot_OLE_PDF_PE",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "swift_transfer_phish_FR",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "coordonnees_bancaires_phish",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "BEC_vendor_IBAN_change",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "M365_credential_harvest",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "invoice_fraud_excel",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "spear_phish_personal",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "whaling_board_member",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "quishing_2FA_reset",
+        "expected": "malicious",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "supply_chain_compromise",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "tax_authority_phish_FR",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "multistage_initial_contact",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "payroll_credential_harvest",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "fake_docusign_malicious",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "fake_helpdesk_remote_access",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "callback_phishing_vishing",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "lookalike_domain_attijari",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "malicious_calendar_invite",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "fake_antivirus_alert",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "thread_hijack_attachment",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "crypto_scam_employee",
+        "expected": "malicious",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legitimate_invoice",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "linkedin_notification",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "marketing_promo",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "github_notification",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "conference_registration",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "internal_team_doc",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "delivery_notification",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "newsletter_multilink",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_attijari_correspondence",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_password_reset",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_2fa_setup",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_french_newsletter",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_receipt_ooredoo",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_meeting_invite",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_linkedin_connection",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_system_report",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_bct_circular",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_training_invite",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_slack_notification",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_jira_assignment",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_google_admin_alert",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_aws_billing",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_teams_recap",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_datacamp_certificate",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_tunisian_gov_circular",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_supplier_payment_fr",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_hr_onboarding",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_apple_receipt",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_colleague_plain",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_alumni_newsletter",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_glovo_delivery",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_ieee_acceptance",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_tunisie_telecom_bill",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_zoom_invite",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_docusign_real",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_ovh_monitoring",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_arabic_newsletter",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_github_ci",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "unsafe"
+      },
+      {
+        "email_id": "legit_stripe_receipt",
+        "expected": "benign",
+        "predicted": "benign",
+        "guard_verdict": "safe"
+      },
+      {
+        "email_id": "legit_derija_mix",
+        "expected": "benign",
+        "predicted": "malicious",
+        "guard_verdict": "safe"
+      }
+    ]
+  },
+  "pipeline_metrics": {
+    "with_guard": {
+      "accuracy": 0.6767676767676768,
+      "precision": 0.6551724137931034,
+      "recall": 0.9661016949152542,
+      "f1": 0.7808219178082192,
+      "confusion_matrix": [
+        [
+          10,
+          30
+        ],
+        [
+          2,
+          57
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.83      0.25      0.38        40\n   malicious       0.66      0.97      0.78        59\n\n    accuracy                           0.68        99\n   macro avg       0.74      0.61      0.58        99\nweighted avg       0.73      0.68      0.62        99\n",
+      "fp_count": 30,
+      "fn_count": 2
+    },
+    "without_guard": {
+      "accuracy": 0.7272727272727273,
+      "precision": 0.7162162162162162,
+      "recall": 0.8983050847457628,
+      "f1": 0.7969924812030075,
+      "confusion_matrix": [
+        [
+          19,
+          21
+        ],
+        [
+          6,
+          53
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.76      0.47      0.58        40\n   malicious       0.72      0.90      0.80        59\n\n    accuracy                           0.73        99\n   macro avg       0.74      0.69      0.69        99\nweighted avg       0.73      0.73      0.71        99\n",
+      "fp_count": 21,
+      "fn_count": 6
+    }
+  },
+  "meta": {
+    "provider": "ollama",
+    "model": "gemma3:4b",
+    "n_emails": 99,
+    "n_malicious": 59,
+    "n_benign": 40
+  }
+}

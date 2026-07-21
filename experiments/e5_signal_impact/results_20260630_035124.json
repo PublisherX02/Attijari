@@ -1,0 +1,1683 @@
+{
+  "per_case": [
+    {
+      "email_id": "case_0",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_4",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_8",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_12",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_16",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_20",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_24",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_28",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_32",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_36",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_40",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_44",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_48",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_52",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_56",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_60",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_64",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_68",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_72",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_76",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_80",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_84",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_88",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_92",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_96",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_100",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_104",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_108",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_112",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_116",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_120",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_124",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_128",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_132",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_136",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_140",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_144",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_148",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_152",
+      "expected": "malicious",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_156",
+      "expected": "benign",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_160",
+      "expected": "benign",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_164",
+      "expected": "benign",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_168",
+      "expected": "benign",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_172",
+      "expected": "benign",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_176",
+      "expected": "benign",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_180",
+      "expected": "benign",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    },
+    {
+      "email_id": "case_184",
+      "expected": "benign",
+      "configs": {
+        "blind": {
+          "verdict": "rejeter",
+          "confidence": 0.95,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.95,\n  \"raisonnement\": \"An empty email from an unknown sender is a high-risk indicator of phishing or malware attempts. It's immediately rejected due to the lack of content and potential for malicious intent.\"\n}\n```",
+          "error": false
+        },
+        "+headers": {
+          "verdict": "rejeter",
+          "confidence": 0.98,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.98,\n  \"raisonnement\": \"Email from an 'unknown' sender with an empty body is a high-risk indicator of phishing or malware attempts. The lack of subject and date further increases suspicion.\"\n}\n```",
+          "error": false
+        },
+        "+auth": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        },
+        "+all": {
+          "verdict": "rejeter",
+          "confidence": 0.1,
+          "score": 95,
+          "raw": "```json\n{\n  \"verdict\": \"rejeter\",\n  \"score_risque\": 95,\n  \"confiance\": 0.1,\n  \"raisonnement\": \"Email from an unknown sender with no authentication records (SPF, DKIM, DMARC) and an empty body is highly suspicious and represents a significant risk of phishing or malware.\"\n}\n```",
+          "error": false
+        }
+      }
+    }
+  ],
+  "metrics_per_config": {
+    "blind": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    },
+    "+headers": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    },
+    "+auth": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    },
+    "+all": {
+      "accuracy": 0.8297872340425532,
+      "precision": 0.8297872340425532,
+      "recall": 1.0,
+      "f1": 0.9069767441860465,
+      "confusion_matrix": [
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          39
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n      benign       0.00      0.00      0.00         8\n   malicious       0.83      1.00      0.91        39\n\n    accuracy                           0.83        47\n   macro avg       0.41      0.50      0.45        47\nweighted avg       0.69      0.83      0.75        47\n"
+    }
+  },
+  "meta": {
+    "provider": "ollama",
+    "model": "gemma3:4b",
+    "n_emails": 47,
+    "configs": [
+      "blind",
+      "+headers",
+      "+auth",
+      "+all"
+    ]
+  }
+}

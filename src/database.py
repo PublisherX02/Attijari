@@ -242,13 +242,30 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-    totp_secret = Column(String(64), nullable=True)
+    totp_secret = Column(String(255), nullable=True)  # holds Fernet-encrypted seed (SEC-H2), ~140 chars
     is_active = Column(Boolean, default=True)
     role = Column(String(20), nullable=False, default="viewer")  # admin, analyst, viewer
     permissions = Column(JSONB, nullable=False, default=dict)  # granular permission flags
     created_by = Column(String(255), nullable=True)
     last_login = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+class RevokedToken(Base):
+    """Durable JWT revocation list (SEC-H3).
+
+    Replaces the old in-memory set that reset on restart and wasn't shared
+    between workers. A logged-out or compromised token stays revoked until its
+    natural expiry, across restarts and every worker. Keyed by the token's
+    `jti` (or a hash of the token for legacy tokens without one). Rows past
+    `expires_at` are purged — after expiry the token is rejected anyway.
+    """
+
+    __tablename__ = "revoked_tokens"
+
+    jti = Column(String(128), primary_key=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), default=utcnow)
 
 
 class PendingDetonation(Base):
@@ -407,6 +424,52 @@ def _migrate_pending_detonation_manual():
         print(f"[DB] pending_detonation manual migration skipped: {e}")
 
 
+def _migrate_encrypt_totp_secrets():
+    """One-time (SEC-H2): encrypt any plaintext TOTP secrets already in the DB.
+
+    Idempotent — rows already stored as a Fernet token are skipped. If the
+    vault key is missing the migration is a no-op (login still works via the
+    legacy-plaintext passthrough in vault.decrypt_field), so this never blocks
+    startup.
+    """
+    try:
+        from vault import encrypt_field, is_encrypted_field
+    except Exception as e:
+        print(f"[DB] TOTP encryption migration skipped (vault unavailable): {e}")
+        return
+    # Encrypted seeds (~140 chars) don't fit the original VARCHAR(64) column —
+    # widen it first (no-op if already widened / fresh DB created from the model).
+    try:
+        from sqlalchemy import inspect, text as sa_text
+        inspector = inspect(engine)
+        if "users" in inspector.get_table_names():
+            col = next((c for c in inspector.get_columns("users") if c["name"] == "totp_secret"), None)
+            length = getattr(col["type"], "length", None) if col else None
+            if length is not None and length < 255:
+                with engine.begin() as conn:
+                    conn.execute(sa_text('ALTER TABLE users ALTER COLUMN totp_secret TYPE VARCHAR(255)'))
+                    print("[DB] SEC-H2: widened users.totp_secret to VARCHAR(255)")
+    except Exception as e:
+        print(f"[DB] totp_secret widen skipped: {e}")
+
+    db = SessionLocal()
+    try:
+        rows = db.query(User).filter(User.totp_secret.isnot(None)).all()
+        migrated = 0
+        for u in rows:
+            if u.totp_secret and not is_encrypted_field(u.totp_secret):
+                u.totp_secret = encrypt_field(u.totp_secret)
+                migrated += 1
+        if migrated:
+            db.commit()
+            print(f"[DB] SEC-H2: encrypted {migrated} plaintext TOTP secret(s) at rest")
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] TOTP encryption migration skipped: {e}")
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Database initialization
 # ---------------------------------------------------------------------------
@@ -419,6 +482,7 @@ def init_db():
     # Migrate existing users: add role/permissions columns if missing
     _migrate_users_rbac()
     _migrate_pending_detonation_manual()
+    _migrate_encrypt_totp_secrets()
 
     # Initialize default admin if no users exist
     try:
@@ -433,11 +497,14 @@ def init_db():
             else:
                 password = secrets.token_urlsafe(16)
             hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            # Plaintext seed builds the one-time provisioning URI below; only the
+            # encrypted form is persisted to the DB (SEC-H2).
+            from vault import encrypt_field
             totp_secret = pyotp.random_base32()
             admin = User(
                 username=os.getenv("DASHBOARD_USER", "admin"),
                 password_hash=hashed,
-                totp_secret=totp_secret,
+                totp_secret=encrypt_field(totp_secret),
                 role="admin",
                 permissions=ALL_PERMISSIONS.copy(),
             )
@@ -481,6 +548,33 @@ def get_db() -> Session:
     except Exception:
         db.close()
         raise
+
+
+# ---------------------------------------------------------------------------
+# JWT revocation (SEC-H3) — durable, shared across restarts and workers
+# ---------------------------------------------------------------------------
+
+def add_revoked_token(db: Session, jti: str, expires_at: "datetime") -> None:
+    """Record a token as revoked until it expires. Idempotent on jti.
+
+    Opportunistically purges already-expired rows so the table stays small
+    without needing a separate cron.
+    """
+    existing = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+    if not existing:
+        db.add(RevokedToken(jti=jti, expires_at=expires_at))
+    db.query(RevokedToken).filter(RevokedToken.expires_at < utcnow()).delete()
+    db.commit()
+
+
+def is_jti_revoked(db: Session, jti: str) -> bool:
+    """True if this jti is on the revocation list and not yet expired."""
+    row = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+    if not row:
+        return False
+    if row.expires_at and row.expires_at < utcnow():
+        return False  # expired anyway; treat as not-revoked (will be purged)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -693,6 +787,46 @@ def enqueue_detonation(db: Session, sha256: str, stored_path: str,
     db.commit()
     db.refresh(row)
     return row
+
+
+def recover_stale_running_detonations(db: Session, stale_after_seconds: int, max_attempts: int = 3) -> int:
+    """Reclaim 'running' rows orphaned by a crashed/restarted server process.
+
+    A row can only legitimately stay 'running' for up to one drain cycle
+    (detonation.py's watchdog always restores status via the try/finally on
+    the code path that set it) — if the process handling it dies or gets
+    restarted mid-poll, nothing else ever revisits the row, and it blocks
+    re-queueing the same sha256 forever (enqueue_detonation de-dupes on
+    queued/running). Called at the start of every drain window.
+
+    Rows past stale_after_seconds get bumped back to 'queued' for one more
+    try, unless attempts already hit max_attempts — then they're marked
+    'error' so a human can look, and the associated email (if any) escalates
+    (fail-safe: never leave a sample silently unresolved).
+    """
+    cutoff = utcnow() - timedelta(seconds=stale_after_seconds)
+    stale = db.query(PendingDetonation).filter(
+        PendingDetonation.status == "running",
+        PendingDetonation.updated_at < cutoff,
+    ).all()
+    recovered = 0
+    for row in stale:
+        if (row.attempts or 0) >= max_attempts:
+            row.status = "error"
+            row.result = {"status": "error", "error": "orphaned_running_max_attempts",
+                          "escalate": True}
+            if row.email_id:
+                email = db.query(Email).filter(Email.id == row.email_id).first()
+                if email and email.status not in ("quarantined", "released"):
+                    email.status = "escalated"
+        else:
+            row.status = "queued"
+        recovered += 1
+    if recovered:
+        db.commit()
+        add_audit_entry(db, action="detonation_recovered_stale", actor="system",
+                        details={"count": recovered, "ids": [r.id for r in stale]})
+    return recovered
 
 
 def get_queued_detonations(db: Session, limit: int = 5) -> list["PendingDetonation"]:

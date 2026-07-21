@@ -888,7 +888,16 @@ if __name__ == "__main__":
         # Start the FastAPI dashboard server (background polling handled inside api.py)
         import uvicorn
         port = int(os.getenv("DASHBOARD_PORT", "8000"))
-        host = os.getenv("DASHBOARD_HOST", "0.0.0.0")
+        # Secure default: bind to loopback so the dashboard is NOT exposed on
+        # the network out of the box. The app serves plain HTTP; anything
+        # reachable off-host must sit behind a TLS-terminating reverse proxy.
+        # To expose it deliberately, set DASHBOARD_HOST (e.g. 127.0.0.1 stays
+        # local; a real deployment fronts it with TLS rather than binding
+        # 0.0.0.0 directly).
+        host = os.getenv("DASHBOARD_HOST", "127.0.0.1")
+        if host == "0.0.0.0":
+            print("[SERVE] WARNING: DASHBOARD_HOST=0.0.0.0 exposes the dashboard on ALL "
+                  "interfaces over plain HTTP. Put TLS in front or bind to 127.0.0.1.")
         print(f"[SERVE] Starting dashboard on http://{host}:{port}")
         uvicorn.run("api:app", host=host, port=port, reload=False, workers=1)
 

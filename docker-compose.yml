@@ -23,7 +23,11 @@ services:
   nginx:
     image: nginx:latest
     ports:
-      - "80:80"
+      # Bound to loopback only — the dashboard is not exposed on the network
+      # by default. For remote access, terminate TLS here (publish
+      # "127.0.0.1:443:443" behind a host firewall, or front it with a
+      # TLS-terminating proxy) rather than serving plain HTTP to the LAN.
+      - "127.0.0.1:80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -42,7 +46,10 @@ services:
       -c pgaudit.log='write, ddl'
       -c pgaudit.log_relation=on
     ports:
-      - "5432:5432"
+      # Loopback only. The app container reaches Postgres over the internal
+      # compose network (host "postgres"), so this publish exists only for
+      # local host tools (psql) — it must never listen on 0.0.0.0.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

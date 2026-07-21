@@ -6,8 +6,10 @@ Serves:
   - Prometheus /metrics endpoint
   - System health checks
 
-Start with:  uvicorn src.api:app --host 0.0.0.0 --port 8000
+Start with:  uvicorn src.api:app --host 127.0.0.1 --port 8000
 Or via main: python src/main.py --serve
+(Bind to loopback and front with a TLS reverse proxy; never expose 0.0.0.0
+plain-HTTP on an untrusted network.)
 """
 from __future__ import annotations
 
@@ -58,7 +60,7 @@ from routers.dashboard import dashboard_router
 from routers.websockets import ws_router
 from routers.emails import emails_router
 from routers.users import users_router
-from routers.detonation_proxy import detonation_proxy_router
+from routers.detonation_proxy import detonation_proxy_router, detonation_ws_router
 from tasks.background import data_retention_and_backup_task
 from routers.emails import _run_pipeline_sync
 from api_core import ws_manager
@@ -102,14 +104,13 @@ async def security_and_metrics_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN" if _frameable else "DENY"
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        # 'unsafe-inline' is required: the dashboard wires ~70 inline
-        # onclick=""/onchange="" attributes (JS-generated rows + templates),
-        # which a nonce can never authorize — the Jul 10 nonce-only policy
-        # silently disabled every button in the UI. The nonce must NOT be
-        # emitted alongside 'unsafe-inline' (browsers then ignore the latter).
-        # Re-tightening requires first refactoring all inline handlers to
-        # addEventListener/delegation.
-        f"script-src 'self' 'unsafe-inline'; "
+        # Nonce-based policy for scripts (SEC-M1). Inline handlers were
+        # refactored to data-action delegation and every remaining inline
+        # <script> carries the same per-request nonce set above. We omit the
+        # unsafe-inline keyword deliberately: naming a nonce makes browsers
+        # ignore it anyway, and dropping it means an injected inline script
+        # without the nonce will not run.
+        f"script-src 'self' 'nonce-{nonce}'; "
         # style-src keeps 'unsafe-inline': inline style="" attributes cannot use
         # a nonce, and inline styles are not the injection risk scripts are.
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
@@ -188,6 +189,9 @@ app.include_router(ws_router)
 app.include_router(emails_router, dependencies=[Depends(verify_auth)])
 app.include_router(users_router, dependencies=[Depends(verify_auth)])
 app.include_router(detonation_proxy_router, dependencies=[Depends(verify_auth)])
+# No verify_auth here: the WS route does its own token-based auth (_ws_token_ok) —
+# a WebSocket scope has no HTTP Request for verify_auth to depend on.
+app.include_router(detonation_ws_router)
 
 # Import metrics endpoint locally to avoid circular dependencies if it exists
 try:
