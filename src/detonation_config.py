@@ -13,6 +13,7 @@ over the CAPE REST API. All values are overridable via environment variables.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 # --------------------------------------------------------------------------
 # CAPE REST API (Ubuntu VM)
@@ -128,18 +129,18 @@ VM_SUSPEND_CMD = os.getenv("VM_SUSPEND_CMD", f'powershell -NoProfile -Command "S
 CAPE_READY_TIMEOUT = int(os.getenv("CAPE_READY_TIMEOUT", "180"))
 
 # --------------------------------------------------------------------------
-# Dashboard integration: attijari VM wrapper, websockify, CAPE web UI
+# Dashboard integration: imania VM wrapper, websockify, CAPE web UI
 # --------------------------------------------------------------------------
-# Tiny authenticated HTTP service running ON the attijari VM (source in
-# deploy/attijari/). Used ONLY to recover a cuckoo2 guest left stuck
+# Tiny authenticated HTTP service running ON the imania VM (source in
+# deploy/imania/). Used ONLY to recover a cuckoo2 guest left stuck
 # "running" (destroy + restart cape.service). Disabled by default until the
-# runbook (docs/attijari-sandbox-setup.md) has been executed.
+# runbook (docs/imania-sandbox-setup.md) has been executed.
 CAPE_VM_WRAPPER_ENABLED = os.getenv("CAPE_VM_WRAPPER_ENABLED", "0") != "0"
 CAPE_VM_WRAPPER_URL = os.getenv("CAPE_VM_WRAPPER_URL", "http://192.168.100.10:8090").rstrip("/")
 CAPE_VM_WRAPPER_TOKEN = os.getenv("CAPE_VM_WRAPPER_TOKEN", "")
 CAPE_VM_WRAPPER_TIMEOUT = int(os.getenv("CAPE_VM_WRAPPER_TIMEOUT", "20"))
 
-# websockify endpoint on attijari fronting cuckoo2's fixed VNC port. The
+# websockify endpoint on imania fronting cuckoo2's fixed VNC port. The
 # dashboard's /ws/vnc relay is the only consumer; the browser never sees this.
 WEBSOCKIFY_URL = os.getenv("WEBSOCKIFY_URL", "ws://192.168.100.10:6080")
 
@@ -149,3 +150,15 @@ CAPE_WEB_URL = os.getenv(
     "CAPE_WEB_URL",
     CAPE_API_URL[: -len("/apiv2")] if CAPE_API_URL.endswith("/apiv2") else CAPE_API_URL,
 ).rstrip("/")
+
+# --------------------------------------------------------------------------
+# Car-damage CV model (claims-triage extraction step)
+# --------------------------------------------------------------------------
+# Path to the trained YOLOv8 damage-assessment model weights (.pt file).
+# Proprietary — gitignored, not shipped in the public repo. Leave unset to
+# disable the CV damage-assessment extraction step (fails safe to
+# "unavailable", never blocks the pipeline).
+_DEFAULT_CV_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "car_damage_yolov8.pt"
+CV_DAMAGE_MODEL_PATH = os.getenv("CV_DAMAGE_MODEL_PATH") or (
+    str(_DEFAULT_CV_MODEL_PATH) if _DEFAULT_CV_MODEL_PATH.exists() else None
+)

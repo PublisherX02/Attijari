@@ -129,7 +129,7 @@ def _start_docker() -> None:
 def _preflight_cuckoo2() -> None:
     """Recover cuckoo2 if a previous run left it powered on.
 
-    Runs after the attijari VM is up and CAPE answers, before submitting the
+    Runs after the imania VM is up and CAPE answers, before submitting the
     batch — prevents CAPE's 'Trying to start a virtual machine that has not
     been turned off' failure. Wrapper disabled/unreachable → log and proceed:
     a failed submission escalates safely; never block the drain window.

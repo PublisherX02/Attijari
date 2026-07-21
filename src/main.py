@@ -4,8 +4,11 @@ import time
 from email import policy
 from email.parser import BytesParser
 from email.utils import parseaddr
+from pathlib import Path
 
 from dotenv import load_dotenv
+
+from detonation_config import IMAGE_EXTENSIONS
 
 from email_extraction import EmailIngestion, TimeoutError, verify_sender_authentication
 from rules import RuleEngine, add_to_blocklist
@@ -22,6 +25,16 @@ from alienvault_otx import check_ip as check_otx_ip, check_domain as check_otx_d
 from dnstwist_check import is_typosquat
 from whois_check import check_domain_age
 from validators import is_valid_domain, is_valid_sha256, extract_ips_from_text
+
+
+def _find_claim_photo(attachments: list) -> "dict | None":
+    """First image attachment in the list, or None. Used to pick the photo
+    passed to the LLM's vision input for claim-photo assessment."""
+    for att in attachments or []:
+        name = (att.get("original_name") or "").lower()
+        if any(name.endswith(ext) for ext in IMAGE_EXTENSIONS):
+            return att
+    return None
 
 
 def _maybe_enqueue_detonation(db, parsed: dict, email_id: int, deterministic_escalation: bool) -> None:
@@ -693,12 +706,27 @@ def run_pipeline():
                                     "suspicious": er.get("suspicious"),
                                 })
                             enrichment_data["extraction"] = extraction_summary
+                        claim_photo = _find_claim_photo(parsed.get("attachments", []))
+                        photo_bytes = None
+                        cv_damage_result = None
+                        if claim_photo and claim_photo.get("stored_path"):
+                            try:
+                                photo_bytes = Path(claim_photo["stored_path"]).read_bytes()
+                            except Exception:
+                                photo_bytes = None
+                            for er in (parsed.get("extraction", {}).get("results") or []):
+                                if er.get("filename") == claim_photo.get("original_name"):
+                                    cv_damage_result = er.get("cv_damage_assessment")
+                                    break
+
                         context = {
                             "headers": parsed.get("headers", {}),
                             "attachments": parsed.get("attachments", []),
-                            "enrichment": enrichment_data
+                            "enrichment": enrichment_data,
+                            "claim_photo_present": claim_photo is not None,
+                            "cv_damage": cv_damage_result,
                         }
-                        llm_res = analyze_email_body(llm_input, context=context)
+                        llm_res = analyze_email_body(llm_input, context=context, image_bytes=photo_bytes)
                         parsed["llm_analysis"] = llm_res
                         raw_llm_verdict = (llm_res.get("verdict") or "").lower().strip()
 
@@ -790,6 +818,13 @@ def run_pipeline():
                         "parse_errors": parsed.get("parse_errors"),
                     }
                     saved = _save_email(db, email_data)
+
+                    try:
+                        from database import upsert_urgency
+                        claim_verdict = (parsed.get("llm_analysis") or {}).get("claim_verdict")
+                        upsert_urgency(db, saved.id, claim_verdict)
+                    except Exception as e:
+                        print(f"[URGENCY] Failed to persist urgency row: {e} (verdict/email save unaffected)")
 
                     # Track metrics
                     try:

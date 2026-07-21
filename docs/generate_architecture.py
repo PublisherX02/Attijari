@@ -228,7 +228,7 @@ ax.text(6.0, 6.0, "Figure 1: Trust No Email — Complete Pipeline Architecture",
         ha="center", va="center", fontsize=10, fontstyle="italic", color="#555")
 
 plt.tight_layout()
-out = "C:/Users/moham/Attijari/docs/architecture_diagram.png"
+out = "C:/Users/moham/ImaniIA/docs/architecture_diagram.png"
 plt.savefig(out, dpi=300, bbox_inches="tight", facecolor="white")
 plt.close()
 print(f"Saved: {out}")

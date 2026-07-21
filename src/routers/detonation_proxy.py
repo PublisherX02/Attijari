@@ -9,7 +9,7 @@ same-origin so the strict CSP stays intact:
     bytes — the declared type and filename are hostile data (CLAUDE.md 6+7).
   - GET  /api/detonation/report/{task_id}/{path}  — reverse proxy of CAPE's
     Django report (path-allowlisted; never an open proxy into CAPE).
-  - WS   /ws/vnc/{task_id} — relay to websockify on attijari, open only
+  - WS   /ws/vnc/{task_id} — relay to websockify on imania, open only
     during an active detonation window.
   - POST /api/detonation/{pending_id}/retry — re-queue a failed detonation.
 
@@ -181,7 +181,7 @@ def api_detonation_report(
 
 
 # ---------------------------------------------------------------------------
-# Live sandbox view: WS relay to websockify on attijari
+# Live sandbox view: WS relay to websockify on imania
 # ---------------------------------------------------------------------------
 
 def _ws_token_ok(token: Optional[str]) -> bool:

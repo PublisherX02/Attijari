@@ -43,6 +43,7 @@ oletools==0.60.2
 pdfid
 pymupdf==1.27.2.3
 pytesseract==0.3.13
+Pillow==12.2.0
 yara-python==4.5.4
 ioc-finder==9.4.1
 git+https://github.com/microsoft/markitdown.git
@@ -59,6 +60,9 @@ google-auth-oauthlib==1.4.0
 
 # LLM runtime
 ollama
+
+# Computer vision — car-damage assessment (claims-triage extraction step)
+ultralytics==8.3.60
 
 # Semantic prompt guard (Llama Guard 3)
 transformers==5.12.1

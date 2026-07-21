@@ -524,11 +524,11 @@ class RuleEngine:
         )
         subject_has_financial = any(kw in subject for kw in _BEC_SUBJECT_KW)
 
-        # Check if sender is external (not @attijaribank.com.tn)
+        # Check if sender is external (not @imaniabank.com.tn)
         sender_is_external = (
             signals["sender_domain"] and
-            signals["sender_domain"] != "attijaribank.com.tn" and
-            not signals["sender_domain"].endswith(".attijaribank.com.tn")
+            signals["sender_domain"] != "imaniabank.com.tn" and
+            not signals["sender_domain"].endswith(".imaniabank.com.tn")
         )
 
         # Check body URLs for SharePoint/OneDrive lookalikes with evil subdomains
@@ -624,7 +624,7 @@ class RuleEngine:
                             "reason": "no vishing/callback pattern"})
 
         # Rule 13 — Internal domain spoofing detection
-        # If sender claims @attijaribank.com.tn but authentication fails,
+        # If sender claims @imaniabank.com.tn but authentication fails,
         # this is a spoofed internal email. Catches ICS/phishing from
         # attackers impersonating internal staff.
         spoof_flagged = False

@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from dotenv import load_dotenv
 
@@ -78,7 +78,7 @@ def test_all():
 
     # 6. dnstwist
     try:
-        res = dnstwist_check.is_typosquat("attijaribank.com")
+        res = dnstwist_check.is_typosquat("imaniabank.com")
         print_result("dnstwist", res)
     except Exception as e:
         print_result("dnstwist", None, str(e))

@@ -1,9 +1,9 @@
-"""cape_vm_wrapper.py — HTTP client for the attijari VM wrapper service.
+"""cape_vm_wrapper.py — HTTP client for the imania VM wrapper service.
 
-The wrapper is a tiny authenticated HTTP service running ON the attijari VM
-(source: deploy/attijari/vm_wrapper.py). It exposes the cuckoo2 guest's
+The wrapper is a tiny authenticated HTTP service running ON the imania VM
+(source: deploy/imania/vm_wrapper.py). It exposes the cuckoo2 guest's
 libvirt state and a destroy+restart-CAPE recovery action. The host never
-shells into attijari over SSH; this client is the only control path.
+shells into imania over SSH; this client is the only control path.
 
 Fail-safe contract: every function swallows errors and returns None/False.
 The caller must treat "wrapper unreachable" as "log and proceed" — a failed

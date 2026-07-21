@@ -73,7 +73,7 @@
       "targets": [
         {
           "datasource": "Prometheus",
-          "expr": "sum by (status) (attijari_emails_processed_total)",
+          "expr": "sum by (status) (imania_emails_processed_total)",
           "refId": "A"
         }
       ],
@@ -160,13 +160,13 @@
       "targets": [
         {
           "datasource": "Prometheus",
-          "expr": "histogram_quantile(0.95, sum(rate(attijari_pipeline_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(imania_pipeline_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "Pipeline (p95)",
           "refId": "A"
         },
         {
           "datasource": "Prometheus",
-          "expr": "histogram_quantile(0.95, sum(rate(attijari_llm_inference_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(imania_llm_inference_seconds_bucket[5m])) by (le))",
           "legendFormat": "LLM Inference (p95)",
           "refId": "B"
         }
@@ -251,7 +251,7 @@
       "targets": [
         {
           "datasource": "Prometheus",
-          "expr": "attijari_blocklist_size",
+          "expr": "imania_blocklist_size",
           "legendFormat": "{{indicator_type}}",
           "refId": "A"
         }
@@ -336,7 +336,7 @@
       "targets": [
         {
           "datasource": "Prometheus",
-          "expr": "histogram_quantile(0.95, sum(rate(attijari_api_enrichment_seconds_bucket[5m])) by (le, service))",
+          "expr": "histogram_quantile(0.95, sum(rate(imania_api_enrichment_seconds_bucket[5m])) by (le, service))",
           "legendFormat": "{{service}}",
           "refId": "A"
         }
@@ -357,7 +357,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Attijari SOC Telemetry",
-  "uid": "attijari",
+  "title": "ImaniIA SOC Telemetry",
+  "uid": "imania",
   "version": 1
 }

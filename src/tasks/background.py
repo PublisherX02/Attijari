@@ -57,7 +57,7 @@ async def data_retention_and_backup_task():
             backup_dir = os.path.join(_SRC_DIR.parent, "data", "backups", "offsite_vault")
             os.makedirs(backup_dir, exist_ok=True)
             
-            filename_base = f"attijari_db_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            filename_base = f"imania_db_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             backup_file = os.path.join(backup_dir, f"{filename_base}.sql")
             encrypted_file = os.path.join(backup_dir, f"{filename_base}.enc")
             
@@ -69,7 +69,7 @@ async def data_retention_and_backup_task():
                 pg_user = parsed_url.username or "postgres"
                 pg_pass = parsed_url.password or ""
                 pg_host = parsed_url.hostname or "localhost"
-                pg_db = parsed_url.path.lstrip("/") or "attijari_db"
+                pg_db = parsed_url.path.lstrip("/") or "imania_db"
 
                 env = os.environ.copy()
                 env["PGPASSWORD"] = pg_pass
