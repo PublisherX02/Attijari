@@ -59,3 +59,14 @@ def test_sniff_media_type_unchanged():
     from routers.detonation_proxy import _sniff_media_type
     assert _sniff_media_type(b"%PDF-1.4...")[0] == "application/pdf"
     assert _sniff_media_type(b"not a real file")[1] is False
+
+
+def test_insist_endpoint_permission_is_emails_scan():
+    """The insist endpoint must require the same permission gate as the
+    existing 'See in VM' button (emails.scan), not just emails.view — it
+    consumes VM/CAPE resources."""
+    import inspect
+    from routers import detonation_proxy as dp
+    src = inspect.getsource(dp)
+    assert 'require_permission("emails.scan")' in src
+    assert "/attachments/{attachment_id}/insist" in src

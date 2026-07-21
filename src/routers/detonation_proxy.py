@@ -289,6 +289,31 @@ def api_detonation_retry(
 
 
 # ---------------------------------------------------------------------------
+# Insist on opening an unverified/unsafe attachment (on-demand, not the
+# batch queue — see attachments.insist_open)
+# ---------------------------------------------------------------------------
+
+@detonation_proxy_router.post("/api/emails/{email_id}/attachments/{attachment_id}/insist")
+def api_attachment_insist(
+    email_id: int, attachment_id: int,
+    user: AuthenticatedUser = Depends(require_permission("emails.scan")),
+):
+    """Analyst insists on opening an attachment that isn't verified safe —
+    submits it to CAPE now and opens a live VM session. See
+    attachments.insist_open for the orchestration and its audit trail."""
+    from database import SessionLocal
+    from attachments import resolve_attachment, insist_open
+    db = SessionLocal()
+    try:
+        resolved = resolve_attachment(db, email_id, attachment_id)
+        if not resolved["found"]:
+            raise HTTPException(404, "Attachment not found")
+        return insist_open(db, resolved["attachment"], user.username)
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
 # Manually start the drained detonation window (operator-triggered)
 # ---------------------------------------------------------------------------
 
