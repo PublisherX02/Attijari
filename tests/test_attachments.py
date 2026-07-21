@@ -99,3 +99,127 @@ def test_save_attachments_empty_list_no_commit(db_session, monkeypatch):
     rows = save_attachments(db_session, email.id, [{"error": "oversized", "original_name": "x"}])
     assert rows == []
     assert committed["n"] == 0
+
+
+# ---------------------------------------------------------------------------
+# attachment_safety_status / resolve_attachment
+# ---------------------------------------------------------------------------
+
+def test_safety_status_no_row_is_unverified():
+    from attachments import attachment_safety_status, STATUS_UNVERIFIED
+
+    class FakeQuery:
+        def filter(self, *a, **k): return self
+        def order_by(self, *a, **k): return self
+        def first(self): return None
+
+    class FakeDB:
+        def query(self, *a, **k): return FakeQuery()
+
+    assert attachment_safety_status(FakeDB(), "x" * 64) == STATUS_UNVERIFIED
+
+
+def _fake_db_returning(row):
+    class FakeQuery:
+        def filter(self, *a, **k): return self
+        def order_by(self, *a, **k): return self
+        def first(self): return row
+
+    class FakeDB:
+        def query(self, *a, **k): return FakeQuery()
+
+    return FakeDB()
+
+
+def test_safety_status_queued_or_running_is_pending():
+    from attachments import attachment_safety_status, STATUS_PENDING
+
+    class Row:
+        status = "queued"
+        result = None
+
+    assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64) == STATUS_PENDING
+    Row.status = "running"
+    assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64) == STATUS_PENDING
+
+
+def test_safety_status_done_clean_is_safe():
+    from attachments import attachment_safety_status, STATUS_SAFE
+    import detonation_config as cfg
+
+    class Row:
+        status = "done"
+        result = {"malscore": cfg.CAPE_MALSCORE_SUSPICIOUS - 0.1}
+
+    assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64) == STATUS_SAFE
+
+
+def test_safety_status_done_at_threshold_is_unsafe():
+    """malscore >= threshold, per detonation_config's own comment ('malscore
+    >= this -> mark suspicious'), so equality must NOT count as safe."""
+    from attachments import attachment_safety_status, STATUS_UNSAFE
+    import detonation_config as cfg
+
+    class Row:
+        status = "done"
+        result = {"malscore": cfg.CAPE_MALSCORE_SUSPICIOUS}
+
+    assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64) == STATUS_UNSAFE
+
+
+def test_safety_status_done_missing_malscore_is_unsafe():
+    """Fail-safe: an unparseable/missing malscore must never default to safe."""
+    from attachments import attachment_safety_status, STATUS_UNSAFE
+
+    class Row:
+        status = "done"
+        result = {}
+
+    assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64) == STATUS_UNSAFE
+
+
+def test_safety_status_error_is_unsafe():
+    from attachments import attachment_safety_status, STATUS_UNSAFE
+
+    class Row:
+        status = "error"
+        result = None
+
+    assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64) == STATUS_UNSAFE
+
+
+def test_resolve_attachment_not_found():
+    from attachments import resolve_attachment
+
+    class FakeQuery:
+        def filter(self, *a, **k): return self
+        def first(self): return None
+
+    class FakeDB:
+        def query(self, *a, **k): return FakeQuery()
+
+    assert resolve_attachment(FakeDB(), email_id=1, attachment_id=99) == {"found": False}
+
+
+def test_resolve_attachment_found_computes_status(monkeypatch):
+    import attachments as att_mod
+
+    class FakeAttachment:
+        id = 5
+        email_id = 1
+        sha256 = "c" * 64
+        stored_path = "/tmp/x.pdf"
+        filename = "x.pdf"
+
+    class FakeQuery:
+        def filter(self, *a, **k): return self
+        def first(self): return FakeAttachment()
+
+    class FakeDB:
+        def query(self, *a, **k): return FakeQuery()
+
+    monkeypatch.setattr(att_mod, "attachment_safety_status", lambda db, sha: "safe")
+    out = att_mod.resolve_attachment(FakeDB(), email_id=1, attachment_id=5)
+    assert out["found"] is True
+    assert out["status"] == "safe"
+    assert out["attachment"].id == 5
