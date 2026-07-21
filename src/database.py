@@ -362,6 +362,31 @@ class PendingDetonation(Base):
     )
 
 
+class Attachment(Base):
+    """One row per attachment extracted from an email, written for EVERY
+    attachment during the pipeline run — not just ones that become
+    detonation candidates. This is what lets the detail page list every
+    attachment with a correct safe/unsafe status; PendingDetonation alone
+    only covers attachments static analysis found inconclusive.
+
+    No status column here on purpose: safety is always derived live from
+    the most recent PendingDetonation row for this sha256 (see
+    attachments.attachment_safety_status), so there is nothing to keep in
+    sync or invalidate.
+    """
+
+    __tablename__ = "attachments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email_id = Column(Integer, ForeignKey("emails.id"), nullable=False, index=True)
+    sha256 = Column(String(64), nullable=False, index=True)
+    stored_path = Column(Text, nullable=False)
+    filename = Column(String(512), nullable=True)   # data only, never a real path (rule 6)
+    real_type = Column(String(255), nullable=True)   # magic-verified at extraction time
+    size_bytes = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
 # ---------------------------------------------------------------------------
 # RBAC — Permission definitions
 # ---------------------------------------------------------------------------
@@ -924,6 +949,33 @@ def enqueue_detonation(db: Session, sha256: str, stored_path: str,
     db.commit()
     db.refresh(row)
     return row
+
+
+def save_attachments(db: Session, email_id: int, attachments: list[dict]) -> list["Attachment"]:
+    """Persist one row per successfully-extracted attachment. Entries that
+    failed extraction (e.g. oversized — an {"error": ...} dict with no
+    stored_path/sha256) are skipped, never crash the pipeline run."""
+    rows = []
+    for att in attachments:
+        sha = att.get("sha256")
+        stored_path = att.get("stored_path")
+        if not (sha and stored_path):
+            continue
+        row = Attachment(
+            email_id=email_id,
+            sha256=sha,
+            stored_path=stored_path,
+            filename=att.get("original_name"),
+            real_type=att.get("real_type"),
+            size_bytes=att.get("size_bytes"),
+        )
+        db.add(row)
+        rows.append(row)
+    if rows:
+        db.commit()
+        for row in rows:
+            db.refresh(row)
+    return rows
 
 
 def recover_stale_running_detonations(db: Session, stale_after_seconds: int, max_attempts: int = 3) -> int:
