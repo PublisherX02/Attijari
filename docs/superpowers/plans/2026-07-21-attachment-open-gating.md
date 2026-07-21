@@ -544,7 +544,7 @@ def _install_insist_fakes(monkeypatch):
                      priority=False, status="queued"):
         row = FakeRow(sha256=sha256, stored_path=stored_path, filename=filename,
                       email_id=email_id, created_by=created_by, priority=priority,
-                      status=status)
+                      status=status, reason=reason)
         state["enqueued"].append(row)
         return row
 

@@ -8,6 +8,8 @@ wraps these functions in HTTP.
 """
 from __future__ import annotations
 
+import threading
+
 STATUS_SAFE = "safe"
 STATUS_UNSAFE = "unsafe"
 STATUS_PENDING = "pending"
@@ -57,3 +59,41 @@ def resolve_attachment(db, email_id: int, attachment_id: int) -> dict:
     if not row:
         return {"found": False}
     return {"found": True, "status": attachment_safety_status(db, row.sha256), "attachment": row}
+
+
+def _window_active() -> bool:
+    import detonation_state
+    return detonation_state.is_active()
+
+
+def _start_window() -> None:
+    from detonation import process_detonation_queue
+    threading.Thread(
+        target=process_detonation_queue, daemon=True,
+        name="attachment-insist-window",
+    ).start()
+
+
+def insist_open(db, attachment, username: str) -> dict:
+    """Analyst explicitly chose to open an unverified/unsafe attachment.
+    Always attempts a fresh submission — enqueue_detonation's existing dedup
+    only blocks on an ALREADY queued/running row for this sha256, so a prior
+    'done' or 'error' outcome never prevents getting a live session now.
+    Audited: insisting on an unsafe file is a security-relevant decision."""
+    from database import enqueue_detonation, add_audit_entry
+
+    row = enqueue_detonation(
+        db, sha256=attachment.sha256, stored_path=attachment.stored_path,
+        filename=attachment.filename, email_id=attachment.email_id,
+        reason="analyst_insist", priority=True, created_by=username,
+    )
+    add_audit_entry(
+        db, action="attachment_insist_open", actor=username,
+        email_id=attachment.email_id,
+        details={"attachment_id": attachment.id, "sha256": attachment.sha256,
+                  "filename": attachment.filename, "pending_id": row.id},
+    )
+    if _window_active():
+        return {"id": row.id, "status": row.status, "window": "active"}
+    _start_window()
+    return {"id": row.id, "status": row.status, "window": "started"}

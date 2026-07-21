@@ -223,3 +223,74 @@ def test_resolve_attachment_found_computes_status(monkeypatch):
     assert out["found"] is True
     assert out["status"] == "safe"
     assert out["attachment"].id == 5
+
+
+# ---------------------------------------------------------------------------
+# insist_open
+# ---------------------------------------------------------------------------
+
+def _install_insist_fakes(monkeypatch):
+    """Mirrors test_manual_detonation.py's _install_fakes — same pattern,
+    applied to the attachments module."""
+    import attachments as att_mod
+    state = {"enqueued": [], "audits": [], "window_started": 0, "active": False}
+
+    class FakeRow:
+        _seq = 0
+        def __init__(self, **kw):
+            FakeRow._seq += 1
+            self.id = FakeRow._seq
+            self.__dict__.update(kw)
+
+    def fake_enqueue(db, sha256, stored_path, filename=None, email_id=None,
+                     idempotency_key=None, reason=None, created_by=None,
+                     priority=False, status="queued"):
+        row = FakeRow(sha256=sha256, stored_path=stored_path, filename=filename,
+                      email_id=email_id, created_by=created_by, priority=priority,
+                      status=status, reason=reason)
+        state["enqueued"].append(row)
+        return row
+
+    def fake_audit(db, action, actor="system", email_id=None, details=None):
+        state["audits"].append({"action": action, "actor": actor, "email_id": email_id, "details": details})
+
+    monkeypatch.setattr(att_mod, "_window_active", lambda: state["active"])
+    monkeypatch.setattr(att_mod, "_start_window", lambda: state.__setitem__("window_started", state["window_started"] + 1))
+
+    import database
+    monkeypatch.setattr(database, "enqueue_detonation", fake_enqueue)
+    monkeypatch.setattr(database, "add_audit_entry", fake_audit)
+
+    return att_mod, state
+
+
+class _FakeAttachment:
+    def __init__(self, id=1, email_id=10, sha256="e" * 64, stored_path="/tmp/e.pdf", filename="e.pdf"):
+        self.id = id
+        self.email_id = email_id
+        self.sha256 = sha256
+        self.stored_path = stored_path
+        self.filename = filename
+
+
+def test_insist_open_starts_window_when_inactive(monkeypatch):
+    att_mod, state = _install_insist_fakes(monkeypatch)
+    out = att_mod.insist_open(db=None, attachment=_FakeAttachment(), username="alice")
+    assert out["window"] == "started"
+    assert state["window_started"] == 1
+    row = state["enqueued"][0]
+    assert row.sha256 == "e" * 64
+    assert row.reason == "analyst_insist"
+    assert row.priority is True
+    assert row.created_by == "alice"
+    assert state["audits"][0]["action"] == "attachment_insist_open"
+    assert state["audits"][0]["email_id"] == 10
+    assert state["audits"][0]["details"]["attachment_id"] == 1
+
+
+def test_insist_open_window_already_active(monkeypatch):
+    att_mod, state = _install_insist_fakes(monkeypatch)
+    state["active"] = True
+    out = att_mod.insist_open(db=None, attachment=_FakeAttachment(), username="bob")
+    assert out["window"] == "active"
+    assert state["window_started"] == 0
