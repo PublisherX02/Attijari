@@ -670,7 +670,7 @@ async function loadEmailDetail(emailId) {
 
             ${(showCyberSecurity && signalsHtml) ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Risk Signals</h3>${signalsHtml}` : ''}
 
-            ${showCyberSecurity ? '<div id="detonation-panel"></div>' : ''}
+            ${showCyberSecurity ? '<div id="attachments-panel"></div>' : ''}
 
             ${showCyberSecurity ? auditHtml : ''}
 
@@ -684,7 +684,7 @@ async function loadEmailDetail(emailId) {
             </div>
         `;
 
-        if (showCyberSecurity) renderDetonationPanel(e);
+        if (showCyberSecurity) renderAttachmentsPanel(e);
 
     } catch (err) {
         container.innerHTML = `<div class="empty-state"><div class="emoji">❌</div><p>Error: ${esc(err.message)}</p></div>`;
@@ -692,109 +692,72 @@ async function loadEmailDetail(emailId) {
 }
 
 /* =========================================================================
-   Detonation sandbox panel (CAPE integration)
+   Attachments panel — safe/unsafe gating + insist-to-VM (CAPE integration)
    ========================================================================= */
 
 let _detonationPollTimer = null;
 let _activeRfb = null;
 
-function _detonationStatusBadge(status) {
-    const map = { queued: 'recu', running: 'escalated', done: 'accepted', error: 'quarantined' };
-    return `<span class="badge ${map[status] || 'recu'}">${esc(status)}</span>`;
-}
+function _attachmentPanelRowHtml(emailId, a, detRowsBySha, windowActive) {
+    const rawUrl = `/api/emails/${parseInt(emailId)}/attachments/${parseInt(a.id)}/raw`;
+    const detRow = detRowsBySha[a.sha256];
 
-function _attachmentPreviewHtml(emailId, row) {
-    const name = (row.filename || '').toLowerCase();
-    const inline = /\.(pdf|png|jpe?g|gif)$/.test(name);
-    const rawUrl = `/api/emails/${parseInt(emailId)}/attachments/${parseInt(row.id)}/raw`;
-    if (inline) {
-        // Server re-verifies via magic bytes and forces the content type; a
-        // lying extension just yields a download instead of a render.
-        return `<iframe class="sandbox-preview-frame" src="${rawUrl}" title="Attachment preview"></iframe>`;
+    if (a.status === 'safe') {
+        const inline = /\.(pdf|png|jpe?g|gif)$/.test((a.filename || '').toLowerCase());
+        const preview = inline
+            ? `<iframe class="sandbox-preview-frame" src="${rawUrl}" title="Attachment preview"></iframe>`
+            : `<a class="btn btn-outline btn-sm" href="${rawUrl}" download>Download (verified safe)</a>`;
+        return `
+            <div class="sandbox-columns">
+                <div class="sandbox-preview-meta">
+                    <div class="detail-row"><span class="detail-label">File</span>
+                        <span class="detail-value">${esc(truncate(a.filename, 60))}</span></div>
+                    <span class="badge accepted">Verified safe</span>
+                </div>
+                <div>${preview}</div>
+            </div>`;
     }
+
+    if (a.status === 'pending') {
+        const taskId = detRow && detRow.result && detRow.result.cape_task_id;
+        const live = (detRow && detRow.status === 'running' && windowActive && taskId)
+            ? `<div class="sandbox-live" id="sandbox-live-${parseInt(a.id)}" data-task-id="${parseInt(taskId)}"></div>`
+            : `<div class="sandbox-empty"><div class="spinner"></div>
+                   <p>${detRow && detRow.status === 'running' ? 'Detonation running…' : 'Queued for detonation — runs in the next drained window.'}</p></div>`;
+        return `
+            <div class="sandbox-preview-meta">
+                <div class="detail-row"><span class="detail-label">File</span>
+                    <span class="detail-value">${esc(truncate(a.filename, 60))}</span></div>
+                <span class="badge escalated">Verifying…</span>
+            </div>
+            ${live}`;
+    }
+
+    // 'unverified' or 'unsafe'
+    const badge = a.status === 'unsafe'
+        ? '<span class="badge quarantined">Unsafe</span>'
+        : '<span class="badge recu">Not verified safe</span>';
+    const reportLine = (a.status === 'unsafe' && detRow && detRow.result && detRow.result.malscore !== undefined)
+        ? `<div class="detail-row"><span class="detail-label">Malscore</span><span class="detail-value">${esc(String(detRow.result.malscore))} / 10</span></div>`
+        : '';
+    const insistBtn = userCan('emails.scan')
+        ? `<button class="btn btn-danger btn-sm" data-action="attachment-insist" data-email-id="${parseInt(emailId)}" data-attachment-id="${parseInt(a.id)}">⚠ Insist — open in VM</button>`
+        : '';
     return `
         <div class="sandbox-preview-meta">
-            <div class="detail-row"><span class="detail-label">File</span>
-                <span class="detail-value">${esc(truncate(row.filename, 60))}</span></div>
-            <div class="detail-row"><span class="detail-label">SHA-256</span>
-                <span class="detail-value" style="font-family:monospace;font-size:0.72rem">${esc(row.sha256)}</span></div>
-            <div class="detail-row"><span class="detail-label">Queued because</span>
-                <span class="detail-value">${esc(row.reason) || '—'}</span></div>
-            <a class="btn btn-outline btn-sm" href="${rawUrl}" download>Download original (handle with care)</a>
+            <div class="detail-row"><span class="detail-label">File</span><span class="detail-value">${esc(truncate(a.filename, 60))}</span></div>
+            ${badge}
+            ${reportLine}
+            <p style="color:var(--text-muted);font-size:0.85rem">This attachment has not been verified safe. Opening it directly is blocked.</p>
+            ${insistBtn}
         </div>`;
 }
 
-function _detonationRowHtml(e, row, windowActive) {
-    const det = (e.enrichment_result && e.enrichment_result.detonation) || {};
-    const result = row.result || {};
-    const taskId = result.cape_task_id || det.cape_task_id || null;
-    const reportUrl = result.web_report_url || det.web_report_url ||
-        (taskId ? `/api/detonation/report/${parseInt(taskId)}/` : null);
-
-    let body = '';
-    if (row.status === 'queued' || row.status === 'running') {
-        const live = (row.status === 'running' && windowActive && taskId)
-            ? `<div class="sandbox-live" id="sandbox-live-${parseInt(row.id)}" data-task-id="${parseInt(taskId)}"></div>`
-            : `<div class="sandbox-empty">
-                   <div class="spinner"></div>
-                   <p>${row.status === 'queued'
-                        ? 'Queued for detonation — runs in the next drained window.'
-                        : 'Detonation running…'}</p>
-               </div>`;
-        body = `
-            <div class="sandbox-columns">
-                <div>${_attachmentPreviewHtml(e.id, row)}</div>
-                <div>${live}</div>
-            </div>`;
-    } else if (row.status === 'done' && reportUrl) {
-        const score = (result.malscore !== undefined) ? result.malscore : det.malscore;
-        const sigs = result.suspicious_behaviors || det.suspicious_behaviors || [];
-        body = `
-            <div class="sandbox-verdict">
-                <span class="detail-label">Malscore</span>
-                <strong>${score !== undefined ? esc(String(score)) : '—'} / 10</strong>
-                ${sigs.length ? `<span class="detail-label">· ${parseInt(sigs.length)} signature(s)</span>` : ''}
-                <a class="btn btn-outline btn-sm" href="${reportUrl}" target="_blank" rel="noopener">Open full report ↗</a>
-                ${userCan('emails.scan')
-                    ? `<button class="btn btn-outline btn-sm"
-                         data-action="see-in-vm" data-pending-id="${parseInt(row.id)}" data-email-id="${parseInt(e.id)}">🖥 See in VM</button>`
-                    : ''}
-            </div>
-            <iframe class="sandbox-report-frame" src="${reportUrl}" title="CAPE report"></iframe>
-            <details style="margin-top:8px"><summary class="detail-label" style="cursor:pointer">Attachment preview</summary>
-                ${_attachmentPreviewHtml(e.id, row)}</details>`;
-    } else { // error (or done without a report)
-        const errMsg = result.error || 'detonation failed';
-        body = `
-            <div class="sandbox-error">
-                <p>⚠ Detonation failed: <code>${esc(errMsg)}</code>.
-                   The email was escalated to human review (fail-safe).</p>
-                ${userCan('emails.scan')
-                    ? `<button class="btn btn-outline btn-sm"
-                         data-action="detonation-retry" data-pending-id="${parseInt(row.id)}" data-email-id="${parseInt(e.id)}">↻ Retry detonation</button>
-                       <button class="btn btn-outline btn-sm"
-                         data-action="see-in-vm" data-pending-id="${parseInt(row.id)}" data-email-id="${parseInt(e.id)}">🖥 See in VM</button>`
-                    : ''}
-            </div>`;
-    }
-
-    return `
-        <div class="sandbox-row">
-            <div class="sandbox-row-head">
-                <span>💣 ${esc(truncate(row.filename, 50))}</span>
-                ${_detonationStatusBadge(row.status)}
-                ${row.attempts > 1 ? `<span class="detail-label">attempt ${parseInt(row.attempts)}</span>` : ''}
-                ${taskId ? `<span class="detail-label">CAPE task #${parseInt(taskId)}</span>` : ''}
-            </div>
-            ${body}
-        </div>`;
-}
-
-async function renderDetonationPanel(e) {
-    const panel = document.getElementById('detonation-panel');
+async function renderAttachmentsPanel(e) {
+    const panel = document.getElementById('attachments-panel');
     if (!panel) return;
-    const rows = e.detonation_queue || [];
-    if (rows.length === 0) { panel.innerHTML = ''; return; }
+    const attachments = e.attachments || [];
+    if (attachments.length === 0) { panel.innerHTML = ''; return; }
 
     let windowActive = false;
     try {
@@ -802,39 +765,48 @@ async function renderDetonationPanel(e) {
         windowActive = !!st.window_active;
     } catch (_) { /* status endpoint down — panel still renders, no live view */ }
 
-    const firstTask = (rows[0].result && rows[0].result.cape_task_id) || 0;
+    const detRowsBySha = {};
+    for (const r of (e.detonation_queue || [])) detRowsBySha[r.sha256] = r;
+
     panel.innerHTML = `
         <div class="detail-section" style="grid-column: 1 / -1; margin-bottom:16px">
-            <h3>🔬 Detonation Sandbox
-                <button class="btn btn-outline btn-sm" style="float:right"
-                        data-action="open-sandbox-viewer" data-task-id="${parseInt(firstTask)}">Open sandbox</button>
-            </h3>
-            ${rows.map(r => _detonationRowHtml(e, r, windowActive)).join('')}
+            <h3>📎 Attachments</h3>
+            ${attachments.map(a => _attachmentPanelRowHtml(e.id, a, detRowsBySha, windowActive)).join('')}
         </div>`;
 
-    // Live noVNC for any row currently running inside an active window
-    for (const r of rows) {
-        const el = document.getElementById(`sandbox-live-${r.id}`);
+    // Live noVNC for any attachment currently running inside an active window
+    for (const a of attachments) {
+        const el = document.getElementById(`sandbox-live-${a.id}`);
         if (el) mountNoVnc(el, parseInt(el.dataset.taskId) || 0);
     }
 
-    // Poll while anything is pending so the panel advances queued→running→done
-    const pending = rows.some(r => r.status === 'queued' || r.status === 'running');
+    // Poll while anything is pending so the panel advances pending→safe/unsafe
+    const pending = attachments.some(a => a.status === 'pending');
     clearInterval(_detonationPollTimer);
     if (pending) {
-        _detonationPollTimer = setInterval(() => refreshDetonationPanel(e.id), 10000);
+        _detonationPollTimer = setInterval(() => refreshAttachmentsPanel(e.id), 10000);
     }
 }
 
-async function refreshDetonationPanel(emailId) {
-    if (!document.getElementById('detonation-panel')) {
+async function refreshAttachmentsPanel(emailId) {
+    if (!document.getElementById('attachments-panel')) {
         clearInterval(_detonationPollTimer);
         return;
     }
     try {
         const e = await API.get(`/api/emails/${emailId}`);
-        renderDetonationPanel(e);
+        renderAttachmentsPanel(e);
     } catch (_) { /* transient — next tick retries */ }
+}
+
+async function attachmentInsist(emailId, attachmentId) {
+    try {
+        await API.post(`/api/emails/${emailId}/attachments/${attachmentId}/insist`);
+        showToast('Submitting to the sandbox — this may take a few minutes.', 'success');
+        refreshAttachmentsPanel(emailId);
+    } catch (err) {
+        showToast(`Could not start detonation: ${err.message}`, 'error');
+    }
 }
 
 async function mountNoVnc(container, taskId, onFail) {
@@ -932,7 +904,7 @@ async function detonationRetry(pendingId, emailId) {
     try {
         await API.post(`/api/detonation/${pendingId}/retry`);
         showToast('Re-queued for detonation — runs in the next drained window', 'success');
-        refreshDetonationPanel(emailId);
+        refreshAttachmentsPanel(emailId);
     } catch (err) {
         showToast(`Retry failed: ${err.message}`, 'error');
     }
@@ -994,7 +966,7 @@ function seeInVm(pendingId, emailId) {
                 return;
             }
         }
-        if (emailId) refreshDetonationPanel(parseInt(emailId));
+        if (emailId) refreshAttachmentsPanel(parseInt(emailId));
         await _startWindowAndView();
     });
 }
@@ -1417,6 +1389,7 @@ registerAction('close-reason-modal', () => closeReasonModal());
 registerAction('confirm-reason-action', () => confirmReasonAction());
 registerAction('see-in-vm', (el) => seeInVm(parseInt(el.dataset.pendingId), parseInt(el.dataset.emailId)));
 registerAction('detonation-retry', (el) => detonationRetry(parseInt(el.dataset.pendingId), parseInt(el.dataset.emailId)));
+registerAction('attachment-insist', (el) => attachmentInsist(parseInt(el.dataset.emailId), parseInt(el.dataset.attachmentId)));
 registerAction('open-sandbox-viewer', (el) => openSandboxViewer(parseInt(el.dataset.taskId)));
 registerAction('close-sandbox-viewer', () => closeSandboxViewer());
 registerAction('remove-blocklist-entry', (el) => removeBlocklistEntry(parseInt(el.dataset.id)));
