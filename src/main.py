@@ -835,6 +835,13 @@ def run_pipeline():
 
                     print(f"[DB] Updated email #{saved.id} -> {parsed['status'].upper()}")
 
+                    try:
+                        from database import save_attachments
+                        save_attachments(db, saved.id, parsed.get("attachments", []))
+                    except Exception as e:
+                        print(f"[ATTACHMENTS] Failed to persist attachment records: {e} "
+                              f"(email save unaffected; detail page attachment list will be incomplete for this email)")
+
                     # --- Detonation trigger (Stage 3.5, DEFERRED) ---
                     # Queue detonable attachments when static analysis was
                     # inconclusive AND the LLM was unsure. Deterministically
