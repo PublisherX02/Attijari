@@ -156,8 +156,11 @@ def run_pipeline():
     engine = RuleEngine()
 
     try:
-        ingestion.connect()
-        raw_emails = ingestion.fetch_recent(since_days=7, limit=50)
+        # SMTP replaces IMAP as the ingestion source (2026-07-24). The
+        # inbound SMTP receiver (src/smtp_receiver.py) already accepted and
+        # durably wrote these messages; nothing below this line changes —
+        # the per-email loop doesn't know or care where raw_emails came from.
+        raw_emails = ingestion.fetch_pending_smtp(limit=50)
 
         cached = 0
         for i, raw in enumerate(raw_emails, 1):
@@ -838,8 +841,6 @@ def run_pipeline():
 
         if cached:
             print(f"\n[INFO] {cached} email(s) loaded from cache")
-
-        ingestion.disconnect()
 
     except TimeoutError as e:
         logger.error(f"[ABORT] {e}")
