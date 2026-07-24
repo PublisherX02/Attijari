@@ -131,6 +131,35 @@ class EmailIngestion:
     def fetch_unread(self, limit: int = 50) -> list[bytes]:
         return self.fetch_recent(since_days=7, limit=limit)
 
+    # Directory the inbound SMTP receiver (src/smtp_receiver.py) writes
+    # accepted messages into. Kept as an instance attribute (not a
+    # classmethod constant) so tests can monkeypatch it per-instance.
+    PENDING_SMTP_DIR = SAFE_DATA_DIR / "smtp_pending"
+
+    def fetch_pending_smtp(self, limit: int = 50) -> list[bytes]:
+        """Read raw messages the SMTP receiver has accepted and queued.
+
+        Mirrors fetch_recent()'s contract (returns a list[bytes], newest
+        files first, capped at `limit`) so main.py's run_pipeline() can
+        swap sources without changing anything downstream. Unlike IMAP,
+        there's no "already fetched" concept here — every call re-reads
+        whatever is currently on disk, and the existing idempotency cache
+        (idempotency_key / get_cached_result) is what prevents reprocessing,
+        exactly as it already does for IMAP-sourced mail.
+        """
+        pending_dir = self.PENDING_SMTP_DIR
+        if not pending_dir.exists():
+            return []
+        files = sorted(pending_dir.glob("*.eml"), key=lambda p: p.stat().st_mtime, reverse=True)
+        files = files[:limit]
+        raw_emails = []
+        for path in files:
+            try:
+                raw_emails.append(path.read_bytes())
+            except OSError as e:
+                print(f"[SMTP-PENDING] Failed to read {path.name}: {e}")
+        return raw_emails
+
     #archiving emails before manipulation to save content
     def archive_raw(self, raw:bytes) -> Path:
         archive_dir = SAFE_DATA_DIR / "raw_emails"
