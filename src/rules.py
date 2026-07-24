@@ -1078,6 +1078,34 @@ class RuleEngine:
             details.append({"rule": "advance_fee_fraud", "flagged": False,
                             "reason": "no advance-fee fraud vocabulary detected"})
 
+        # Rule 28 — Unicode/RTLO spoofing in attachment filenames
+        # Same trick as Rule 21, applied to attachment names instead of the
+        # From header: a right-to-left override (U+202E) or other bidi/
+        # zero-width control character reverses how the filename displays,
+        # so "invoice[RLO]gpj.exe" renders as "invoice...exe.jpg" — a
+        # human reviewer sees what looks like a photo, not an executable.
+        filename_spoof_flagged = False
+        filename_spoof_names = []
+        for att in (parsed.get("attachments") or []):
+            att_name = att.get("original_name") or ""
+            for trick in _UNICODE_TRICKS:
+                if trick in att_name:
+                    filename_spoof_flagged = True
+                    filename_spoof_names.append(att_name)
+                    break
+
+        if filename_spoof_flagged:
+            details.append({"rule": "unicode_filename_spoofing", "flagged": True,
+                            "reason": "Suspicious tactic used: Right-to-left override (RTLO) / Unicode "
+                                      "filename disguise — attachment name(s) " +
+                                      ", ".join(repr(n) for n in filename_spoof_names[:3]) +
+                                      " contain bidi/zero-width control characters that can hide the "
+                                      "true file extension from a human reviewer"})
+            flags += 1
+        else:
+            details.append({"rule": "unicode_filename_spoofing", "flagged": False,
+                            "reason": "no Unicode/RTLO spoofing in attachment filenames"})
+
         # Determine verdict severity:
         # - "proposed_reject": deterministic hard-evidence rules fired
         #   (blocklist, bad extension, bad hash, threat feed match)
@@ -1100,6 +1128,7 @@ class RuleEngine:
             "mime_confusion_attack",
             "multi_addr_from",
             "unicode_from_spoofing",
+            "unicode_filename_spoofing",
             "source_route_injection",
             "malformed_email",
             "mime_body_part_confusion",
