@@ -19,7 +19,7 @@ import requests
 from detonation_config import (
     CAPE_API_URL, CAPE_API_TOKEN, CAPE_VERIFY_TLS,
     CAPE_HTTP_TIMEOUT, CAPE_POLL_INTERVAL, CAPE_TOTAL_TIMEOUT,
-    CAPE_ANALYSIS_TIMEOUT, CAPE_READY_TIMEOUT,
+    CAPE_ANALYSIS_TIMEOUT, CAPE_READY_TIMEOUT, CAPE_ENFORCE_TIMEOUT,
     CAPE_MALSCORE_ESCALATE, CAPE_MALSCORE_SUSPICIOUS,
     CAPE_VM_WRAPPER_ENABLED, IMAGE_EXTENSIONS,
 )
@@ -84,7 +84,10 @@ def submit_file(file_path: str, filename: str) -> Optional[int]:
             files = {"file": (filename, fh)}
             data = {
                 "timeout": CAPE_ANALYSIS_TIMEOUT,
-                "enforce_timeout": True,
+                # enforce_timeout=False lets CAPE end the analysis as soon as
+                # monitored activity stops instead of always burning the full
+                # ceiling — same max depth, less wasted wall-clock time.
+                "enforce_timeout": CAPE_ENFORCE_TIMEOUT,
                 # keep it lean: no extra options that spawn more guests
             }
             ext = os.path.splitext(filename or "")[1].lower()

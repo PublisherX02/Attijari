@@ -1,4 +1,4 @@
-"""api.py — FastAPI application for the ImaniIA Claims Dashboard.
+"""api.py — FastAPI application for the Attijari Security Dashboard.
 
 Serves:
   - REST API for email review, blocklist/whitelist management, reports
@@ -66,8 +66,8 @@ from routers.emails import _run_pipeline_sync
 from api_core import ws_manager
 
 app = FastAPI(
-    title="ImaniIA Claims Dashboard",
-    description="Local-first AI copilot for insurance claims triage — adjuster review interface",
+    title="Attijari Security Dashboard",
+    description="AI-assisted email security triage — analyst review interface",
     version="2.0.0",
 )
 app.state.limiter = limiter

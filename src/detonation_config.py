@@ -13,7 +13,6 @@ over the CAPE REST API. All values are overridable via environment variables.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 # --------------------------------------------------------------------------
 # CAPE REST API (Ubuntu VM)
@@ -28,10 +27,19 @@ CAPE_VERIFY_TLS = os.getenv("CAPE_VERIFY_TLS", "1") != "0"
 # --------------------------------------------------------------------------
 # Timeouts (seconds)
 # --------------------------------------------------------------------------
-CAPE_ANALYSIS_TIMEOUT = int(os.getenv("CAPE_ANALYSIS_TIMEOUT", "180"))   # in-guest run time
-CAPE_POLL_INTERVAL = int(os.getenv("CAPE_POLL_INTERVAL", "10"))          # how often to poll task status
+CAPE_ANALYSIS_TIMEOUT = int(os.getenv("CAPE_ANALYSIS_TIMEOUT", "180"))   # in-guest run time ceiling
+CAPE_POLL_INTERVAL = int(os.getenv("CAPE_POLL_INTERVAL", "5"))           # how often to poll task status
 CAPE_TOTAL_TIMEOUT = int(os.getenv("CAPE_TOTAL_TIMEOUT", "600"))         # give up on one sample after this
 CAPE_HTTP_TIMEOUT = int(os.getenv("CAPE_HTTP_TIMEOUT", "30"))            # per HTTP request
+
+# When True, CAPE always runs a sample for the full CAPE_ANALYSIS_TIMEOUT even
+# if the monitored process exits early (e.g. a PNG or a script that finishes
+# in 5s). Default OFF: CAPE ends the analysis as soon as monitored activity
+# stops, so "easy" samples finish fast while samples that actually need the
+# full window (delayed execution, sandbox-aware malware) still get it —
+# CAPE_ANALYSIS_TIMEOUT stays the ceiling either way. This shortens wall-clock
+# time without reducing analysis depth for any single sample.
+CAPE_ENFORCE_TIMEOUT = os.getenv("CAPE_ENFORCE_TIMEOUT", "0") != "0"
 
 # Hard ceiling on one full drain→detonate→restore cycle. The watchdog restores
 # the pipeline no matter what once this elapses (fail-safe, never fail-open).
@@ -150,15 +158,3 @@ CAPE_WEB_URL = os.getenv(
     "CAPE_WEB_URL",
     CAPE_API_URL[: -len("/apiv2")] if CAPE_API_URL.endswith("/apiv2") else CAPE_API_URL,
 ).rstrip("/")
-
-# --------------------------------------------------------------------------
-# Car-damage CV model (claims-triage extraction step)
-# --------------------------------------------------------------------------
-# Path to the trained YOLOv8 damage-assessment model weights (.pt file).
-# Proprietary — gitignored, not shipped in the public repo. Leave unset to
-# disable the CV damage-assessment extraction step (fails safe to
-# "unavailable", never blocks the pipeline).
-_DEFAULT_CV_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "car_damage_yolov8.pt"
-CV_DAMAGE_MODEL_PATH = os.getenv("CV_DAMAGE_MODEL_PATH") or (
-    str(_DEFAULT_CV_MODEL_PATH) if _DEFAULT_CV_MODEL_PATH.exists() else None
-)

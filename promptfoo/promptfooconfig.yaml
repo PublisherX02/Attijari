@@ -1,10 +1,10 @@
-# Promptfoo configuration for ImaniIA email triage LLM
+# Promptfoo configuration for Attijari email triage LLM
 # Tests gemma3:4b verdict accuracy against known-good/known-bad emails
 #
 # Run:  cd promptfoo && npx promptfoo@latest eval --no-cache
 # View: npx promptfoo@latest view
 
-description: "ImaniIA - Email Verdict Accuracy"
+description: "Attijari - Email Verdict Accuracy"
 
 prompts:
   - file://prompt_template.txt
@@ -354,16 +354,16 @@ tests:
   - description: "Bank credential phishing (should ESCALATE)"
     vars:
       sender: "halex007 <halex007@proton.me>"
-      subject: "Suspension de votre compte ImaniIA"
+      subject: "Suspension de votre compte Attijari"
       auth_status: "AUTH-PASS: all_pass\nSPF=pass DKIM=pass DMARC=pass"
       enrichment_signals: ""
       body: |
-        Cher client ImaniIA Bank,
+        Cher client Attijari Bank,
         Votre compte a été temporairement suspendu suite à une activité suspecte.
         Veuillez confirmer votre identité en cliquant sur le lien ci-dessous dans les 24 heures,
         sinon votre compte sera définitivement fermé.
-        Confirmer mon identité: http://imania-verify.com/secure/login
-        Service Sécurité ImaniIA Bank
+        Confirmer mon identité: http://attijari-verify.com/secure/login
+        Service Sécurité Attijari Bank
     assert:
       - type: javascript
         value: |
@@ -378,17 +378,17 @@ tests:
 
   - description: "Typosquatted bank domain phishing (should ESCALATE)"
     vars:
-      sender: "Service Client <support@imaniabenk.com.tn>"
+      sender: "Service Client <support@attijaribenk.com.tn>"
       subject: "Mise à jour obligatoire de vos coordonnées"
       auth_status: "AUTH-FAILURE: SPF_FAIL\nSPF=fail DKIM=fail DMARC=fail"
-      enrichment_signals: "TYPOSQUAT-FLAGGED: imaniabenk.com.tn similar to imaniabank.com.tn"
+      enrichment_signals: "TYPOSQUAT-FLAGGED: attijaribenk.com.tn similar to attijaribank.com.tn"
       body: |
         Cher client,
         Dans le cadre de la mise en conformité réglementaire, nous vous prions de mettre à jour
         vos coordonnées bancaires avant le 30 juin.
-        Accéder à votre espace: https://imaniabenk.com.tn/espace-client
+        Accéder à votre espace: https://attijaribenk.com.tn/espace-client
         En cas de non-conformité, votre compte sera restreint.
-        ImaniIA Bank - Service Clientèle
+        Attijari Bank - Service Clientèle
     assert:
       - type: javascript
         value: |
@@ -465,7 +465,7 @@ tests:
       body: |
         Bonjour Mohamed,
         Veuillez trouver ci-joint les documents confidentiels relatifs au nouveau contrat.
-        Le fichier est protégé par mot de passe: ImaniIA2026!
+        Le fichier est protégé par mot de passe: Attijari2026!
         Merci de les examiner et de nous confirmer votre accord.
         Cordialement,
         Département RH

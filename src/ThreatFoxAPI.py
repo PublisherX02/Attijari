@@ -28,7 +28,7 @@ def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str |
         return {"source": "threatfox", "indicator": indicator, "indicator_type": indicator_type, "found": False, "error": "empty indicator"}
 
     key = api_key or os.getenv("THREATFOX_AUTH_KEY")
-    headers = {"User-Agent": "imania-ai/1.0"}
+    headers = {"User-Agent": "attijari-ai/1.0"}
     if key:
         headers["Auth-Key"] = key
 

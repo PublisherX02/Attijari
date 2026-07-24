@@ -154,20 +154,20 @@ CASE3_BODY = (
     "Our security team is available 24/7 to help secure your account.\n"
     "Do NOT click any links in other emails until your account is verified.\n\n"
     "Corporate Security Team\n"
-    "ImaniIA Bank"
+    "Attijari Bank"
 )
 
 
 # ─────────────────────────────────────────────────────────────
 # CASE 4: ICS from spoofed internal domain (auth fails)
 # Evasion target: Rule 11 checks sender_is_external
-# This spoofs @imaniabank.com.tn but auth fails
+# This spoofs @attijaribank.com.tn but auth fails
 # ─────────────────────────────────────────────────────────────
 def _ics_spoofed_internal() -> bytes:
     return (
         b"BEGIN:VCALENDAR\r\n"
         b"VERSION:2.0\r\n"
-        b"PRODID:-//ImaniIA Bank//IT//FR\r\n"
+        b"PRODID:-//Attijari Bank//IT//FR\r\n"
         b"METHOD:REQUEST\r\n"
         b"BEGIN:VEVENT\r\n"
         b"DTSTART:20240705T140000Z\r\n"
@@ -175,10 +175,10 @@ def _ics_spoofed_internal() -> bytes:
         b"SUMMARY:IT: Mandatory VPN Certificate Renewal\r\n"
         b"DESCRIPTION:Your VPN certificate expires today.\\n"
         b"Install the new certificate from:\\n\\n"
-        b"https://vpn-renew.imania-internal.evil.test/cert.exe\\n\\n"
+        b"https://vpn-renew.attijari-internal.evil.test/cert.exe\\n\\n"
         b"This must be completed before end of business.\r\n"
-        b"ORGANIZER:mailto:it-support@imaniabank.com.tn\r\n"
-        b"ATTENDEE;RSVP=TRUE:mailto:target@imaniabank.com.tn\r\n"
+        b"ORGANIZER:mailto:it-support@attijaribank.com.tn\r\n"
+        b"ATTENDEE;RSVP=TRUE:mailto:target@attijaribank.com.tn\r\n"
         b"LOCATION:Remote\r\n"
         b"STATUS:CONFIRMED\r\n"
         b"END:VEVENT\r\n"
@@ -194,7 +194,7 @@ def _ics_spoofed_internal() -> bytes:
 def _make_html_smuggling_eml() -> bytes:
     msg = EmailMessage()
     msg["From"] = "notifications@sharepoint-portal.com"
-    msg["To"] = "target@imaniabank.com.tn"
+    msg["To"] = "target@attijaribank.com.tn"
     msg["Subject"] = "Document Shared: Q3 Budget Review"
     msg["Date"] = "Mon, 1 Jul 2024 10:00:00 +0100"
     msg["Message-ID"] = "<stress-html-smuggle@test>"
@@ -237,16 +237,16 @@ CASE6_BODY = (
 # Auth passes, sender is a real-looking marketing domain
 # ─────────────────────────────────────────────────────────────
 CASE7_BODY = (
-    "ImaniIA Bank - Newsletter Clients - Juillet 2024\n\n"
+    "Attijari Bank - Newsletter Clients - Juillet 2024\n\n"
     "Cher(e) client(e),\n\n"
     "Decouvrez nos nouvelles offres de la rentree:\n\n"
     "1. Taux preferentiel sur le credit immobilier: 6.5% TEG\n"
     "2. Carte Visa Gold: 0 frais la premiere annee\n"
     "3. Assurance voyage offerte pour tout achat avec carte Platinum\n\n"
     "Pour gerer vos preferences de communication:\n"
-    "https://imania-preferences.evil.test/unsubscribe?id=target\n\n"
-    "ImaniIA Bank - Votre banque, votre avenir\n"
-    "70 010 600 | www.imaniabank.com.tn"
+    "https://attijari-preferences.evil.test/unsubscribe?id=target\n\n"
+    "Attijari Bank - Votre banque, votre avenir\n"
+    "70 010 600 | www.attijaribank.com.tn"
 )
 
 
@@ -296,7 +296,7 @@ CASE10_BODY = (
     "Rana fel banque w lazem tbaddel el password mte3ek lyoum.\n"
     "El systeme el jdid yestahel mise a jour.\n\n"
     "Odkhol lel lien hedha w badel les coordonnees:\n"
-    "https://imania-update.evil.test/maj-compte\n\n"
+    "https://attijari-update.evil.test/maj-compte\n\n"
     "Lazem tkammel avant 17h sinon el compte yetsakkar.\n\n"
     "Merci,\nService Informatique"
 )
@@ -313,7 +313,7 @@ def build_stress_cases() -> list[dict]:
             "expected": "malicious",
             "eml": _make_eml(
                 from_addr="finance@quarterly-reports.com",
-                to_addr="target@imaniabank.com.tn",
+                to_addr="target@attijaribank.com.tn",
                 subject="Q3 Revenue Forecast - Board Review",
                 body="Please review the attached revenue forecast before Friday's board meeting.\n\nFinance Team",
                 attachments=[("Q3_Revenue_Forecast.docx", _dde_obfuscated(),
@@ -326,7 +326,7 @@ def build_stress_cases() -> list[dict]:
             "expected": "malicious",
             "eml": _make_eml(
                 from_addr="legal@contract-review.com",
-                to_addr="target@imaniabank.com.tn",
+                to_addr="target@attijaribank.com.tn",
                 subject="NDA - Signature Required",
                 body="Please review and sign the attached NDA at your earliest convenience.\n\nLegal Department",
                 attachments=[("NDA_2024_Confidential.docx", _template_injection_docx(),
@@ -338,8 +338,8 @@ def build_stress_cases() -> list[dict]:
             "description": "Callback phishing without monetary amount — evades vishing rule",
             "expected": "malicious",
             "eml": _make_eml(
-                from_addr="security@imania-alert-center.com",
-                to_addr="target@imaniabank.com.tn",
+                from_addr="security@attijari-alert-center.com",
+                to_addr="target@attijaribank.com.tn",
                 subject="Alerte: Connexion suspecte detectee sur votre compte",
                 body=CASE3_BODY,
                 auth_pass=False,
@@ -350,8 +350,8 @@ def build_stress_cases() -> list[dict]:
             "description": "ICS from spoofed internal domain — evades external sender check",
             "expected": "malicious",
             "eml": _make_eml(
-                from_addr="it-support@imaniabank.com.tn",
-                to_addr="target@imaniabank.com.tn",
+                from_addr="it-support@attijaribank.com.tn",
+                to_addr="target@attijaribank.com.tn",
                 subject="IT: Renouvellement certificat VPN obligatoire",
                 body="Veuillez accepter l'invitation ci-jointe pour le renouvellement de votre certificat VPN.",
                 attachments=[("vpn_certificate_renewal.ics", _ics_spoofed_internal(), "text/calendar")],
@@ -369,8 +369,8 @@ def build_stress_cases() -> list[dict]:
             "description": "BEC with pure authority pressure — zero financial keywords",
             "expected": "malicious",
             "eml": _make_eml(
-                from_addr="aziz.benmoussa@imania-bank-tn.com",
-                to_addr="mohamed@imaniabank.com.tn",
+                from_addr="aziz.benmoussa@attijari-bank-tn.com",
+                to_addr="mohamed@attijaribank.com.tn",
                 subject="Urgent - confidentiel",
                 body=CASE6_BODY,
                 auth_pass=True,  # attacker controls their own domain
@@ -381,8 +381,8 @@ def build_stress_cases() -> list[dict]:
             "description": "Legitimate-looking newsletter with one hidden phishing link",
             "expected": "malicious",
             "eml": _make_eml(
-                from_addr="newsletter@imania-communication.com",
-                to_addr="target@imaniabank.com.tn",
+                from_addr="newsletter@attijari-communication.com",
+                to_addr="target@attijaribank.com.tn",
                 subject="Newsletter Clients - Juillet 2024",
                 body=CASE7_BODY,
                 auth_pass=True,
@@ -394,7 +394,7 @@ def build_stress_cases() -> list[dict]:
             "expected": "malicious",
             "eml": _make_eml(
                 from_addr="accounting@vendor-payments.com",
-                to_addr="target@imaniabank.com.tn",
+                to_addr="target@attijaribank.com.tn",
                 subject="Factures Juin 2024 - A traiter",
                 body="Bonjour,\n\nVeuillez trouver ci-joint les factures de juin.\n\nComptabilite",
                 attachments=[("Factures_Juin_2024.zip", _chained_zip_legitimate(), "application/zip")],
@@ -406,7 +406,7 @@ def build_stress_cases() -> list[dict]:
             "expected": "malicious",
             "eml": _make_eml(
                 from_addr="security@account-verify.com",
-                to_addr="target@imaniabank.com.tn",
+                to_addr="target@attijaribank.com.tn",
                 subject="Security Verification Required",
                 body=CASE9_BODY,
                 auth_pass=False,
@@ -418,7 +418,7 @@ def build_stress_cases() -> list[dict]:
             "expected": "malicious",
             "eml": _make_eml(
                 from_addr="support@banque-services-tn.com",
-                to_addr="target@imaniabank.com.tn",
+                to_addr="target@attijaribank.com.tn",
                 subject="Mise a jour systeme - action requise",
                 body=CASE10_BODY,
                 auth_pass=False,

@@ -1,4 +1,4 @@
-"""scheduler.py — Automated background scheduler for the ImaniIA pipeline.
+"""scheduler.py — Automated background scheduler for the Attijari pipeline.
 
 Uses APScheduler to run:
   1. IMAP poll: every 60s (configurable via POLL_INTERVAL_SECONDS)
@@ -135,7 +135,7 @@ def create_scheduler() -> BackgroundScheduler:
 def start_daemon():
     """Start the scheduler as a foreground daemon process."""
     logger.info("=" * 50)
-    logger.info("[SCHEDULER] Starting ImaniIA background scheduler")
+    logger.info("[SCHEDULER] Starting Attijari background scheduler")
     logger.info(f"  IMAP poll interval: {POLL_INTERVAL}s")
     logger.info(f"  Feed update cron:   {FEED_UPDATE_CRON}")
     logger.info(f"  Report cron:        {REPORT_CRON}")

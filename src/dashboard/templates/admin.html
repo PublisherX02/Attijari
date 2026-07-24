@@ -44,7 +44,6 @@
             <select class="form-select" id="new-role" data-change-action="apply-role-defaults">
                 <option value="analyst">Analyst</option>
                 <option value="viewer">Viewer</option>
-                <option value="insurance_operator">Insurance Operator</option>
                 <option value="admin">Admin</option>
             </select>
         </div>
@@ -69,7 +68,6 @@
             <select class="form-select" id="edit-role" data-change-action="apply-edit-role-defaults">
                 <option value="analyst">Analyst</option>
                 <option value="viewer">Viewer</option>
-                <option value="insurance_operator">Insurance Operator</option>
                 <option value="admin">Admin</option>
             </select>
         </div>
@@ -154,8 +152,6 @@ async function loadUsers() {
             ? '<span class="status-badge" style="background:rgba(155,89,182,0.15);color:#9b59b6;">admin</span>'
             : u.role === 'analyst'
             ? '<span class="status-badge" style="background:rgba(41,128,185,0.15);color:#2980b9;">analyst</span>'
-            : u.role === 'insurance_operator'
-            ? '<span class="status-badge" style="background:rgba(39,174,96,0.15);color:#27ae60;">insurance operator</span>'
             : '<span class="status-badge" style="background:rgba(149,165,166,0.15);color:#7f8c8d;">viewer</span>';
 
         const permCount = u.permissions ? Object.values(u.permissions).filter(Boolean).length : 0;

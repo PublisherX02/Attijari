@@ -34,18 +34,18 @@ logging.basicConfig(
     ]
 )
 
-logger = logging.getLogger("imania")
+logger = logging.getLogger("attijari")
 
 
 def get_logger(module_name: str) -> logging.Logger:
     """Get a configured logger for a specific module."""
-    return logging.getLogger(f"imania.{module_name}")
+    return logging.getLogger(f"attijari.{module_name}")
 
 
 # ---------------------------------------------------------------------------
 # Structured audit trail — JSON lines appended to data/audit.log
 # ---------------------------------------------------------------------------
-_audit_logger = logging.getLogger("imania.audit")
+_audit_logger = logging.getLogger("attijari.audit")
 _audit_handler = logging.FileHandler(_DATA_DIR / "audit_events.jsonl", encoding="utf-8")
 _audit_handler.setFormatter(logging.Formatter("%(message)s"))
 _audit_logger.addHandler(_audit_handler)

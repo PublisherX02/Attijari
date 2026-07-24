@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="ImaniIA — local-first AI copilot for insurance claims triage">
+    <meta name="description" content="Attijari — AI-assisted email security triage dashboard">
     {% if ws_token %}<meta name="ws-token" content="{{ ws_token }}">{% endif %}
-    <title>{% block title %}ImaniIA{% endblock %}</title>
+    <title>{% block title %}Attijari{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,15 +14,15 @@
 </head>
 <body>
     <div id="detonation-banner" class="detonation-banner" style="display:none">
-        🔬 Detonation window active — claim intake temporarily suspended.
+        🔬 Detonation window active — email analysis temporarily suspended.
         Unprocessed submissions stay queued for the next pass.
     </div>
     <div class="app-layout">
         <!-- Sidebar -->
         <nav class="sidebar">
             <div class="sidebar-brand">
-                <h1>ImaniIA</h1>
-                <div class="subtitle">Claims Triage Copilot</div>
+                <h1>Attijari</h1>
+                <div class="subtitle">Email Security Triage</div>
             </div>
             <div class="sidebar-nav">
                 {% if role == 'admin' or permissions.get('emails.view', False) %}
@@ -30,10 +30,6 @@
                     <span class="nav-icon">📥</span>
                     <span>Inbox Queue</span>
                     <span class="nav-badge" id="pending-badge">0</span>
-                </a>
-                <a href="/urgency-queue" class="nav-link {% if active_page == 'urgency_queue' %}active{% endif %}">
-                    <span class="nav-icon">🚨</span>
-                    <span>Urgency Queue</span>
                 </a>
                 {% endif %}
                 {% if role == 'admin' or permissions.get('blocklist.view', False) %}
@@ -104,8 +100,6 @@
                 <span class="status-badge" style="background:rgba(41,128,185,0.15);color:#2980b9;margin-left:8px;font-size:0.72rem;">analyst</span>
                 {% elif role == 'viewer' %}
                 <span class="status-badge" style="background:rgba(149,165,166,0.15);color:#7f8c8d;margin-left:8px;font-size:0.72rem;">viewer</span>
-                {% elif role == 'insurance_operator' %}
-                <span class="status-badge" style="background:rgba(39,174,96,0.15);color:#27ae60;margin-left:8px;font-size:0.72rem;">insurance operator</span>
                 {% endif %}
                 <a href="/logout" class="btn btn-outline btn-sm" style="margin-left:12px;font-size:0.78rem;padding:4px 12px;">Logout</a>
             </div>

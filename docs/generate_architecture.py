@@ -5,8 +5,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
 
-fig, ax = plt.subplots(figsize=(10, 18))
-ax.set_xlim(0, 12)
+fig, ax = plt.subplots(figsize=(11, 18))
+ax.set_xlim(0, 13.5)
 ax.set_ylim(0, 22)
 ax.axis("off")
 fig.patch.set_facecolor("white")
@@ -160,6 +160,27 @@ smallbox(ax, 9.5, 11.35, 2.2, 0.45, "conf < 0.6 \u2192\nforce escalation", "#e8e
 
 arrow(ax, cx, 11.02, cx, 10.45)
 
+# ── Sandbox branch (CAPEv2, conditional / deferred detonation) ──
+C_SANDBOX = "#d0e0e3"
+sbx_cx = 10.9
+smallbox(ax, sbx_cx, 9.4, 2.6, 0.55,
+         "conf < 0.85 OR\nextraction suspicious", C_SIDE, ec="#0b5394", fontsize=6.5)
+ax.annotate("", xy=(sbx_cx - 1.3, 9.4), xytext=(cx + 1.5, 11.1),
+            arrowprops=dict(arrowstyle="-|>", color="#0b5394", lw=1.2,
+                            mutation_scale=12, connectionstyle="arc3,rad=0.25"), zorder=4)
+
+box(ax, sbx_cx, 8.5, 2.9, 0.6, "Sandbox Detonation\n(CAPEv2, Ubuntu VM)", C_SANDBOX, ec="#0b5394", fontsize=8)
+smallbox(ax, sbx_cx, 7.75, 2.9, 0.55,
+         "deferred queue, memory-gated\ndrain window (unload LLM/Guard,\nstop Docker, resume VM)",
+         C_SIDE, ec="#0b5394", fontsize=5.8)
+smallbox(ax, sbx_cx, 7.1, 2.9, 0.4,
+         "malscore >= 6: escalate\nCAPE down: fail-safe escalate", C_SIDE, ec="#0b5394", fontsize=6)
+ax.annotate("", xy=(cx + 0.5, 9.9), xytext=(sbx_cx - 1.3, 7.25),
+            arrowprops=dict(arrowstyle="-|>", color="#0b5394", lw=1.2,
+                            mutation_scale=12, connectionstyle="arc3,rad=-0.25"), zorder=4)
+ax.text(sbx_cx, 6.5, "analyst 'insist'\n(on-demand VM view,\nunverified attachments)",
+        ha="center", va="center", fontsize=5.3, color="#0b5394", fontstyle="italic")
+
 # ── Human Review ──
 box(ax, cx, 10.0, 3.0, 0.65, "Human Analyst\nReview", C_HUMAN)
 
@@ -228,7 +249,7 @@ ax.text(6.0, 6.0, "Figure 1: Trust No Email — Complete Pipeline Architecture",
         ha="center", va="center", fontsize=10, fontstyle="italic", color="#555")
 
 plt.tight_layout()
-out = "C:/Users/moham/ImaniIA/docs/architecture_diagram.png"
+out = "C:/Users/moham/Attijari/docs/architecture_diagram.png"
 plt.savefig(out, dpi=300, bbox_inches="tight", facecolor="white")
 plt.close()
 print(f"Saved: {out}")

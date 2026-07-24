@@ -524,11 +524,11 @@ class RuleEngine:
         )
         subject_has_financial = any(kw in subject for kw in _BEC_SUBJECT_KW)
 
-        # Check if sender is external (not @imaniabank.com.tn)
+        # Check if sender is external (not @attijaribank.com.tn)
         sender_is_external = (
             signals["sender_domain"] and
-            signals["sender_domain"] != "imaniabank.com.tn" and
-            not signals["sender_domain"].endswith(".imaniabank.com.tn")
+            signals["sender_domain"] != "attijaribank.com.tn" and
+            not signals["sender_domain"].endswith(".attijaribank.com.tn")
         )
 
         # Check body URLs for SharePoint/OneDrive lookalikes with evil subdomains
@@ -624,7 +624,7 @@ class RuleEngine:
                             "reason": "no vishing/callback pattern"})
 
         # Rule 13 — Internal domain spoofing detection
-        # If sender claims @imaniabank.com.tn but authentication fails,
+        # If sender claims @attijaribank.com.tn but authentication fails,
         # this is a spoofed internal email. Catches ICS/phishing from
         # attackers impersonating internal staff.
         spoof_flagged = False
@@ -941,6 +941,143 @@ class RuleEngine:
             details.append({"rule": "mime_body_part_confusion", "flagged": False,
                             "reason": "no MIME body part confusion detected"})
 
+        # Rule 25 — Script/executable markup in EITHER body representation
+        # Rule 18 (xss_header_injection) only inspects body_html for inline
+        # event-handler/script patterns, and only after the header checks
+        # find nothing. EPVME miss review (2026-07-22) found a live
+        # SVG+<script> XSS payload delivered as a single-part text/html
+        # message via a data:image/svg+xml;base64 URI wrapped in <EMBED> —
+        # get_body(preferencelist=("plain",)) returns None for that message
+        # (there is no text/plain part), so any body_text-only check misses
+        # it entirely, and the "<svg" literal itself is base64-encoded so
+        # Rule 18's plain substring match on body_html doesn't see it either
+        # — only the undecoded "data:image/svg+xml" wrapper is literal text.
+        # This rule checks body_text AND body_html together, and additionally
+        # decodes base64 data-URI payloads to catch script tags hidden inside
+        # them. Neither representation of an email legitimately contains
+        # <script>/<embed>/<iframe> markup or a javascript: URI.
+        text_script_flagged = False
+        _TEXT_SCRIPT_PATTERNS = (
+            "<script", "<embed", "<iframe", "<object", "<svg",
+            "javascript:", "vbscript:", "data:text/html", "data:image/svg+xml",
+        )
+        combined_body_lower = ((parsed.get("body_text") or "") + " " + (parsed.get("body_html") or "")).lower()
+        text_script_matches = [p for p in _TEXT_SCRIPT_PATTERNS if p in combined_body_lower]
+
+        # Decode base64 data-URI payloads (SVG/HTML smuggling) and check the
+        # decoded content for the same patterns — catches payloads hidden
+        # behind base64 where the literal "<script"/"<svg" isn't in the raw text.
+        if not text_script_matches:
+            import base64 as _b64
+            for _durl_match in re.finditer(r'data:[\w/+.\-]+;base64,([a-zA-Z0-9+/=]{16,})', combined_body_lower):
+                try:
+                    decoded = _b64.b64decode(_durl_match.group(1) + "===").decode("utf-8", errors="ignore").lower()
+                    inner_hits = [p for p in _TEXT_SCRIPT_PATTERNS if p in decoded]
+                    if inner_hits:
+                        text_script_matches = [f"decoded-data-uri:{h}" for h in inner_hits]
+                        break
+                except Exception:
+                    continue
+
+        if text_script_matches:
+            text_script_flagged = True
+
+        if text_script_flagged:
+            details.append({"rule": "text_body_script_payload", "flagged": True,
+                            "reason": f"executable markup in email body: {', '.join(text_script_matches[:3])}"})
+            flags += 1
+        else:
+            details.append({"rule": "text_body_script_payload", "flagged": False,
+                            "reason": "no script/markup payload in body"})
+
+        # Rule 26 — Structural injection in header VALUES (Subject/To/From)
+        # EPVME miss review found two attack patterns Rule 18/19 missed:
+        #   (a) a Subject line that IS raw MIME header syntax
+        #       ("Mime-Version:Content-Type:Content-Transfer-Encoding;") with
+        #       an empty body — MIME-smuggling via the subject field, not a
+        #       real duplicate Content-Type header so Rule 19 never fires.
+        #   (b) a To header containing an HTML tag fragment
+        #       ("victim<div style=color") — generic markup injection that
+        #       Rule 18's narrow onXXX=/<svg pattern list doesn't cover.
+        # Note: Rule 19 (mime_confusion_attack) was previously refactored
+        # AWAY from subject-keyword matching (2026-07-03) because a bare
+        # mention of "content-type" in a normal subject is common and noisy.
+        # This rule stays narrow to avoid resurrecting that false-positive
+        # rate: the HTML-tag check matches a curated list of real tag names
+        # (never a bare "<letter", which would match every ordinary
+        # "Display Name <addr@domain>" RFC 5322 mailbox — verified against
+        # real EPVME/benign samples during development, since that format
+        # is the overwhelming majority of From/Reply-To/To header values),
+        # and the MIME-token check requires 2+ distinct real header-name
+        # tokens co-occurring in one field, which no legitimate subject/to/
+        # from ever contains.
+        header_inject_flagged = False
+        header_inject_reasons = []
+        _MIME_HEADER_TOKENS = ("mime-version", "content-type", "content-transfer-encoding")
+        _HEADER_HTML_TAG_NAMES = (
+            "div", "script", "embed", "iframe", "object", "svg", "img",
+            "style", "form", "body", "html", "table", "span", "input",
+            "link", "meta", "a",
+        )
+        _HEADER_TAG_RE = re.compile(r'<\s*(' + '|'.join(_HEADER_HTML_TAG_NAMES) + r')\b', re.IGNORECASE)
+        _HEADER_FIELDS_TO_CHECK = {
+            "subject": headers.get("subject") or "",
+            "to": headers.get("to") or "",
+            "from": headers.get("from") or "",
+            "reply-to": headers.get("reply-to") or "",
+        }
+        for field_name, field_value in _HEADER_FIELDS_TO_CHECK.items():
+            fv_lower = field_value.lower()
+            mime_token_hits = sum(1 for tok in _MIME_HEADER_TOKENS if tok in fv_lower)
+            if mime_token_hits >= 2:
+                header_inject_flagged = True
+                header_inject_reasons.append(f"{field_name}: MIME header syntax embedded in field value")
+            if _HEADER_TAG_RE.search(field_value):
+                header_inject_flagged = True
+                header_inject_reasons.append(f"{field_name}: HTML tag fragment in header value")
+
+        if header_inject_flagged:
+            details.append({"rule": "header_field_injection", "flagged": True,
+                            "reason": "; ".join(header_inject_reasons[:3])})
+            flags += 1
+        else:
+            details.append({"rule": "header_field_injection", "flagged": False,
+                            "reason": "no structural injection in Subject/To/From/Reply-To"})
+
+        # Rule 27 — Advance-fee fraud / "419" scam vocabulary
+        # EPVME miss review found a textbook advance-fee-fraud email
+        # ("ATTENTION: Beneficiary", "THE PRESIDENCY", "THE CASTLE VILLA")
+        # that no structural or credential-phishing rule catches — it asks
+        # for nothing technical, it's pure social-engineering vocabulary.
+        # This genre has an extremely distinctive, low-false-positive-risk
+        # phrase set (a legitimate bank email will never say "next of kin"
+        # or "unclaimed inheritance"), so two independent hits are hard
+        # evidence rather than a soft signal.
+        # Uses combined_body_lower (text+html), not the text-only `body`
+        # used by Rule 4 above — the EPVME 419 sample that motivated this
+        # rule is an HTML-only message with no text/plain part, so a
+        # text-only check would silently never match it.
+        _FRAUD_419_PHRASES = (
+            "next of kin", "beneficiary of this fund", "unclaimed fund",
+            "unclaimed inheritance", "your inheritance", "unclaimed inheritance",
+            "unclaimed estate", "dormant account", "diplomatic courier",
+            "diplomatic immunity", "compensation fund", "unclaimed compensation",
+            "unclaimed sum", "the presidency", "unclaimed contract sum",
+            "unclaimed lottery", "million dollars", "million euros",
+            "confidential business proposal", "attention: beneficiary",
+            "total inheritance", "abandoned fund",
+        )
+        fraud_419_matches = [p for p in _FRAUD_419_PHRASES if p in combined_body_lower]
+        fraud_419_flagged = len(fraud_419_matches) >= 2
+
+        if fraud_419_flagged:
+            details.append({"rule": "advance_fee_fraud", "flagged": True,
+                            "reason": f"advance-fee/419 scam vocabulary: {', '.join(fraud_419_matches[:3])}"})
+            flags += 1
+        else:
+            details.append({"rule": "advance_fee_fraud", "flagged": False,
+                            "reason": "no advance-fee fraud vocabulary detected"})
+
         # Determine verdict severity:
         # - "proposed_reject": deterministic hard-evidence rules fired
         #   (blocklist, bad extension, bad hash, threat feed match)
@@ -966,6 +1103,9 @@ class RuleEngine:
             "source_route_injection",
             "malformed_email",
             "mime_body_part_confusion",
+            "text_body_script_payload",
+            "header_field_injection",
+            "advance_fee_fraud",
         }
         hard_flags = [d for d in details if d["flagged"] and d["rule"] in HARD_EVIDENCE_RULES]
 

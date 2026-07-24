@@ -4,7 +4,7 @@ Detects lookalike domains that could be used for phishing/spoofing.
 Uses the dnstwister.report public API (configured via DNSTWIST_API_KEY JSON in .env).
 
 CLAUDE.md context: dnstwist is for precomputed watchlist, not live per-email.
-We check sender domains against known typosquats of imaniabank.com.tn and
+We check sender domains against known typosquats of attijaribank.com.tn and
 other watched domains.
 """
 from __future__ import annotations
@@ -21,9 +21,9 @@ load_dotenv()
 
 # Domains we watch for typosquatting (the bank's real domains)
 WATCHED_DOMAINS = [
-    "imaniabank.com.tn",
-    "imaniawafabank.com",
-    "imania.com.tn",
+    "attijaribank.com.tn",
+    "attijariwafabank.com",
+    "attijari.com.tn",
 ]
 
 

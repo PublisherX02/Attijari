@@ -1,5 +1,5 @@
 /* =========================================================================
-   dashboard.js — Client-side logic for the ImaniIA Claims Dashboard
+   dashboard.js — Client-side logic for the Attijari Security Dashboard
    Handles API calls, DOM updates, toast notifications, and interactivity
    ========================================================================= */
 
@@ -442,40 +442,6 @@ async function revertAction(id) {
 }
 
 /* =========================================================================
-   Urgency Queue page
-   ========================================================================= */
-
-const urgencyColorsMap = { low: '#7f8c8d', medium: '#2980b9', high: '#e67e22', critical: '#e74c3c' };
-
-async function loadUrgencyQueue() {
-    const tbody = document.getElementById('urgency-table-body');
-    if (!tbody) return;
-    try {
-        const data = await API.get('/api/urgency');
-        const items = data.items || [];
-        if (items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No claims in the urgency queue.</td></tr>';
-            return;
-        }
-        tbody.innerHTML = items.map(i => `
-            <tr data-action="open-email" data-id="${parseInt(i.email_id)}" style="cursor:pointer">
-                <td><span class="badge" style="background:${urgencyColorsMap[i.level] || '#7f8c8d'};color:white">${esc(i.level)}</span></td>
-                <td>${esc(truncate(i.subject, 60)) || '—'}</td>
-                <td>${esc(i.sender) || '—'}</td>
-                <td>${(i.missing_information || []).length > 0 ? esc((i.missing_information || []).join(', ')) : '—'}</td>
-                <td>
-                    <span class="badge ${i.settlement_type === 'automated' ? 'accepted' : 'recu'}">${esc(i.settlement_type) || '—'}</span>
-                    ${i.settlement_confirmed ? ' <span style="color:var(--text-muted);font-size:0.75rem">confirmed</span>' : ''}
-                </td>
-                <td data-action="noop"><a href="/email/${parseInt(i.email_id)}" class="btn btn-outline btn-sm">View</a></td>
-            </tr>
-        `).join('');
-    } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Error: ${esc(err.message)}</td></tr>`;
-    }
-}
-
-/* =========================================================================
    Email detail page
    ========================================================================= */
 
@@ -483,73 +449,15 @@ function renderVerdictSections(e) {
     const llm = e.llm_result;
     if (!llm) return '';
 
-    const cv = llm.claim_verdict;
-    const urgencyColors = { low: '#7f8c8d', medium: '#2980b9', high: '#e67e22', critical: '#e74c3c' };
-
-    const claimHtml = cv ? (() => {
-        const urgencyColor = urgencyColors[cv.urgency] || '#7f8c8d';
-        const missing = cv.missing_information || [];
-        const policyLine = [
-            cv.policy_number ? esc(cv.policy_number) : 'Policy not identified',
-            cv.policyholder_name ? esc(cv.policyholder_name) : null,
-            cv.policy_type ? `(${esc(cv.policy_type)})` : null,
-        ].filter(Boolean).join(' — ');
-
-        return `
+    return `
         <div class="detail-section" style="grid-column: 1 / -1">
-            <h3>📋 Claim Assessment</h3>
-            <div class="detail-row"><span class="detail-label">Policy</span><span class="detail-value">${policyLine}</span></div>
-            <div class="detail-row"><span class="detail-label">Claim summary</span><span class="detail-value">${esc(cv.incident_description) || '—'}</span></div>
-            <div class="detail-row"><span class="detail-label">Photo evidence</span><span class="detail-value">${esc(cv.full_report) || 'No photo evidence assessed.'}${(cv.damage_classes || []).length > 0 ? ' — damage detected: ' + (cv.damage_classes || []).map(esc).join(', ') : ''}</span></div>
-            <div class="detail-row"><span class="detail-label">Severity</span><span class="detail-value">${esc(cv.severity_estimate) || 'none'}</span></div>
-            <div class="detail-row">
-                <span class="detail-label">Urgency</span>
-                <span class="detail-value"><span class="badge" style="background:${urgencyColor};color:white">${esc(cv.urgency)}</span> ${esc(cv.urgency_reasoning) || ''}</span>
-            </div>
-            ${missing.length > 0 ? `
-                <div class="detail-row"><span class="detail-label" style="color:var(--color-escalated,#f59e0b)">Missing information</span><span class="detail-value" style="color:var(--color-escalated,#f59e0b)">${missing.map(esc).join(', ')}</span></div>
-            ` : ''}
-            <div class="detail-row">
-                <span class="detail-label">Suggested action</span>
-                <span class="detail-value">
-                    <span class="badge ${cv.settlement_type === 'automated' ? 'accepted' : 'recu'}" style="margin-right:8px">${esc(cv.settlement_type)}</span>
-                    ${esc(cv.settlement_recommendation) || '—'}
-                </span>
-            </div>
-            <div class="action-bar" style="margin-top:12px">
-                ${userCan('claims.settle') && !e.settlement_confirmed ? `
-                    <button class="btn btn-primary btn-sm" data-action="confirm-settlement" data-id="${parseInt(e.id)}">✓ Confirm settlement</button>
-                ` : e.settlement_confirmed ? `<span style="color:var(--text-muted);font-size:0.85rem">Settlement confirmed</span>` : ''}
-            </div>
-        </div>`;
-    })() : `
-        <div class="detail-section" style="grid-column: 1 / -1">
-            <h3>📋 Claim Assessment</h3>
-            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">No structured claim data extracted for this submission.</span></div>
-        </div>`;
-
-    const riskHtml = `
-        <div class="detail-section" style="grid-column: 1 / -1">
-            <h3>🛡️ Fraud Risk Indicators</h3>
-            <div class="detail-row"><span class="detail-label">Fraud risk score</span><span class="detail-value">${parseInt(llm.sender_risk) || 0}/100</span></div>
+            <h3>🛡️ Security Risk Indicators</h3>
+            <div class="detail-row"><span class="detail-label">Sender risk score</span><span class="detail-value">${parseInt(llm.sender_risk) || 0}/100</span></div>
             <div class="detail-row"><span class="detail-label">Assessment</span><span class="detail-value">${esc(llm.intent_classification) || '—'}</span></div>
             ${(llm.social_engineering_indicators || []).length > 0 ? `
                 <div class="detail-row"><span class="detail-label">Indicators</span><span class="detail-value">${(llm.social_engineering_indicators || []).map(esc).join(', ')}</span></div>
             ` : ''}
         </div>`;
-
-    if (window.USER_ROLE === 'insurance_operator') return claimHtml;
-    return claimHtml + riskHtml;
-}
-
-async function confirmSettlement(emailId) {
-    try {
-        await API.post(`/api/emails/${emailId}/settlement/confirm`);
-        showToast('Settlement confirmed', 'success');
-        loadEmailDetail(emailId);
-    } catch (err) {
-        showToast(`Confirm failed: ${err.message}`, 'error');
-    }
 }
 
 async function loadEmailDetail(emailId) {
@@ -561,15 +469,10 @@ async function loadEmailDetail(emailId) {
     try {
         const e = await API.get(`/api/emails/${emailId}`);
 
-        // Insurance Operator sees claim/policy data only — nothing from the
-        // cybersecurity surfaces (threat-intel signals, blocklist/whitelist
-        // status, sandbox detonation, fraud-risk model output).
-        const showCyberSecurity = window.USER_ROLE !== 'insurance_operator';
-
         // Build enrichment signals HTML
         let signalsHtml = '';
         const rules = e.rules_result;
-        if (showCyberSecurity && rules && rules.details) {
+        if (rules && rules.details) {
             signalsHtml = '<div class="signals-grid">';
             for (const d of rules.details) {
                 const cls = d.flagged ? 'flagged' : 'clean';
@@ -601,7 +504,7 @@ async function loadEmailDetail(emailId) {
         // Domain conflict warning: shown when domain appears in BOTH blocklist and whitelist.
         // This means a previous quarantine blocked the domain, but a release whitelisted
         // a specific sender on that domain — the conflict is expected but must be visible.
-        const domainConflictHtml = (showCyberSecurity && e.domain_in_blocklist && e.domain_in_whitelist)
+        const domainConflictHtml = (e.domain_in_blocklist && e.domain_in_whitelist)
             ? `<div style="
                     background:rgba(234,179,8,0.12);
                     border:1px solid rgba(234,179,8,0.5);
@@ -636,10 +539,10 @@ async function loadEmailDetail(emailId) {
 
             <div class="detail-grid">
                 <div class="detail-section">
-                    <h3>Claim Submission</h3>
+                    <h3>Email Metadata</h3>
                     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(e.status)}</span></div>
                     <div class="detail-row"><span class="detail-label">Sender</span><span class="detail-value">${esc(e.sender) || '—'}</span></div>
-                    <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}${(showCyberSecurity && e.domain_in_blocklist) ? ' <span class="badge quarantined" style="font-size:0.7rem">blocklisted</span>' : ''}${(showCyberSecurity && e.domain_in_whitelist) ? ' <span class="badge accepted" style="font-size:0.7rem">whitelisted</span>' : ''}</span></div>
+                    <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${esc(e.sender_domain) || '—'}${e.domain_in_blocklist ? ' <span class="badge quarantined" style="font-size:0.7rem">blocklisted</span>' : ''}${e.domain_in_whitelist ? ' <span class="badge accepted" style="font-size:0.7rem">whitelisted</span>' : ''}</span></div>
                     <div class="detail-row"><span class="detail-label">Date Sent</span><span class="detail-value">${formatDate(e.email_date) || '—'}</span></div>
                     <div class="detail-row"><span class="detail-label">Scanned At</span><span class="detail-value">${formatDate(e.created_at)}</span></div>
                     <div class="detail-row"><span class="detail-label">Attachments</span><span class="detail-value">${parseInt(e.attachment_count) || 0}</span></div>
@@ -648,7 +551,7 @@ async function loadEmailDetail(emailId) {
                 </div>
 
                 <div class="detail-section">
-                    <h3>Adjuster Actions</h3>
+                    <h3>Analyst Actions</h3>
                     <div class="detail-row"><span class="detail-label">Action taken</span><span class="detail-value">${e.analyst_action ? `<span class="badge ${e.analyst_action === 'release' ? 'released' : e.analyst_action === 'quarantine' ? 'quarantined' : 'recu'}">${esc(e.analyst_action)}</span>` : '<span style="color:var(--text-muted)">Pending review</span>'}</span></div>
                     <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">${e.analyst_notes ? esc(e.analyst_notes) : '<span style="color:var(--text-muted)">No notes yet</span>'}</span></div>
                     ${e.parse_errors && e.parse_errors.length > 0 ? `
@@ -661,30 +564,30 @@ async function loadEmailDetail(emailId) {
                 ${renderVerdictSections(e)}
             </div>
 
-            ${(showCyberSecurity && e.llm_reasoning) ? `
+            ${e.llm_reasoning ? `
                 <div class="reasoning-card">
-                    <h3>🤖 AI Assessment</h3>
+                    <h3>🤖 LLM Reasoning</h3>
                     <div class="reasoning-text">${esc(e.llm_reasoning)}</div>
                 </div>
             ` : ''}
 
-            ${(showCyberSecurity && signalsHtml) ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Risk Signals</h3>${signalsHtml}` : ''}
+            ${signalsHtml ? `<h3 style="margin-bottom:12px;color:var(--text-muted);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.06em">Security Signals</h3>${signalsHtml}` : ''}
 
-            ${showCyberSecurity ? '<div id="attachments-panel"></div>' : ''}
+            <div id="attachments-panel"></div>
 
-            ${showCyberSecurity ? auditHtml : ''}
+            ${auditHtml}
 
             <div class="action-bar">
-                ${userCan('emails.release') ? `<button class="btn btn-success" data-action="release-email" data-id="${parseInt(e.id)}">✓ Approve Claim</button>` : ''}
-                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" data-action="quarantine-email" data-id="${parseInt(e.id)}">🚩 Escalate to Adjuster</button>` : ''}
-                ${userCan('emails.override') ? `<button class="btn btn-outline" data-action="open-override-modal" data-id="${parseInt(e.id)}">Override Recommendation</button>` : ''}
+                ${userCan('emails.release') ? `<button class="btn btn-success" data-action="release-email" data-id="${parseInt(e.id)}">✓ Release</button>` : ''}
+                ${userCan('emails.quarantine') ? `<button class="btn btn-danger" data-action="quarantine-email" data-id="${parseInt(e.id)}">🛡 Quarantine</button>` : ''}
+                ${userCan('emails.override') ? `<button class="btn btn-outline" data-action="open-override-modal" data-id="${parseInt(e.id)}">Override Verdict</button>` : ''}
                 ${e.analyst_action && userCan('emails.revert') ? `<button class="btn btn-outline" data-action="revert-action" data-id="${parseInt(e.id)}" title="Undo ${esc(e.analyst_action)} — return to escalated for re-review">Undo ${esc(e.analyst_action)}</button>` : ''}
                 <div style="flex:1"></div>
-                <span style="color:var(--text-muted);font-size:0.8rem">Claim #${parseInt(e.id)}</span>
+                <span style="color:var(--text-muted);font-size:0.8rem">Email #${parseInt(e.id)}</span>
             </div>
         `;
 
-        if (showCyberSecurity) renderAttachmentsPanel(e);
+        renderAttachmentsPanel(e);
 
     } catch (err) {
         container.innerHTML = `<div class="empty-state"><div class="emoji">❌</div><p>Error: ${esc(err.message)}</p></div>`;
@@ -993,7 +896,7 @@ function notifyManualReady(ready, banner) {
         if (banner) { banner.style.display = 'block'; banner.textContent = '✅ ' + msg; }
         // 2) desktop notification
         if ('Notification' in window && Notification.permission === 'granted') {
-            try { new Notification('ImaniIA — sandbox ready', { body: msg }); } catch (_) {}
+            try { new Notification('Attijari — sandbox ready', { body: msg }); } catch (_) {}
         }
         // 3) sound cue (WebAudio beep — no asset, no CSP change)
         try {
@@ -1374,7 +1277,6 @@ registerAction('release-email', (el) => releaseEmail(parseInt(el.dataset.id)));
 registerAction('quarantine-email', (el) => quarantineEmail(parseInt(el.dataset.id)));
 registerAction('revert-action', (el) => revertAction(parseInt(el.dataset.id)));
 registerAction('open-override-modal', (el) => openOverrideModal(parseInt(el.dataset.id)));
-registerAction('confirm-settlement', (el) => confirmSettlement(parseInt(el.dataset.id)));
 registerAction('load-inbox-page', (el) => loadInbox(parseInt(el.dataset.page), currentStatus, currentSearch));
 registerAction('filter-by-status', (el) => filterByStatus(el.dataset.status));
 registerAction('search-emails', () => searchEmails());

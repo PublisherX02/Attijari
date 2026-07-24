@@ -1,5 +1,5 @@
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "         Starting ImaniIA Stack                  " -ForegroundColor Cyan
+Write-Host "         Starting Attijari Stack                  " -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
 # Go to project root (where this script lives)

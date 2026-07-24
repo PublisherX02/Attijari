@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Action History — ImaniIA{% endblock %}
+{% block title %}Action History — Attijari{% endblock %}
 
 {% block content %}
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -135,7 +135,7 @@
 
 {% block scripts %}
 <script nonce="{{ csp_nonce }}">
-let currentPage = 1;
+let historyPage = 1;
 
 function actionLabel(action) {
     const map = {
@@ -212,10 +212,10 @@ function buildExtra(entry) {
 }
 
 async function loadHistory(page) {
-    if (page) currentPage = page;
+    if (page) historyPage = page;
     const actor = document.getElementById('filter-actor').value;
     const action = document.getElementById('filter-action').value;
-    const params = new URLSearchParams({ page: currentPage, per_page: 50 });
+    const params = new URLSearchParams({ page: historyPage, per_page: 50 });
     if (actor) params.set('actor', actor);
     if (action) params.set('action', action);
 
@@ -271,9 +271,9 @@ async function loadHistory(page) {
         const pagDiv = document.getElementById('history-pagination');
         if (data.pages > 1) {
             let html = '';
-            if (currentPage > 1) html += `<button class="btn btn-outline btn-sm" data-action="load-history-page" data-page="${currentPage - 1}">Prev</button>`;
+            if (historyPage > 1) html += `<button class="btn btn-outline btn-sm" data-action="load-history-page" data-page="${historyPage - 1}">Prev</button>`;
             html += `<span style="color:var(--text-muted);font-size:0.85rem;padding:6px">Page ${data.page} of ${data.pages}</span>`;
-            if (currentPage < data.pages) html += `<button class="btn btn-outline btn-sm" data-action="load-history-page" data-page="${currentPage + 1}">Next</button>`;
+            if (historyPage < data.pages) html += `<button class="btn btn-outline btn-sm" data-action="load-history-page" data-page="${historyPage + 1}">Next</button>`;
             pagDiv.innerHTML = html;
         } else {
             pagDiv.innerHTML = '';

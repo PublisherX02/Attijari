@@ -48,7 +48,7 @@ def _make_email(sender, subject, body, attach_name=None, attach_bytes=None):
         msg = MIMEText(body, "plain", "utf-8")
 
     msg["From"] = sender
-    msg["To"] = "analyst@imania.tn"
+    msg["To"] = "analyst@attijari.tn"
     msg["Subject"] = subject
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain="test.local")
@@ -69,15 +69,15 @@ EMAILS = [
     # 2 — Classic phishing (urgency + credential harvesting)
     {
         "label": "PHISHING — fake bank credential harvesting",
-        "sender": "security-alert@imania-bank-secure.com",
+        "sender": "security-alert@attijari-bank-secure.com",
         "subject": "URGENT: Votre compte sera suspendu dans 24h",
         "body": (
-            "Cher client ImaniIA,\n\n"
+            "Cher client Attijari,\n\n"
             "Nous avons detecte une activite suspecte sur votre compte.\n"
             "Veuillez confirmer votre identite en cliquant sur le lien ci-dessous "
             "dans les 24 heures, sinon votre compte sera suspendu.\n\n"
-            "https://imania-bank-secure.com/verify?token=abc123\n\n"
-            "Cordialement,\nService Securite ImaniIA Bank"
+            "https://attijari-bank-secure.com/verify?token=abc123\n\n"
+            "Cordialement,\nService Securite Attijari Bank"
         ),
     },
     # 3 — Prompt injection attempt

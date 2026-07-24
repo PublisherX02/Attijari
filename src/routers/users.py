@@ -31,12 +31,12 @@ _admin_dep = require_permission("users.manage")
 class CreateUserRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9._-]+$")
     password: str = Field(..., min_length=8, max_length=128)
-    role: str = Field(default="analyst", pattern=r"^(admin|analyst|viewer|insurance_operator)$")
+    role: str = Field(default="analyst", pattern=r"^(admin|analyst|viewer)$")
     permissions: Optional[dict] = None  # if None, use role defaults
 
 
 class UpdateUserRequest(BaseModel):
-    role: Optional[str] = Field(default=None, pattern=r"^(admin|analyst|viewer|insurance_operator)$")
+    role: Optional[str] = Field(default=None, pattern=r"^(admin|analyst|viewer)$")
     permissions: Optional[dict] = None
     is_active: Optional[bool] = None
 
@@ -109,7 +109,7 @@ async def api_create_user(
         from vault import encrypt_field
         totp_secret = pyotp.random_base32()
         totp_uri = pyotp.TOTP(totp_secret).provisioning_uri(
-            name=body.username, issuer_name="ImaniIA"
+            name=body.username, issuer_name="Attijari"
         )
 
         # Determine permissions
@@ -270,7 +270,7 @@ async def api_reset_totp(
         from vault import encrypt_field
         new_secret = pyotp.random_base32()
         totp_uri = pyotp.TOTP(new_secret).provisioning_uri(
-            name=user.username, issuer_name="ImaniIA"
+            name=user.username, issuer_name="Attijari"
         )
         user.totp_secret = encrypt_field(new_secret)
 

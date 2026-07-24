@@ -1,9 +1,9 @@
 @echo off
-title ImaniIA Claims Dashboard
+title Attijari Pipeline
 cd /d "%~dp0"
 
 echo ==================================================
-echo          Starting ImaniIA Claims Dashboard
+echo          Starting Attijari Pipeline
 echo ==================================================
 
 :: Kill existing process on port 8000

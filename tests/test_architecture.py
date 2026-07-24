@@ -78,7 +78,7 @@ def test_all():
 
     # 6. dnstwist
     try:
-        res = dnstwist_check.is_typosquat("imaniabank.com")
+        res = dnstwist_check.is_typosquat("attijaribank.com")
         print_result("dnstwist", res)
     except Exception as e:
         print_result("dnstwist", None, str(e))

@@ -42,7 +42,7 @@ def check_domain_age(domain: str, timeout: int = 10) -> dict:
     # Handle common multi-part TLDs: .com.tn, .co.uk, .com.au etc.
     _multi_tlds = {"com.tn", "com.au", "co.uk", "org.uk", "com.br", "co.jp", "com.sa"}
     if len(parts) >= 3 and ".".join(parts[-2:]) in _multi_tlds:
-        domain = ".".join(parts[-3:])  # e.g. imaniabank.com.tn
+        domain = ".".join(parts[-3:])  # e.g. attijaribank.com.tn
     elif len(parts) > 2:
         domain = ".".join(parts[-2:])  # e.g. coursera.org
 

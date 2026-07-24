@@ -61,9 +61,6 @@ google-auth-oauthlib==1.4.0
 # LLM runtime
 ollama
 
-# Computer vision — car-damage assessment (claims-triage extraction step)
-ultralytics==8.3.60
-
 # Semantic prompt guard (Llama Guard 3)
 transformers==5.12.1
 torch==2.5.1
