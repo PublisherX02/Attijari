@@ -141,6 +141,7 @@ async def security_and_metrics_middleware(request: Request, call_next):
 _poll_task = None
 _retention_task = None
 _scan_lock = asyncio.Lock()
+_smtp_controller = None
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
 
 async def _background_poll():
@@ -167,20 +168,29 @@ def _update_gauge_metrics():
 
 @app.on_event("startup")
 async def startup():
-    global _poll_task, _retention_task
+    global _poll_task, _retention_task, _smtp_controller
     init_db()
     _update_gauge_metrics()
     _poll_task = asyncio.create_task(_background_poll())
     _retention_task = asyncio.create_task(data_retention_and_backup_task())
-    print(f"[POLL] Background IMAP polling started (every {POLL_INTERVAL}s)")
+    print(f"[POLL] Background pipeline tick started (every {POLL_INTERVAL}s)")
+
+    from smtp_receiver import build_controller
+    _smtp_controller = build_controller()
+    _smtp_controller.start()
+    print(f"[SMTP] Inbound receiver listening on "
+          f"{_smtp_controller.hostname}:{_smtp_controller.port}")
 
 @app.on_event("shutdown")
 async def shutdown():
-    global _poll_task, _retention_task
+    global _poll_task, _retention_task, _smtp_controller
     if _poll_task:
         _poll_task.cancel()
     if _retention_task:
         _retention_task.cancel()
+    if _smtp_controller:
+        _smtp_controller.stop()
+        print("[SMTP] Inbound receiver stopped")
 
 # Include Routers
 app.include_router(auth_router)
