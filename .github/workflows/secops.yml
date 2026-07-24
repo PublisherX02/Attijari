@@ -79,6 +79,20 @@ jobs:
     name: Pytest & Coverage
     runs-on: ubuntu-latest
     needs: [code-health, secret-scan] # Wait for basic checks to pass
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: attijari_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -97,6 +111,9 @@ jobs:
           # Required for some tests as seen in previous ci.yml
           VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
           THREATFOX_AUTH_KEY: ${{ secrets.THREATFOX_AUTH_KEY }}
+          # Live-DB tests (test_jwt_revocation.py, test_detonation_recovery.py, etc.)
+          # need a real Postgres to run against — provided by the service above.
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
