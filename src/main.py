@@ -24,9 +24,85 @@ from whois_check import check_domain_age
 from validators import is_valid_domain, is_valid_sha256, extract_ips_from_text
 
 
+def _maybe_enqueue_detonation(db, parsed: dict, email_id: int, deterministic_escalation: bool) -> None:
+    """Queue detonable attachments for behavioral analysis when warranted.
+
+    Trigger (per design): the file type is detonable AND static analysis was
+    inconclusive AND either the LLM was unsure (low confidence) or extraction
+    found something suspicious it could not conclusively flag. Emails already
+    escalated by deterministic signals are skipped — they're going to a human
+    regardless, so a VM run would just burn memory.
+    """
+    from database import enqueue_detonation
+
+    if deterministic_escalation:
+        return
+
+    threshold = float(os.getenv("DETONATION_CONFIDENCE_THRESHOLD", "0.85"))
+    llm = parsed.get("llm_analysis") or {}
+    conf = llm.get("confidence")
+    llm_unsure = conf is not None and conf < threshold
+
+    ext_results = parsed.get("extraction", {}).get("results", [])
+    # Map sha256 -> stored_path from the parsed attachments
+    path_by_sha = {}
+    for att in parsed.get("attachments", []):
+        sha = att.get("sha256")
+        if sha and att.get("stored_path"):
+            path_by_sha[sha] = att["stored_path"]
+
+    for er in ext_results:
+        if not er.get("detonation_candidate"):
+            continue
+        static_suspicious = bool(er.get("suspicious"))
+        if not (llm_unsure or static_suspicious):
+            continue
+        sha = er.get("sha256")
+        stored_path = path_by_sha.get(sha)
+        if not (sha and stored_path):
+            continue
+        reason = "llm_unsure" if llm_unsure else "static_suspicious"
+        enqueue_detonation(
+            db, sha256=sha, stored_path=stored_path,
+            filename=er.get("filename"), email_id=email_id,
+            idempotency_key=parsed.get("idempotency_key"), reason=reason,
+        )
+        print(f"[DETONATION] Queued {er.get('filename')} for detonation ({reason})")
+
+
+def _ollama_reachable(timeout: float = 5.0) -> bool:
+    """Probe the Ollama server before ingesting mail."""
+    from urllib import request as _rq
+    from analysis import OLLAMA_HTTP_URL
+    base = OLLAMA_HTTP_URL.rsplit("/api/", 1)[0]
+    try:
+        with _rq.urlopen(f"{base}/api/version", timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def run_pipeline():
     load_dotenv()
     logger = get_logger("pipeline")
+
+    # Refuse to start a new run while a detonation window holds the machine's RAM.
+    try:
+        import detonation_state
+        if detonation_state.is_active():
+            logger.info("[PIPELINE] Detonation active — skipping this pipeline run")
+            return
+    except ImportError:
+        pass
+
+    # LLM availability gate. If Ollama is down, every email ingested this tick
+    # would be finalized as "escalated: analysis_failed" with no real analysis
+    # (2026-07-13: 23 emails burned overnight this way). Deferring the whole
+    # tick loses nothing — unfetched mail stays on the IMAP server and is
+    # picked up on the next poll once Ollama is back.
+    if not _ollama_reachable():
+        logger.warning("[PIPELINE] Ollama unreachable — deferring this run; mail stays on IMAP server")
+        return
 
     logger.info("=" * 50)
     logger.info("[START] Email Ingestion & Analysis Pipeline")
@@ -44,6 +120,22 @@ def run_pipeline():
         print(f"[SANDBOX] Docker OK — {built}/{total} extraction containers built")
     else:
         print("[SANDBOX] Docker unavailable — extraction tools run locally (less isolated)")
+
+    # Check detonation sandbox status (CAPE). The VM is normally SUSPENDED to
+    # save RAM, so an "unavailable" probe at startup is expected and fine —
+    # the orchestrator resumes it on demand when the queue has work.
+    try:
+        import detonation_state
+        if detonation_state.is_active():
+            print("[DETONATION] A detonation window is active — pipeline paused, skipping this run")
+            return
+        from detonation import is_available as _cape_up
+        if _cape_up():
+            print("[DETONATION] CAPE API reachable (VM currently running)")
+        else:
+            print("[DETONATION] CAPE VM suspended/unreachable — will resume on demand when queue has work")
+    except ImportError:
+        print("[DETONATION] Module not available — behavioral analysis skipped")
 
     # Initialize database session
     db = None
@@ -64,8 +156,11 @@ def run_pipeline():
     engine = RuleEngine()
 
     try:
-        ingestion.connect()
-        raw_emails = ingestion.fetch_recent(since_days=7, limit=50)
+        # SMTP replaces IMAP as the ingestion source (2026-07-24). The
+        # inbound SMTP receiver (src/smtp_receiver.py) already accepted and
+        # durably wrote these messages; nothing below this line changes —
+        # the per-email loop doesn't know or care where raw_emails came from.
+        raw_emails = ingestion.fetch_pending_smtp(limit=50)
 
         cached = 0
         for i, raw in enumerate(raw_emails, 1):
@@ -601,10 +696,11 @@ def run_pipeline():
                                     "suspicious": er.get("suspicious"),
                                 })
                             enrichment_data["extraction"] = extraction_summary
+
                         context = {
                             "headers": parsed.get("headers", {}),
                             "attachments": parsed.get("attachments", []),
-                            "enrichment": enrichment_data
+                            "enrichment": enrichment_data,
                         }
                         llm_res = analyze_email_body(llm_input, context=context)
                         parsed["llm_analysis"] = llm_res
@@ -708,6 +804,23 @@ def run_pipeline():
 
                     print(f"[DB] Updated email #{saved.id} -> {parsed['status'].upper()}")
 
+                    try:
+                        from database import save_attachments
+                        save_attachments(db, saved.id, parsed.get("attachments", []))
+                    except Exception as e:
+                        print(f"[ATTACHMENTS] Failed to persist attachment records: {e} "
+                              f"(email save unaffected; detail page attachment list will be incomplete for this email)")
+
+                    # --- Detonation trigger (Stage 3.5, DEFERRED) ---
+                    # Queue detonable attachments when static analysis was
+                    # inconclusive AND the LLM was unsure. Deterministically
+                    # escalated emails already go to a human, so we don't spend
+                    # a VM run on them. Processed later in a drained window.
+                    try:
+                        _maybe_enqueue_detonation(db, parsed, saved.id, _deterministic_escalation)
+                    except Exception as _de:
+                        print(f"[DETONATION] Enqueue skipped: {_de}")
+
                     # Dashboard refresh is handled by the background poll loop
                     pass
                 except Exception as e:
@@ -729,8 +842,6 @@ def run_pipeline():
         if cached:
             print(f"\n[INFO] {cached} email(s) loaded from cache")
 
-        ingestion.disconnect()
-
     except TimeoutError as e:
         logger.error(f"[ABORT] {e}")
         logger.error("Pipeline stopped — check network or server")
@@ -744,6 +855,31 @@ def run_pipeline():
                 db.close()
             except Exception:
                 pass
+
+    # After all emails are handled, process any queued detonations in a single
+    # drained window (unloads Ollama/Guard/Docker, resumes the CAPE VM, restores
+    # everything afterwards). No-op when the queue is empty.
+    try:
+        from detonation import process_detonation_queue
+        result = process_detonation_queue()
+        if result.get("processed"):
+            logger.info(f"[DETONATION] Window complete: {result}")
+    except Exception as e:
+        logger.error(f"[DETONATION] Queue processing error: {e}")
+
+    # Branch-B manual detonations: the email backlog for this tick is now
+    # cleared, so any deferred manual file becomes 'ready' for the operator.
+    try:
+        from database import SessionLocal as _SL, promote_deferred_detonations as _promote
+        _db = _SL()
+        try:
+            n = _promote(_db)
+            if n:
+                print(f"[DETONATION] {n} deferred manual detonation(s) now READY for operator confirmation")
+        finally:
+            _db.close()
+    except Exception as _e:
+        print(f"[DETONATION] deferred promotion skipped: {_e}")
 
     elapsed = time.time() - t_start
     logger.info(f"=== Pipeline Finished in {elapsed:.1f}s ===")
@@ -761,7 +897,16 @@ if __name__ == "__main__":
         # Start the FastAPI dashboard server (background polling handled inside api.py)
         import uvicorn
         port = int(os.getenv("DASHBOARD_PORT", "8000"))
-        host = os.getenv("DASHBOARD_HOST", "0.0.0.0")
+        # Secure default: bind to loopback so the dashboard is NOT exposed on
+        # the network out of the box. The app serves plain HTTP; anything
+        # reachable off-host must sit behind a TLS-terminating reverse proxy.
+        # To expose it deliberately, set DASHBOARD_HOST (e.g. 127.0.0.1 stays
+        # local; a real deployment fronts it with TLS rather than binding
+        # 0.0.0.0 directly).
+        host = os.getenv("DASHBOARD_HOST", "127.0.0.1")
+        if host == "0.0.0.0":
+            print("[SERVE] WARNING: DASHBOARD_HOST=0.0.0.0 exposes the dashboard on ALL "
+                  "interfaces over plain HTTP. Put TLS in front or bind to 127.0.0.1.")
         print(f"[SERVE] Starting dashboard on http://{host}:{port}")
         uvicorn.run("api:app", host=host, port=port, reload=False, workers=1)
 

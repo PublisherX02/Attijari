@@ -32,24 +32,30 @@ def test_swe_benchmark_pro_architectural_refactoring():
     # 3. Check background tasks
     assert (SRC_DIR / "tasks" / "background.py").exists(), "tasks/background.py missing"
 
-def test_swe_benchmark_pro_high_availability():
+def test_serve_is_single_worker():
     """
-    SWE*benchmark Pro Evaluation:
-    Evaluates if the High Availability (HA) configuration was correctly applied.
-    Criteria:
-    1. start.bat must launch uvicorn with '--workers 4'.
-    2. main.py --serve must launch uvicorn with 'workers=4'.
-    """
-    start_bat_path = BASE_DIR / "start.bat"
-    main_py_path = SRC_DIR / "main.py"
+    This deployment MUST run uvicorn with a single worker.
 
-    assert start_bat_path.exists(), "start.bat missing"
+    The app coordinates work through in-process state that is NOT shared across
+    worker processes:
+      - a single background IMAP poll task + asyncio scan lock (api.py) — with
+        multiple workers each process would poll IMAP independently, causing
+        duplicate email processing and races;
+      - the detonation pause flag (detonation_state) that tears down Ollama/
+        Docker and resumes the CAPE VM in a drained window — it only works if
+        there is exactly one process holding the machine's RAM budget.
+
+    Running 4 workers would also multiply model memory ~4x and break the 16 GB
+    memory design. So the correct, required configuration is workers=1.
+    """
+    main_py_path = SRC_DIR / "main.py"
     assert main_py_path.exists(), "main.py missing"
 
     with open(main_py_path, 'r', encoding='utf-8') as f:
         main_content = f.read()
-    
-    assert "workers=4" in main_content, "Uvicorn HA workers not configured in main.py"
+
+    assert "workers=1" in main_content, "Uvicorn --serve must run single-worker (workers=1)"
+    assert "workers=4" not in main_content, "Multi-worker breaks in-process poll/scan-lock/detonation coordination"
 
 def test_gdpval_soc2_iso27001_compliance():
     """

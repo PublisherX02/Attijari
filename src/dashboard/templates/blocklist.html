@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Blocklist — Attijari SOC{% endblock %}
+{% block title %}Blocklist — Attijari{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -7,6 +7,7 @@
     <p class="page-subtitle">Manage blocked senders, domains, IPs, and file hashes</p>
 </div>
 
+{% if role == 'admin' or permissions.get('blocklist.manage', False) %}
 <!-- Add entry form -->
 <div class="card" style="margin-bottom: 24px;">
     <div class="card-header">
@@ -26,9 +27,10 @@
             <label class="form-label">Value</label>
             <input type="text" class="form-input" id="bl-value" placeholder="e.g. attacker@evil.com or evil.com">
         </div>
-        <button class="btn btn-danger" onclick="addBlocklistEntry()" style="height:42px;">🚫 Block</button>
+        <button class="btn btn-danger" data-action="add-blocklist-entry" style="height:42px;">🚫 Block</button>
     </div>
 </div>
+{% endif %}
 
 <!-- Blocklist table -->
 <div class="table-container">
@@ -39,7 +41,7 @@
                 <th>Value</th>
                 <th>Source</th>
                 <th>Added</th>
-                <th>Action</th>
+                {% if role == 'admin' or permissions.get('blocklist.manage', False) %}<th>Action</th>{% endif %}
             </tr>
         </thead>
         <tbody id="blocklist-body">

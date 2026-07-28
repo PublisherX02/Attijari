@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Manual Detonation — Attijari{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+  <div>
+    <h2>🧨 Manual Detonation</h2>
+    <p style="color:var(--text-muted);font-size:0.88rem;max-width:60ch;">
+      Upload a file to run in the isolated CAPE sandbox and watch it live.
+      The file is stored locally and only sent to the sandbox VM — never to any external service.
+    </p>
+  </div>
+  <button class="btn btn-primary" id="md-attach-btn">➕ Attach file &amp; detonate</button>
+  <input type="file" id="md-file-input" style="display:none">
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <table class="data-table" id="md-table">
+    <thead>
+      <tr>
+        <th>File</th><th>SHA-256</th><th>Malscore</th><th>Verdict</th>
+        <th>Status</th><th>Operator</th><th>When</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="md-tbody">
+      <tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No manual detonations yet.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Two-outcome consent modal -->
+<div class="modal-overlay" id="md-modal-overlay">
+  <div class="modal">
+    <h3>How should this run?</h3>
+    <p id="md-modal-file" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px;"></p>
+    <div class="btn-group" style="flex-direction:column;gap:10px;align-items:stretch;">
+      <button class="btn btn-danger" id="md-branch-now">
+        ⛔ Open now — stop email analysis and detonate immediately
+      </button>
+      <button class="btn btn-outline" id="md-branch-queue">
+        🕒 Priority queue — finish current emails first, then alert me to open it
+      </button>
+      <button class="btn btn-outline" id="md-branch-cancel">Cancel</button>
+    </div>
+    <p style="color:var(--text-muted);font-size:0.78rem;margin-top:12px;">
+      While the sandbox window is active, email analysis is suspended and unread mail stays on the IMAP server.
+    </p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_v('js/manual_detonation.js') }}"></script>
+{% endblock %}

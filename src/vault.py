@@ -34,6 +34,47 @@ def _get_fernet() -> Fernet:
     return Fernet(key.encode() if isinstance(key, str) else key)
 
 
+def encrypt_field(plaintext: str | None) -> str | None:
+    """Encrypt a short secret (e.g. a TOTP seed) into a Fernet token string.
+
+    Used for at-rest encryption of DB columns like users.totp_secret so a
+    database dump never reveals a usable MFA seed (SEC-H2).
+    """
+    if plaintext is None:
+        return None
+    f = _get_fernet()
+    return f.encrypt(plaintext.encode("utf-8")).decode("ascii")
+
+
+def decrypt_field(value: str | None) -> str | None:
+    """Decrypt a Fernet token back to plaintext.
+
+    Legacy/plaintext values that were never encrypted (pre-SEC-H2 rows, or a
+    value that simply isn't a Fernet token) are returned unchanged, so the
+    login path keeps working before/during the one-time migration. A missing
+    VAULT_ENCRYPTION_KEY surfaces loudly rather than silently mis-reading a
+    secret.
+    """
+    if value is None:
+        return None
+    try:
+        return _get_fernet().decrypt(value.encode("utf-8")).decode("utf-8")
+    except InvalidToken:
+        return value
+
+
+def is_encrypted_field(value: str | None) -> bool:
+    """True if value is a Fernet token this key can decrypt (already at-rest
+    encrypted). Used by the migration to skip already-encrypted rows."""
+    if not value:
+        return False
+    try:
+        _get_fernet().decrypt(value.encode("utf-8"))
+        return True
+    except InvalidToken:
+        return False
+
+
 def _vault_path(email_sha256: str) -> Path:
     """Get the vault file path for an email, organized by month."""
     month = datetime.now(timezone.utc).strftime("%Y-%m")

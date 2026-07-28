@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Inbox — Attijari SOC{% endblock %}
+{% block title %}Inbox — Attijari{% endblock %}
 
 {% block content %}
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -7,7 +7,12 @@
         <h2>Inbox Queue</h2>
         <p class="page-subtitle">Review flagged emails and take action</p>
     </div>
-    <button class="btn btn-primary" id="scan-btn" onclick="triggerScan()">🔄 Scan Now</button>
+    {% if role == 'admin' or permissions.get('emails.scan', False) %}
+    <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="scan-btn" data-action="trigger-scan">🔄 Scan Now</button>
+        <button class="btn btn-outline" id="open-vm-btn" data-action="open-vm-window">🔬 Open sandbox VM</button>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Stats cards -->
@@ -22,34 +27,40 @@
 
 <!-- Search & Filter -->
 <div class="search-bar">
-    <input type="text" class="form-input" id="search-input" placeholder="Search by sender, subject, or domain…" onkeydown="if(event.key==='Enter')searchEmails()">
-    <button class="btn btn-primary" onclick="searchEmails()">Search</button>
+    <input type="text" class="form-input" id="search-input" placeholder="Search by sender, subject, or domain…" data-enter-action="search-emails">
+    <button class="btn btn-primary" data-action="search-emails">Search</button>
 </div>
 
 <div class="filter-chips">
-    <button class="chip active" data-status="" onclick="filterByStatus('')">All</button>
-    <button class="chip" data-status="pending" onclick="filterByStatus('pending')">⏳ Scanning</button>
-    <button class="chip" data-status="escalated" onclick="filterByStatus('escalated')">⚠️ Escalated</button>
-    <button class="chip" data-status="accepted" onclick="filterByStatus('accepted')">✅ Accepted</button>
-    <button class="chip" data-status="quarantined" onclick="filterByStatus('quarantined')">🔴 Quarantined</button>
-    <button class="chip" data-status="released" onclick="filterByStatus('released')">🔵 Released</button>
-    <button class="chip" data-status="recu" onclick="filterByStatus('recu')">🟣 Received</button>
+    <button class="chip active" data-status="" data-action="filter-by-status">All</button>
+    <button class="chip" data-status="pending" data-action="filter-by-status">⏳ Scanning</button>
+    <button class="chip" data-status="escalated" data-action="filter-by-status">⚠️ Escalated</button>
+    <button class="chip" data-status="accepted" data-action="filter-by-status">✅ Accepted</button>
+    <button class="chip" data-status="quarantined" data-action="filter-by-status">🔴 Quarantined</button>
+    <button class="chip" data-status="released" data-action="filter-by-status">🔵 Released</button>
+    <button class="chip" data-status="recu" data-action="filter-by-status">🟣 Received</button>
 </div>
 
+{% if role == 'admin' or permissions.get('emails.bulk', False) %}
 <!-- Bulk action bar (hidden until emails are selected) -->
 <div id="bulk-action-bar" style="display:none;align-items:center;gap:12px;padding:10px 16px;background:var(--surface-raised,#1e2532);border:1px solid var(--border,#2d3748);border-radius:var(--radius,8px);margin-bottom:12px">
     <span id="bulk-count-label" style="color:var(--text-secondary);font-size:0.875rem"></span>
-    <button id="bulk-release-btn" class="btn btn-success btn-sm" onclick="executeBulkAction('release')">Release Selected</button>
-    <button id="bulk-quarantine-btn" class="btn btn-danger btn-sm" onclick="executeBulkAction('quarantine')">Quarantine Selected</button>
-    <button class="btn btn-outline btn-sm" onclick="selectedEmailIds.clear();document.querySelectorAll('.row-checkbox').forEach(c=>c.checked=false);updateBulkBar()">Clear Selection</button>
+    {% if role == 'admin' or permissions.get('emails.release', False) %}
+    <button id="bulk-release-btn" class="btn btn-success btn-sm" data-action="bulk-release">Release Selected</button>
+    {% endif %}
+    {% if role == 'admin' or permissions.get('emails.quarantine', False) %}
+    <button id="bulk-quarantine-btn" class="btn btn-danger btn-sm" data-action="bulk-quarantine">Quarantine Selected</button>
+    {% endif %}
+    <button class="btn btn-outline btn-sm" data-action="clear-selection">Clear Selection</button>
 </div>
+{% endif %}
 
 <!-- Email table -->
 <div class="table-container">
     <table>
         <thead>
             <tr>
-                <th style="width:36px"><input type="checkbox" id="select-all-checkbox" title="Select all" onchange="toggleSelectAll(this.checked)"></th>
+                <th style="width:36px">{% if role == 'admin' or permissions.get('emails.bulk', False) %}<input type="checkbox" id="select-all-checkbox" title="Select all" data-change-action="toggle-select-all">{% endif %}</th>
                 <th>Sender</th>
                 <th>Subject</th>
                 <th>Status</th>

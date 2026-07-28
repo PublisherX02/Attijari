@@ -9,7 +9,7 @@
 set -e
 cd "$(dirname "$0")"
 
-echo "=== Building Tijari extraction containers ==="
+echo "=== Building Attijari extraction containers ==="
 
 IMAGES=(
     "magic:magic.Dockerfile"
@@ -25,7 +25,7 @@ IMAGES=(
 for entry in "${IMAGES[@]}"; do
     name="${entry%%:*}"
     dockerfile="${entry##*:}"
-    image="tijari-extract-${name}"
+    image="attijari-extract-${name}"
     echo ""
     echo "--- Building ${image} from ${dockerfile} ---"
     docker build -t "${image}" -f "${dockerfile}" . && \
@@ -35,4 +35,4 @@ done
 
 echo ""
 echo "=== Build complete ==="
-docker images --filter "reference=tijari-extract-*" --format "table {{.Repository}}\t{{.Size}}\t{{.CreatedSince}}"
+docker images --filter "reference=attijari-extract-*" --format "table {{.Repository}}\t{{.Size}}\t{{.CreatedSince}}"

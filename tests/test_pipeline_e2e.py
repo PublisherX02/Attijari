@@ -48,7 +48,7 @@ def _make_email(sender, subject, body, attach_name=None, attach_bytes=None):
         msg = MIMEText(body, "plain", "utf-8")
 
     msg["From"] = sender
-    msg["To"] = "analyst@tijari.tn"
+    msg["To"] = "analyst@attijari.tn"
     msg["Subject"] = subject
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain="test.local")

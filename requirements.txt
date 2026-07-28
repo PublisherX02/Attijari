@@ -7,6 +7,7 @@ requests==2.34.2
 python-multipart==0.0.32
 Jinja2==3.1.6
 urllib3==2.7.0
+websockets==12.0            # WS client for the dashboard->websockify VNC relay
 
 # Database
 psycopg2-binary==2.9.12
@@ -19,7 +20,7 @@ slowapi==0.1.9
 bcrypt==5.0.0
 PyJWT==2.13.0
 pyotp==2.10.0
-cryptography==46.0.7
+cryptography==48.0.1
 
 # Monitoring & scheduling
 prometheus-client==0.22.1
@@ -33,6 +34,9 @@ dkimpy==1.1.8
 checkdmarc==5.17.1
 dnspython==2.6.1
 
+# Inbound SMTP server (replaces IMAP polling)
+aiosmtpd==1.4.6
+
 # File type detection
 python-magic==0.4.27; sys_platform != "win32"
 python-magic-bin==0.4.14; sys_platform == "win32"
@@ -42,9 +46,10 @@ oletools==0.60.2
 pdfid
 pymupdf==1.27.2.3
 pytesseract==0.3.13
+Pillow==12.2.0
 yara-python==4.5.4
 ioc-finder==9.4.1
-git+https://github.com/microsoft/markitdown.git
+git+https://github.com/microsoft/markitdown.git#subdirectory=packages/markitdown
 
 # Threat intelligence & enrichment
 OTXv2

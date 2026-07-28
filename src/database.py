@@ -229,16 +229,270 @@ class Report(Base):
 
 
 class User(Base):
-    """System users for the Dashboard (ISO 27001 Access Control)."""
+    """System users for the Dashboard (ISO 27001 Access Control).
+
+    Roles:
+      - admin:   full access, can manage users and assign permissions
+      - analyst: configurable permissions (view, release, quarantine, etc.)
+      - viewer:  read-only access to emails and reports
+    """
 
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-    totp_secret = Column(String(64), nullable=True)
+    totp_secret = Column(String(255), nullable=True)  # holds Fernet-encrypted seed (SEC-H2), ~140 chars
     is_active = Column(Boolean, default=True)
+    role = Column(String(20), nullable=False, default="viewer")  # admin, analyst, viewer
+    permissions = Column(JSONB, nullable=False, default=dict)  # granular permission flags
+    created_by = Column(String(255), nullable=True)
+    last_login = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+class RevokedToken(Base):
+    """Durable JWT revocation list (SEC-H3).
+
+    Replaces the old in-memory set that reset on restart and wasn't shared
+    between workers. A logged-out or compromised token stays revoked until its
+    natural expiry, across restarts and every worker. Keyed by the token's
+    `jti` (or a hash of the token for legacy tokens without one). Rows past
+    `expires_at` are purged — after expiry the token is rejected anyway.
+    """
+
+    __tablename__ = "revoked_tokens"
+
+    jti = Column(String(128), primary_key=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+class PendingDetonation(Base):
+    """Queue of attachments awaiting behavioral analysis in the CAPE sandbox.
+
+    The pipeline enqueues a row when static analysis was inconclusive AND the
+    LLM was unsure, then moves on without blocking. A separate drained
+    detonation worker processes the queue one sample at a time.
+    """
+
+    __tablename__ = "pending_detonation"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email_id = Column(Integer, ForeignKey("emails.id"), nullable=True)
+    idempotency_key = Column(String(128), nullable=True, index=True)
+    sha256 = Column(String(64), nullable=False)
+    filename = Column(String(512), nullable=True)
+    stored_path = Column(Text, nullable=False)
+    reason = Column(String(255), nullable=True)   # why it was queued
+    status = Column(String(20), nullable=False, default="queued")  # queued, running, done, error
+    result = Column(JSONB, nullable=True)         # parsed CAPE result
+    attempts = Column(Integer, default=0)
+    created_by = Column(String(255), nullable=True)   # operator username (manual uploads)
+    priority = Column(Boolean, nullable=False, default=False)  # manual rows jump the queue
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        Index("ix_pending_detonation_status", "status"),
+    )
+
+
+class Attachment(Base):
+    """One row per attachment extracted from an email, written for EVERY
+    attachment during the pipeline run — not just ones that become
+    detonation candidates. This is what lets the detail page list every
+    attachment with a correct safe/unsafe status; PendingDetonation alone
+    only covers attachments static analysis found inconclusive.
+
+    No status column here on purpose: safety is always derived live from
+    the most recent PendingDetonation row for this sha256 (see
+    attachments.attachment_safety_status), so there is nothing to keep in
+    sync or invalidate.
+    """
+
+    __tablename__ = "attachments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email_id = Column(Integer, ForeignKey("emails.id"), nullable=False, index=True)
+    sha256 = Column(String(64), nullable=False, index=True)
+    stored_path = Column(Text, nullable=False)
+    filename = Column(String(512), nullable=True)   # data only, never a real path (rule 6)
+    real_type = Column(String(255), nullable=True)   # magic-verified at extraction time
+    size_bytes = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------------------------------------------------------------------------
+# RBAC — Permission definitions
+# ---------------------------------------------------------------------------
+
+# Every granular permission the system supports.
+# Admin role implicitly has ALL permissions.
+# Analyst/viewer roles get a subset assigned by the admin.
+ALL_PERMISSIONS = {
+    "emails.view": True,         # view email list and details
+    "emails.release": True,      # release emails
+    "emails.quarantine": True,   # quarantine emails
+    "emails.override": True,     # override pipeline verdicts
+    "emails.revert": True,       # revert analyst actions
+    "emails.bulk": True,         # bulk release/quarantine
+    "emails.scan": True,         # trigger manual IMAP scan
+    "blocklist.view": True,      # view blocklist
+    "blocklist.manage": True,    # add/remove blocklist entries
+    "whitelist.view": True,      # view whitelist
+    "whitelist.manage": True,    # add/remove whitelist entries
+    "audit.view": True,          # view audit log and action history
+    "reports.view": True,        # view reports
+    "health.view": True,         # view system health
+    "alerts.view": True,         # view security alerts
+    "alerts.acknowledge": True,  # acknowledge alerts
+    "export.csv": True,          # export email data as CSV
+    "users.manage": True,        # create/edit/delete users (admin only)
+    "detonation.manual": True,   # upload + detonate an arbitrary file in the sandbox
+}
+
+VIEWER_PERMISSIONS = {
+    "emails.view": True,
+    "blocklist.view": True,
+    "whitelist.view": True,
+    "reports.view": True,
+    "health.view": True,
+    "alerts.view": True,
+    "audit.view": True,
+}
+
+ANALYST_PERMISSIONS = {
+    **VIEWER_PERMISSIONS,
+    "emails.release": True,
+    "emails.quarantine": True,
+    "emails.override": True,
+    "emails.revert": True,
+    "emails.bulk": True,
+    "emails.scan": True,
+    "blocklist.manage": True,
+    "whitelist.manage": True,
+    "alerts.acknowledge": True,
+    "export.csv": True,
+}
+
+ROLE_DEFAULTS = {
+    "admin": ALL_PERMISSIONS,
+    "analyst": ANALYST_PERMISSIONS,
+    "viewer": VIEWER_PERMISSIONS,
+}
+
+
+def user_has_permission(user: "User", permission: str) -> bool:
+    """Check if a user has a specific permission."""
+    if user.role == "admin":
+        return True  # admin bypasses all checks
+    return bool(user.permissions.get(permission, False))
+
+
+def _migrate_users_rbac():
+    """One-time migration: add role+permissions columns to pre-RBAC users table."""
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        existing_cols = {c["name"] for c in inspector.get_columns("users")}
+
+        # Add missing columns via ALTER TABLE
+        new_cols = {
+            "role": "VARCHAR(20) NOT NULL DEFAULT 'viewer'",
+            "permissions": "JSONB NOT NULL DEFAULT '{}'::jsonb",
+            "created_by": "VARCHAR(255)",
+            "last_login": "TIMESTAMP WITH TIME ZONE",
+        }
+        first_migration = "role" not in existing_cols
+        with engine.begin() as conn:
+            for col_name, col_def in new_cols.items():
+                if col_name not in existing_cols:
+                    conn.execute(sa_text(f'ALTER TABLE users ADD COLUMN "{col_name}" {col_def}'))
+                    print(f"[DB] Added column users.{col_name}")
+
+        # Only promote pre-RBAC users on first migration (when role column was just added).
+        # On subsequent startups, never touch existing roles — they were set intentionally.
+        if first_migration:
+            db = SessionLocal()
+            try:
+                users = db.query(User).all()
+                for u in users:
+                    u.role = "admin"  # pre-RBAC users were de facto admins
+                    u.permissions = ALL_PERMISSIONS.copy()
+                db.commit()
+                print("[DB] Migrated existing users to RBAC schema (first run).")
+            finally:
+                db.close()
+    except Exception as e:
+        print(f"[DB] RBAC migration note: {e}")
+
+
+def _migrate_pending_detonation_manual():
+    """One-time: add manual-detonation columns to an existing pending_detonation table."""
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        if "pending_detonation" not in inspector.get_table_names():
+            return  # create_all will make it with the columns already
+        existing = {c["name"] for c in inspector.get_columns("pending_detonation")}
+        new_cols = {
+            "created_by": "VARCHAR(255)",
+            "priority": "BOOLEAN NOT NULL DEFAULT FALSE",
+        }
+        with engine.begin() as conn:
+            for name, ddl in new_cols.items():
+                if name not in existing:
+                    conn.execute(sa_text(f'ALTER TABLE pending_detonation ADD COLUMN "{name}" {ddl}'))
+                    print(f"[DB] Added column pending_detonation.{name}")
+    except Exception as e:
+        print(f"[DB] pending_detonation manual migration skipped: {e}")
+
+
+def _migrate_encrypt_totp_secrets():
+    """One-time (SEC-H2): encrypt any plaintext TOTP secrets already in the DB.
+
+    Idempotent — rows already stored as a Fernet token are skipped. If the
+    vault key is missing the migration is a no-op (login still works via the
+    legacy-plaintext passthrough in vault.decrypt_field), so this never blocks
+    startup.
+    """
+    try:
+        from vault import encrypt_field, is_encrypted_field
+    except Exception as e:
+        print(f"[DB] TOTP encryption migration skipped (vault unavailable): {e}")
+        return
+    # Encrypted seeds (~140 chars) don't fit the original VARCHAR(64) column —
+    # widen it first (no-op if already widened / fresh DB created from the model).
+    try:
+        from sqlalchemy import inspect, text as sa_text
+        inspector = inspect(engine)
+        if "users" in inspector.get_table_names():
+            col = next((c for c in inspector.get_columns("users") if c["name"] == "totp_secret"), None)
+            length = getattr(col["type"], "length", None) if col else None
+            if length is not None and length < 255:
+                with engine.begin() as conn:
+                    conn.execute(sa_text('ALTER TABLE users ALTER COLUMN totp_secret TYPE VARCHAR(255)'))
+                    print("[DB] SEC-H2: widened users.totp_secret to VARCHAR(255)")
+    except Exception as e:
+        print(f"[DB] totp_secret widen skipped: {e}")
+
+    db = SessionLocal()
+    try:
+        rows = db.query(User).filter(User.totp_secret.isnot(None)).all()
+        migrated = 0
+        for u in rows:
+            if u.totp_secret and not is_encrypted_field(u.totp_secret):
+                u.totp_secret = encrypt_field(u.totp_secret)
+                migrated += 1
+        if migrated:
+            db.commit()
+            print(f"[DB] SEC-H2: encrypted {migrated} plaintext TOTP secret(s) at rest")
+    except Exception as e:
+        db.rollback()
+        print(f"[DB] TOTP encryption migration skipped: {e}")
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +503,12 @@ def init_db():
     """Create all tables if they don't exist. Safe to call multiple times."""
     Base.metadata.create_all(bind=engine)
     print("[DB] All tables created / verified.")
-    
+
+    # Migrate existing users: add role/permissions columns if missing
+    _migrate_users_rbac()
+    _migrate_pending_detonation_manual()
+    _migrate_encrypt_totp_secrets()
+
     # Initialize default admin if no users exist
     try:
         db = SessionLocal()
@@ -260,18 +519,25 @@ def init_db():
             env_pass = os.getenv("DASHBOARD_PASS")
             if env_pass:
                 password = env_pass
-                pass_source = "from DASHBOARD_PASS in .env"
             else:
                 password = secrets.token_urlsafe(16)
-                pass_source = "randomly generated (set DASHBOARD_PASS in .env to override)"
             hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            # Plaintext seed builds the one-time provisioning URI below; only the
+            # encrypted form is persisted to the DB (SEC-H2).
+            from vault import encrypt_field
             totp_secret = pyotp.random_base32()
-            admin = User(username=os.getenv("DASHBOARD_USER", "admin"), password_hash=hashed, totp_secret=totp_secret)
+            admin = User(
+                username=os.getenv("DASHBOARD_USER", "admin"),
+                password_hash=hashed,
+                totp_secret=encrypt_field(totp_secret),
+                role="admin",
+                permissions=ALL_PERMISSIONS.copy(),
+            )
             db.add(admin)
             db.commit()
             # Write credentials to a secure local file — NEVER print to console/logs
             totp_uri = pyotp.TOTP(totp_secret).provisioning_uri(
-                name=admin.username, issuer_name="Attijari SOC"
+                name=admin.username, issuer_name="Attijari"
             )
             creds_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "admin_credentials.txt")
             os.makedirs(os.path.dirname(creds_file), exist_ok=True)
@@ -307,6 +573,33 @@ def get_db() -> Session:
     except Exception:
         db.close()
         raise
+
+
+# ---------------------------------------------------------------------------
+# JWT revocation (SEC-H3) — durable, shared across restarts and workers
+# ---------------------------------------------------------------------------
+
+def add_revoked_token(db: Session, jti: str, expires_at: "datetime") -> None:
+    """Record a token as revoked until it expires. Idempotent on jti.
+
+    Opportunistically purges already-expired rows so the table stays small
+    without needing a separate cron.
+    """
+    existing = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+    if not existing:
+        db.add(RevokedToken(jti=jti, expires_at=expires_at))
+    db.query(RevokedToken).filter(RevokedToken.expires_at < utcnow()).delete()
+    db.commit()
+
+
+def is_jti_revoked(db: Session, jti: str) -> bool:
+    """True if this jti is on the revocation list and not yet expired."""
+    row = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+    if not row:
+        return False
+    if row.expires_at and row.expires_at < utcnow():
+        return False  # expired anyway; treat as not-revoked (will be purged)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -484,3 +777,146 @@ def get_blocked_set(db: Session, indicator_type: str) -> set[str]:
         Blocklist.active == True,
     ).all()
     return {r[0] for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# Detonation queue helpers
+# ---------------------------------------------------------------------------
+
+def enqueue_detonation(db: Session, sha256: str, stored_path: str,
+                       filename: Optional[str] = None, email_id: Optional[int] = None,
+                       idempotency_key: Optional[str] = None,
+                       reason: Optional[str] = None,
+                       created_by: Optional[str] = None,
+                       priority: bool = False,
+                       status: str = "queued") -> Optional["PendingDetonation"]:
+    """Queue an attachment for detonation. De-dupes on (sha256) while queued/running."""
+    existing = db.query(PendingDetonation).filter(
+        PendingDetonation.sha256 == sha256,
+        PendingDetonation.status.in_(["queued", "running"]),
+    ).first()
+    if existing:
+        return existing
+    row = PendingDetonation(
+        email_id=email_id,
+        idempotency_key=idempotency_key,
+        sha256=sha256,
+        filename=filename,
+        stored_path=stored_path,
+        reason=reason,
+        status=status,
+        created_by=created_by,
+        priority=priority,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def save_attachments(db: Session, email_id: int, attachments: list[dict]) -> list["Attachment"]:
+    """Persist one row per successfully-extracted attachment. Entries that
+    failed extraction (e.g. oversized — an {"error": ...} dict with no
+    stored_path/sha256) are skipped, never crash the pipeline run."""
+    rows = []
+    for att in attachments:
+        sha = att.get("sha256")
+        stored_path = att.get("stored_path")
+        if not (sha and stored_path):
+            continue
+        row = Attachment(
+            email_id=email_id,
+            sha256=sha,
+            stored_path=stored_path,
+            filename=att.get("original_name"),
+            real_type=att.get("real_type"),
+            size_bytes=att.get("size_bytes"),
+        )
+        db.add(row)
+        rows.append(row)
+    if rows:
+        db.commit()
+        for row in rows:
+            db.refresh(row)
+    return rows
+
+
+def recover_stale_running_detonations(db: Session, stale_after_seconds: int, max_attempts: int = 3) -> int:
+    """Reclaim 'running' rows orphaned by a crashed/restarted server process.
+
+    A row can only legitimately stay 'running' for up to one drain cycle
+    (detonation.py's watchdog always restores status via the try/finally on
+    the code path that set it) — if the process handling it dies or gets
+    restarted mid-poll, nothing else ever revisits the row, and it blocks
+    re-queueing the same sha256 forever (enqueue_detonation de-dupes on
+    queued/running). Called at the start of every drain window.
+
+    Rows past stale_after_seconds get bumped back to 'queued' for one more
+    try, unless attempts already hit max_attempts — then they're marked
+    'error' so a human can look, and the associated email (if any) escalates
+    (fail-safe: never leave a sample silently unresolved).
+    """
+    cutoff = utcnow() - timedelta(seconds=stale_after_seconds)
+    stale = db.query(PendingDetonation).filter(
+        PendingDetonation.status == "running",
+        PendingDetonation.updated_at < cutoff,
+    ).all()
+    recovered = 0
+    for row in stale:
+        if (row.attempts or 0) >= max_attempts:
+            row.status = "error"
+            row.result = {"status": "error", "error": "orphaned_running_max_attempts",
+                          "escalate": True}
+            if row.email_id:
+                email = db.query(Email).filter(Email.id == row.email_id).first()
+                if email and email.status not in ("quarantined", "released"):
+                    email.status = "escalated"
+        else:
+            row.status = "queued"
+        recovered += 1
+    if recovered:
+        db.commit()
+        add_audit_entry(db, action="detonation_recovered_stale", actor="system",
+                        details={"count": recovered, "ids": [r.id for r in stale]})
+    return recovered
+
+
+def get_queued_detonations(db: Session, limit: int = 5) -> list["PendingDetonation"]:
+    """Oldest queued samples first."""
+    return (
+        db.query(PendingDetonation)
+        .filter(PendingDetonation.status == "queued")
+        .order_by(PendingDetonation.priority.desc(), PendingDetonation.created_at.asc())
+        .limit(limit)
+        .all()
+    )
+
+
+def count_queued_detonations(db: Session) -> int:
+    return db.query(PendingDetonation).filter(PendingDetonation.status == "queued").count()
+
+
+def list_manual_detonations(db: Session, limit: int = 100) -> list["PendingDetonation"]:
+    """Manual (non-email) detonations, newest first, for the manual-detonation page."""
+    return (
+        db.query(PendingDetonation)
+        .filter(PendingDetonation.email_id.is_(None))
+        .order_by(PendingDetonation.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def promote_deferred_detonations(db: Session) -> int:
+    """Flip Branch-B 'deferred' rows to 'ready' once the email backlog is clear.
+    Called at the end of a pipeline tick. Returns the number promoted."""
+    rows = db.query(PendingDetonation).filter(PendingDetonation.status == "deferred").all()
+    for r in rows:
+        r.status = "ready"
+    if rows:
+        db.commit()
+    return len(rows)
+
+
+def get_pending_detonation(db: Session, pending_id: int) -> Optional["PendingDetonation"]:
+    return db.query(PendingDetonation).filter(PendingDetonation.id == pending_id).first()

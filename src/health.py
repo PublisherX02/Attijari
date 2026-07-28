@@ -34,7 +34,7 @@ _DATA_DIR.mkdir(parents=True, exist_ok=True)
 _ALERTS_FILE = _DATA_DIR / "maintenance_alerts.jsonl"
 
 # Alert logger — separate from audit trail
-_alert_logger = logging.getLogger("tijari.health.alerts")
+_alert_logger = logging.getLogger("attijari.health.alerts")
 _alert_handler = logging.FileHandler(_ALERTS_FILE, encoding="utf-8")
 _alert_handler.setFormatter(logging.Formatter("%(message)s"))
 _alert_logger.addHandler(_alert_handler)

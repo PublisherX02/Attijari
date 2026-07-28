@@ -42,7 +42,7 @@ _session: requests.Session | None = None
 
 # Defaults
 DEFAULT_TIMEOUT = 15  # seconds — applies when caller doesn't specify
-USER_AGENT = "tijari-ai/1.0"
+USER_AGENT = "attijari-ai/1.0"
 
 
 class _TimeoutAdapter(HTTPAdapter):

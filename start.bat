@@ -1,9 +1,9 @@
 @echo off
-title Attijari SOC Dashboard
+title Attijari Pipeline
 cd /d "%~dp0"
 
 echo ==================================================
-echo          Starting Attijari SOC Dashboard
+echo          Starting Attijari Pipeline
 echo ==================================================
 
 :: Kill existing process on port 8000
@@ -12,24 +12,30 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000.*LISTENING"') do (
     taskkill /PID %%a /F >nul 2>&1
 )
 
-:: Activate venv
+:: Activate venv (this repo has no local .venv -- fall back to the shared
+:: Attijari venv, which has every dependency this app needs, rather than
+:: silently dropping to system Python and crashing on the first missing package)
+set PYTHON_EXE=python
 if exist ".venv\Scripts\activate.bat" (
-    echo [INFO] Activating virtual environment...
+    echo [INFO] Activating local virtual environment...
     call .venv\Scripts\activate.bat
+) else if exist "C:\Users\moham\Attijari\.venv\Scripts\python.exe" (
+    echo [INFO] No local .venv -- using the Attijari venv ^(has all dependencies^)
+    set PYTHON_EXE=C:\Users\moham\Attijari\.venv\Scripts\python.exe
 ) else (
-    echo [WARN] No .venv found -- using system Python
+    echo [WARN] No .venv found anywhere -- using system Python, this WILL likely fail
 )
 
 cd src
 echo.
-echo [START] Dashboard + background IMAP polling
+echo [START] Dashboard + background SMTP polling
 echo [START] http://localhost:8000
 echo [START] Admin Audit Panel: http://localhost:8000/audit
 echo [START] Press Ctrl+C to stop
 echo ==================================================
 echo.
 
-python main.py --serve
+"%PYTHON_EXE%" main.py --serve
 
 if errorlevel 1 (
     echo.

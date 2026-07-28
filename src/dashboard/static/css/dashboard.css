@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Attijari SOC Dashboard — Design System
+   Attijari Dashboard — Design System
    Modern dark theme with glassmorphism, smooth transitions, and premium feel
    ========================================================================== */
 
@@ -786,6 +786,21 @@ tbody td {
 .health-card .status-dot.unavailable,
 .health-card .status-dot.unknown { background: var(--text-muted); }
 
+.vm-bubble {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 22px;
+    border-radius: 999px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform var(--transition-fast, 0.15s), border-color var(--transition-fast, 0.15s);
+}
+.vm-bubble:hover { transform: translateY(-1px); border-color: var(--accent-primary); }
+.vm-bubble-icon { font-size: 1.2rem; }
+
 /* --- Modal --- */
 .modal-overlay {
     position: fixed;
@@ -900,4 +915,37 @@ tbody td {
     .detail-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* =========================================================================
+   Detonation sandbox panel (CAPE integration)
+   ========================================================================= */
+.sandbox-row { border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 12px; margin-top: 10px; }
+.sandbox-row-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-weight: 600; }
+.sandbox-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 900px) { .sandbox-columns { grid-template-columns: 1fr; } }
+.sandbox-preview-frame, .sandbox-report-frame { width: 100%; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: #fff; }
+.sandbox-preview-frame { height: 420px; }
+.sandbox-report-frame { height: 640px; }
+.sandbox-live { width: 100%; height: 420px; background: #000; border-radius: var(--radius-md); overflow: hidden; }
+.sandbox-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 180px; color: var(--text-muted); text-align: center; padding: 16px; }
+.sandbox-error { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-md); padding: 12px; }
+.sandbox-verdict { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.sandbox-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.sandbox-overlay-box { width: min(1100px, 94vw); background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 14px; backdrop-filter: blur(12px); }
+.sandbox-overlay-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.sandbox-preview-meta { padding: 8px; }
+
+/* --- Detonation suspension banner --- */
+.detonation-banner {
+    position: sticky;
+    top: 0;
+    z-index: 900; /* under modals (1000), over content */
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #78350f;
+    background: linear-gradient(90deg, #fbbf24, #f59e0b);
+    border-bottom: 1px solid #d97706;
 }

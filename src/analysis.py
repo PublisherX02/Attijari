@@ -45,11 +45,15 @@ class LLMVerdict(BaseModel):
             return []
         return [str(i)[:500] for i in v[:20]]
 
+
 SKILLS_PATH = os.path.join(os.path.dirname(__file__), "skills.md")
 
 DEFAULT_MODEL = os.getenv("LLM_MODEL", "gemma3:4b")
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.0
+# Ollama's built-in default (2048) is smaller than skills.md alone (~3.5k tokens);
+# must be set explicitly under options.num_ctx or the prompt gets silently truncated.
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 OLLAMA_HTTP_URL = "http://localhost:11434/api/generate"
 HTTP_TIMEOUT = 120
 HTTP_RETRIES = 3
@@ -68,20 +72,32 @@ def _load_skills_prompt(path: str = SKILLS_PATH) -> str:
     return ""  # empty system prompt if not found
 
 
-def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOKENS) -> str:
+def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOKENS, images: Optional[list[str]] = None) -> str:
     try:
         from urllib import request
     except Exception as e:
         raise RuntimeError(f"urllib unavailable: {e}")
 
-    payload = json.dumps({
+    payload_dict = {
         "model": model,
         "prompt": prompt,
-        "max_tokens": max_tokens,
-        "temperature": DEFAULT_TEMPERATURE,
         "stream": False,
-        "stop": ["```"]
-    }).encode("utf-8")
+        "format": "json",
+        # Ollama's /api/generate ignores unrecognized top-level keys — generation
+        # params (and the context window!) MUST live under "options", or they're
+        # silently no-ops. num_ctx matters most: skills.md alone is ~3.5k tokens,
+        # and Ollama's own context-window default (2048) is smaller than that
+        # before the email body/enrichment context is even added, which was
+        # silently truncating prompts into unparseable JSON output.
+        "options": {
+            "temperature": DEFAULT_TEMPERATURE,
+            "num_predict": max_tokens,
+            "num_ctx": OLLAMA_NUM_CTX,
+        },
+    }
+    if images:
+        payload_dict["images"] = images
+    payload = json.dumps(payload_dict).encode("utf-8")
 
     last_exc = None
     timeout = HTTP_TIMEOUT
@@ -110,7 +126,7 @@ def _call_ollama_http(model: str, prompt: str, max_tokens: int = DEFAULT_MAX_TOK
     raise RuntimeError(f"HTTP Ollama call failed after {HTTP_RETRIES} attempts: {last_exc}")
 
 
-def _call_ollama_client(model: str, prompt: str) -> str:
+def _call_ollama_client(model: str, prompt: str, images: Optional[list[str]] = None) -> str:
     try:
         # pyrefly: ignore [missing-import]
         import ollama
@@ -118,7 +134,9 @@ def _call_ollama_client(model: str, prompt: str) -> str:
         raise RuntimeError("ollama python client not available") from e
 
     client = ollama.Ollama()
-    kwargs = {"model": model, "prompt": prompt, "max_tokens": DEFAULT_MAX_TOKENS, "temperature": DEFAULT_TEMPERATURE, "stream": False}
+    kwargs = {"model": model, "prompt": prompt, "max_tokens": DEFAULT_MAX_TOKENS, "temperature": DEFAULT_TEMPERATURE, "stream": False, "format": "json"}
+    if images:
+        kwargs["images"] = images
     if hasattr(client, "generate"):
         try:
             return client.generate(**kwargs)
@@ -189,6 +207,66 @@ def is_payload_safe(email_body: str) -> bool:
     except Exception as e:
         print(f"[LLAMA-GUARD] Inference error: {e}")
         return True
+
+def free_guard_model() -> bool:
+    """Release the Llama Guard transformers pipeline and free GPU/CPU memory.
+
+    Called by the detonation orchestrator before handing the machine over to the
+    CAPE VM. The pipeline is lazily re-initialized on the next is_payload_safe()
+    call, so this is safe to call at any time. Returns True if something was freed.
+    """
+    global guard_pipeline
+    if guard_pipeline is None:
+        return False
+    try:
+        del guard_pipeline
+    except Exception:
+        pass
+    guard_pipeline = None
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    print("[LLAMA-GUARD] Model released to free memory for detonation")
+    return True
+
+
+def free_guard_model() -> bool:
+    """Release the Llama Guard transformers pipeline and free GPU/CPU memory.
+
+    Called by the detonation orchestrator before handing the machine over to the
+    CAPE VM. The pipeline is lazily re-initialized on the next is_payload_safe()
+    call, so this is safe to call at any time. Returns True if something was freed.
+    """
+    global guard_pipeline
+    if guard_pipeline is None:
+        return False
+    try:
+        del guard_pipeline
+    except Exception:
+        pass
+    guard_pipeline = None
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    print("[LLAMA-GUARD] Model released to free memory for detonation")
+    return True
+
 
 def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_candidates: Optional[list[str]] = None, context: Optional[dict] = None) -> Dict[str, Any]:
     """Analyze email body text with Ollama and return structured verdict.

@@ -15,8 +15,9 @@ from routing import release_email, quarantine_email, override_verdict, revert_ac
 from rules import is_shared_email_domain
 from reporting import generate_report
 from fastapi import Depends
-from api_core import ws_manager, mask_pii, verify_auth
+from api_core import ws_manager, mask_pii, verify_auth, require_permission, AuthenticatedUser
 from metrics import db_connected, ollama_available, get_metrics_text
+from attachments import attachment_safety_status
 
 emails_router = APIRouter()
 _scan_lock = asyncio.Lock()
@@ -92,8 +93,15 @@ class OverrideRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @emails_router.post("/api/scan")
-async def api_trigger_scan():
+async def api_trigger_scan(user: AuthenticatedUser = Depends(require_permission("emails.scan"))):
     """Manually trigger an IMAP poll + analysis pipeline run."""
+    # Refuse while a detonation window holds the machine's RAM.
+    try:
+        import detonation_state
+        if detonation_state.is_active():
+            return {"success": False, "message": "Detonation in progress — pipeline paused, try again shortly"}
+    except ImportError:
+        pass
     # Atomic check-and-acquire: try to get lock without racing
     if _scan_lock.locked():
         return {"success": False, "message": "Scan already in progress"}
@@ -121,6 +129,7 @@ async def api_list_emails(
     search: Optional[str] = Query(None, max_length=200),
     page: int = Query(1, ge=1),
     per_page: int = Query(25, ge=1, le=100),
+    user: AuthenticatedUser = Depends(require_permission("emails.view")),
 ):
     """List processed emails with pagination and filters."""
     db = SessionLocal()
@@ -177,7 +186,7 @@ async def api_list_emails(
 
 
 @emails_router.get("/api/emails/{email_id}")
-async def api_get_email(email_id: int):
+async def api_get_email(email_id: int, user: AuthenticatedUser = Depends(require_permission("emails.view"))):
     """Get full email details including all analysis data."""
     db = SessionLocal()
     try:
@@ -189,6 +198,17 @@ async def api_get_email(email_id: int):
         audit = db.query(AuditLog).filter(
             AuditLog.email_id == email_id
         ).order_by(AuditLog.created_at.desc()).all()
+
+        # Detonation queue rows for this email (read-only projection; the
+        # frontend derives queued/running/done/error panel state from these).
+        # stored_path is deliberately NOT exposed — internal filesystem path.
+        from database import PendingDetonation
+        det_rows = (
+            db.query(PendingDetonation)
+            .filter(PendingDetonation.email_id == email_id)
+            .order_by(PendingDetonation.created_at.desc())
+            .all()
+        )
 
         # Check for whitelist/blocklist conflict on the sender domain so the
         # dashboard can warn the analyst when a released email's domain is also
@@ -209,6 +229,21 @@ async def api_get_email(email_id: int):
             "status": email.status,
             "rules_result": email.rules_result,
             "enrichment_result": email.enrichment_result,
+            "detonation_queue": [
+                {
+                    "id": r.id,
+                    "filename": r.filename,
+                    "sha256": r.sha256,
+                    "status": r.status,
+                    "reason": r.reason,
+                    "attempts": r.attempts,
+                    "result": r.result,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+                }
+                for r in det_rows
+            ],
+            "attachments": _serialize_attachments(db, email_id),
             "llm_result": email.llm_result,
             "llm_reasoning": email.llm_reasoning,
             "parse_errors": email.parse_errors,
@@ -234,9 +269,9 @@ async def api_get_email(email_id: int):
 
 
 @emails_router.post("/api/emails/{email_id}/release")
-async def api_release_email(email_id: int, body: ActionRequest = None, user: str = Depends(verify_auth)):
+async def api_release_email(email_id: int, body: ActionRequest = None, user: AuthenticatedUser = Depends(require_permission("emails.release"))):
     """Release an email (analyst action). Auto-whitelists sender domain."""
-    actor = user or "analyst"
+    actor = str(user)
     reason = body.reason if body else ""
     result = release_email(email_id, actor=actor, reason=reason)
     _update_gauge_metrics()
@@ -246,9 +281,9 @@ async def api_release_email(email_id: int, body: ActionRequest = None, user: str
 
 
 @emails_router.post("/api/emails/{email_id}/quarantine")
-async def api_quarantine_email(email_id: int, body: ActionRequest = None, user: str = Depends(verify_auth)):
+async def api_quarantine_email(email_id: int, body: ActionRequest = None, user: AuthenticatedUser = Depends(require_permission("emails.quarantine"))):
     """Quarantine an email with cascading blocklist + move to Gmail Spam."""
-    actor = user or "analyst"
+    actor = str(user)
     reason = body.reason if body else ""
     result = quarantine_email(email_id, actor=actor, reason=reason)
     _update_gauge_metrics()
@@ -258,9 +293,9 @@ async def api_quarantine_email(email_id: int, body: ActionRequest = None, user: 
 
 
 @emails_router.post("/api/emails/{email_id}/override")
-async def api_override_email(email_id: int, body: OverrideRequest, user: str = Depends(verify_auth)):
+async def api_override_email(email_id: int, body: OverrideRequest, user: AuthenticatedUser = Depends(require_permission("emails.override"))):
     """Override the pipeline verdict (analyst action with notes)."""
-    actor = user or "analyst"
+    actor = str(user)
     result = override_verdict(email_id, body.status, actor=actor, notes=body.notes)
     _update_gauge_metrics()
     if not result["success"]:
@@ -269,14 +304,14 @@ async def api_override_email(email_id: int, body: OverrideRequest, user: str = D
 
 
 @emails_router.post("/api/emails/{email_id}/revert")
-async def api_revert_action(email_id: int, user: str = Depends(verify_auth)):
+async def api_revert_action(email_id: int, user: AuthenticatedUser = Depends(require_permission("emails.revert"))):
     """Revert the last analyst action (quarantine or release) on an email.
 
     Restores the email to 'escalated' status for re-review. If the original
     action was a quarantine, cascade-blocked indicators from that action are
     deactivated. If it was a release, the auto-whitelisted domain is removed.
     """
-    actor = user or "analyst"
+    actor = str(user)
     result = revert_action(email_id, actor=actor)
     _update_gauge_metrics()
     if not result["success"]:
@@ -285,9 +320,9 @@ async def api_revert_action(email_id: int, user: str = Depends(verify_auth)):
 
 
 @emails_router.post("/api/emails/bulk/release")
-async def api_bulk_release(body: BulkActionRequest, user: str = Depends(verify_auth)):
+async def api_bulk_release(body: BulkActionRequest, user: AuthenticatedUser = Depends(require_permission("emails.bulk"))):
     """Release multiple emails at once."""
-    actor = user or "analyst"
+    actor = str(user)
     results = []
     for email_id in body.email_ids:
         result = release_email(email_id, actor=actor, reason=body.reason)
@@ -299,9 +334,9 @@ async def api_bulk_release(body: BulkActionRequest, user: str = Depends(verify_a
 
 
 @emails_router.post("/api/emails/bulk/quarantine")
-async def api_bulk_quarantine(body: BulkActionRequest, user: str = Depends(verify_auth)):
+async def api_bulk_quarantine(body: BulkActionRequest, user: AuthenticatedUser = Depends(require_permission("emails.bulk"))):
     """Quarantine multiple emails at once."""
-    actor = user or "analyst"
+    actor = str(user)
     results = []
     for email_id in body.email_ids:
         result = quarantine_email(email_id, actor=actor, reason=body.reason)
@@ -321,6 +356,7 @@ async def api_list_blocklist(
     indicator_type: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
+    user: AuthenticatedUser = Depends(require_permission("blocklist.view")),
 ):
     """List active blocklist entries."""
     db = SessionLocal()
@@ -355,13 +391,13 @@ async def api_list_blocklist(
 
 
 @emails_router.post("/api/blocklist")
-async def api_add_blocklist(body: BlocklistAddRequest, user: str = Depends(verify_auth)):
+async def api_add_blocklist(body: BlocklistAddRequest, user: AuthenticatedUser = Depends(require_permission("blocklist.manage"))):
     """Add an indicator to the blocklist.
 
     ttl_days is optional. Omit it (or pass null) for a permanent entry.
     Analyst-added entries default to no expiration for backward compatibility.
     """
-    actor = user or "analyst"
+    actor = str(user)
     if body.indicator_type == "domain" and is_shared_email_domain(body.value):
         raise HTTPException(
             status_code=400,
@@ -396,9 +432,9 @@ async def api_add_blocklist(body: BlocklistAddRequest, user: str = Depends(verif
 
 
 @emails_router.delete("/api/blocklist/{entry_id}")
-async def api_remove_blocklist(entry_id: int, user: str = Depends(verify_auth)):
+async def api_remove_blocklist(entry_id: int, user: AuthenticatedUser = Depends(require_permission("blocklist.manage"))):
     """Deactivate a blocklist entry."""
-    actor = user or "analyst"
+    actor = str(user)
     db = SessionLocal()
     try:
         entry = db.query(Blocklist).filter(Blocklist.id == entry_id).first()
@@ -425,6 +461,7 @@ async def api_remove_blocklist(entry_id: int, user: str = Depends(verify_auth)):
 async def api_list_whitelist(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
+    user: AuthenticatedUser = Depends(require_permission("whitelist.view")),
 ):
     """List active whitelist entries."""
     db = SessionLocal()
@@ -455,9 +492,9 @@ async def api_list_whitelist(
 
 
 @emails_router.post("/api/whitelist")
-async def api_add_whitelist(body: WhitelistAddRequest, user: str = Depends(verify_auth)):
+async def api_add_whitelist(body: WhitelistAddRequest, user: AuthenticatedUser = Depends(require_permission("whitelist.manage"))):
     """Add an indicator to the whitelist."""
-    actor = user or "analyst"
+    actor = str(user)
     db = SessionLocal()
     try:
         val = body.value.strip().lower()
@@ -491,9 +528,9 @@ async def api_add_whitelist(body: WhitelistAddRequest, user: str = Depends(verif
 
 
 @emails_router.delete("/api/whitelist/{entry_id}")
-async def api_remove_whitelist(entry_id: int, user: str = Depends(verify_auth)):
+async def api_remove_whitelist(entry_id: int, user: AuthenticatedUser = Depends(require_permission("whitelist.manage"))):
     """Deactivate a whitelist entry."""
-    actor = user or "analyst"
+    actor = str(user)
     db = SessionLocal()
     try:
         entry = db.query(Whitelist).filter(Whitelist.id == entry_id).first()
@@ -529,7 +566,7 @@ def _csv_sanitize(value: object) -> str:
 
 
 @emails_router.get("/api/stats")
-async def api_stats():
+async def api_stats(user: AuthenticatedUser = Depends(require_permission("emails.view"))):
     """Dashboard summary statistics including compliance metrics (last 30 days)."""
     db = SessionLocal()
     try:
@@ -661,7 +698,7 @@ def _build_csv_row(email: Email) -> list:
 async def api_export_emails(
     status: Optional[str] = Query(None, max_length=20),
     days: int = Query(30, ge=1, le=365),
-    user: str = Depends(verify_auth),
+    user: AuthenticatedUser = Depends(require_permission("export.csv")),
 ):
     """Export emails as a compliance CSV (max 10 000 rows, filtered by status and date range)."""
     from datetime import timedelta
@@ -697,7 +734,7 @@ async def api_export_emails(
 
 
 @emails_router.get("/api/reports")
-async def api_list_reports(limit: int = Query(20, ge=1, le=100)):
+async def api_list_reports(limit: int = Query(20, ge=1, le=100), user: AuthenticatedUser = Depends(require_permission("reports.view"))):
     """List generated reports."""
     db = SessionLocal()
     try:
@@ -724,7 +761,7 @@ async def api_list_reports(limit: int = Query(20, ge=1, le=100)):
 
 
 @emails_router.get("/api/health")
-async def api_health():
+async def api_health(user: AuthenticatedUser = Depends(require_permission("health.view"))):
     """System health check."""
     health = {
         "status": "ok",
@@ -779,14 +816,14 @@ async def api_health():
 # ---------------------------------------------------------------------------
 
 @emails_router.get("/api/health/tools")
-async def api_health_tools():
+async def api_health_tools(user: AuthenticatedUser = Depends(require_permission("health.view"))):
     """Per-tool performance overview for admin maintenance dashboard."""
     from health import get_monitor
     return get_monitor().get_all_health()
 
 
 @emails_router.get("/api/health/tools/{tool_name}")
-async def api_health_tool_detail(tool_name: str):
+async def api_health_tool_detail(tool_name: str, user: AuthenticatedUser = Depends(require_permission("health.view"))):
     """Detailed health stats for a single tool."""
     from health import get_monitor
     data = get_monitor().get_tool_health(tool_name)
@@ -796,10 +833,103 @@ async def api_health_tool_detail(tool_name: str):
 
 
 @emails_router.get("/api/health/alerts")
-async def api_health_alerts(limit: int = Query(50, ge=1, le=500)):
+async def api_health_alerts(limit: int = Query(50, ge=1, le=500), user: AuthenticatedUser = Depends(require_permission("alerts.view"))):
     """Recent maintenance alerts (newest first)."""
     from health import get_monitor
     return {"alerts": get_monitor().get_recent_alerts(limit=limit)}
+
+
+# ---------------------------------------------------------------------------
+# REST API — Detonation sandbox status
+# ---------------------------------------------------------------------------
+
+def _serialize_attachments(db, email_id: int) -> list[dict]:
+    """Every attachment for this email with its live-computed safety status."""
+    from database import Attachment
+    rows = (
+        db.query(Attachment)
+        .filter(Attachment.email_id == email_id)
+        .order_by(Attachment.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": a.id,
+            "filename": a.filename,
+            "sha256": a.sha256,
+            "real_type": a.real_type,
+            "size_bytes": a.size_bytes,
+            "status": attachment_safety_status(db, a.sha256),
+        }
+        for a in rows
+    ]
+
+
+def _manual_ready_rows(db) -> list[dict]:
+    """Branch-B rows awaiting operator confirmation (status 'ready', no email)."""
+    from database import list_manual_detonations
+    out = []
+    for r in list_manual_detonations(db):
+        if r.status == "ready":
+            out.append({"id": r.id, "filename": r.filename, "sha256": r.sha256})
+    return out
+
+
+@emails_router.get("/api/detonation/status")
+# emails.view (not health.view): the suspension banner and the sandbox
+# viewer's honest-state gate poll this from every dashboard page; analysts
+# with emails.view already see every filename it could reveal.
+async def api_detonation_status(user: AuthenticatedUser = Depends(require_permission("emails.view"))):
+    """Detonation queue depth + whether a drained detonation window is active.
+
+    Does NOT probe the CAPE VM (it is normally suspended to save RAM); it only
+    reports host-side queue/window state, which is cheap and never blocks.
+    """
+    import detonation_state
+    from database import PendingDetonation, count_queued_detonations
+
+    from sqlalchemy import func as _func
+
+    db = SessionLocal()
+    try:
+        queued = count_queued_detonations(db)
+        by_status = dict(
+            db.query(PendingDetonation.status, _func.count(PendingDetonation.id))
+            .group_by(PendingDetonation.status).all()
+        )
+        recent = (
+            db.query(PendingDetonation)
+            .order_by(PendingDetonation.updated_at.desc())
+            .limit(10).all()
+        )
+        recent_out = [
+            {
+                "id": r.id,
+                "email_id": r.email_id,
+                "filename": r.filename,
+                "sha256": r.sha256,
+                "status": r.status,
+                "reason": r.reason,
+                "malscore": (r.result or {}).get("malscore") if r.result else None,
+                "escalate": (r.result or {}).get("escalate") if r.result else None,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in recent
+        ]
+        manual_ready = _manual_ready_rows(db)
+    finally:
+        db.close()
+
+    window = detonation_state.status()
+    return {
+        "window_active": window["active"],
+        "window_reason": window["reason"],
+        "window_elapsed_s": window["elapsed_s"],
+        "queued": queued,
+        "by_status": by_status,
+        "recent": recent_out,
+        "manual_ready": manual_ready,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -810,6 +940,7 @@ async def api_health_alerts(limit: int = Query(50, ge=1, le=500)):
 async def api_list_feedback(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
+    user: AuthenticatedUser = Depends(require_permission("audit.view")),
 ):
     """List analyst feedback entries for pipeline learning review."""
     db = SessionLocal()
@@ -851,6 +982,7 @@ async def api_action_history(
     action: Optional[str] = Query(None, max_length=50),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
+    user: AuthenticatedUser = Depends(require_permission("audit.view")),
 ):
     """Full action history with actor names, email context, and notes."""
     db = SessionLocal()
@@ -904,6 +1036,7 @@ async def api_action_history(
 async def api_audit_errors(
     tool: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
+    user: AuthenticatedUser = Depends(require_permission("audit.view")),
 ):
     """Get component error history with error codes for admin audit panel."""
     from health import get_monitor
@@ -959,6 +1092,7 @@ async def api_list_alerts(
     level: Optional[str] = Query(None, max_length=20),
     acknowledged: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=500),
+    user: AuthenticatedUser = Depends(require_permission("alerts.view")),
 ):
     """List recent security alerts, newest first."""
     db = SessionLocal()
@@ -989,7 +1123,7 @@ async def api_list_alerts(
 
 
 @emails_router.post("/api/alerts/{alert_id}/acknowledge")
-async def api_acknowledge_alert(alert_id: int, user: str = Depends(verify_auth)):
+async def api_acknowledge_alert(alert_id: int, user: AuthenticatedUser = Depends(require_permission("alerts.acknowledge"))):
     """Mark an alert as acknowledged by an analyst."""
     db = SessionLocal()
     try:
@@ -998,6 +1132,8 @@ async def api_acknowledge_alert(alert_id: int, user: str = Depends(verify_auth))
             raise HTTPException(404, "Alert not found")
         alert.acknowledged = True
         db.commit()
-        return {"success": True, "alert_id": alert_id, "acknowledged_by": user}
+        return {"success": True, "alert_id": alert_id, "acknowledged_by": str(user)}
     finally:
         db.close()
+
+

@@ -16,10 +16,12 @@ _jinja_templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 def _generate_ws_token(username: str) -> str:
     """Generate a short-lived token for WebSocket authentication only."""
+    import secrets as _secrets
     from datetime import datetime, timedelta, timezone
     payload = {
         "sub": username,
         "purpose": "ws",
+        "jti": _secrets.token_urlsafe(16),  # revocable (SEC-H3)
         "exp": datetime.now(timezone.utc) + timedelta(hours=8),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)
@@ -76,6 +78,24 @@ def mask_pii(email: str):
 
 templates.env.filters["mask_pii"] = mask_pii
 
+
+# --- Static asset cache-busting -------------------------------------------
+# Append ?v=<file mtime> to static URLs so browsers ALWAYS fetch the current
+# JS/CSS after a deploy. Without this, a stale cached dashboard.js can render
+# UI (e.g. action buttons) the current RBAC gating would otherwise hide.
+_STATIC_ROOT = _DASHBOARD_DIR / "static"
+
+
+def static_v(path: str) -> str:
+    try:
+        v = int((_STATIC_ROOT / path).stat().st_mtime)
+    except Exception:
+        v = 0
+    return f"/static/{path}?v={v}"
+
+
+_jinja_templates.env.globals["static_v"] = static_v
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections = []
@@ -119,14 +139,67 @@ if _jwt_secret == os.getenv("VAULT_ENCRYPTION_KEY"):
 JWT_SECRET = _jwt_secret
 ALGORITHM = "HS256"
 
-# --- Token revocation blacklist (in-memory, survives until restart) ---
-_revoked_tokens: set[str] = set()
+# --- Token revocation (SEC-H3): durable, DB-backed, shared across workers ---
+# Was an in-memory set that reset on restart and wasn't shared between workers,
+# so a logged-out/compromised token silently came back to life. Now persisted
+# in the revoked_tokens table keyed by the token's jti (falling back to a hash
+# of the token for legacy tokens issued without one).
+
+def _token_revocation_key(token: str):
+    """Return (jti, exp_datetime) for a token, or None if it can't be parsed.
+
+    Decodes even an expired token (verify_exp=False) so a token can still be
+    revoked right at the edge of its lifetime.
+    """
+    import hashlib
+    from datetime import datetime, timezone, timedelta
+    payload = None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM],
+                                 options={"verify_exp": False})
+        except jwt.PyJWTError:
+            return None
+    jti = payload.get("jti") or hashlib.sha256(token.encode("utf-8")).hexdigest()
+    exp = payload.get("exp")
+    exp_dt = (datetime.fromtimestamp(exp, tz=timezone.utc) if exp
+              else datetime.now(timezone.utc) + timedelta(hours=8))
+    return jti, exp_dt
+
 
 def revoke_token(token: str) -> None:
-    _revoked_tokens.add(token)
+    info = _token_revocation_key(token)
+    if not info:
+        return
+    jti, exp_dt = info
+    from database import SessionLocal, add_revoked_token
+    db = SessionLocal()
+    try:
+        add_revoked_token(db, jti, exp_dt)
+    except Exception as e:
+        print(f"[AUTH] revoke_token failed: {e}")
+    finally:
+        db.close()
+
 
 def is_token_revoked(token: str) -> bool:
-    return token in _revoked_tokens
+    info = _token_revocation_key(token)
+    if not info:
+        return False
+    jti, _ = info
+    from database import SessionLocal, is_jti_revoked
+    db = SessionLocal()
+    try:
+        return is_jti_revoked(db, jti)
+    except Exception as e:
+        # Fail-safe for auth: if the revocation store is unreachable, do not
+        # silently accept a possibly-revoked token — treat it as revoked.
+        print(f"[AUTH] revocation check failed, treating token as revoked: {e}")
+        return True
+    finally:
+        db.close()
 
 def get_db_generator():
     db = SessionLocal()
@@ -135,30 +208,55 @@ def get_db_generator():
     finally:
         db.close()
 
+class AuthenticatedUser:
+    """Lightweight wrapper carrying identity + RBAC context through requests."""
+    __slots__ = ("username", "role", "permissions", "user_id")
+
+    def __init__(self, username: str, role: str = "viewer",
+                 permissions: dict = None, user_id: int = None):
+        self.username = username
+        self.role = role
+        self.permissions = permissions or {}
+        self.user_id = user_id
+
+    def has(self, permission: str) -> bool:
+        if self.role == "admin":
+            return True
+        return bool(self.permissions.get(permission, False))
+
+    def __str__(self):
+        return self.username
+
+
+def _load_user_context(username: str) -> Optional["AuthenticatedUser"]:
+    """Load full RBAC context from DB for an authenticated username."""
+    from database import User
+    db = next(get_db_generator())
+    try:
+        user = db.query(User).filter(User.username == username, User.is_active == True).first()
+        if not user:
+            return None
+        return AuthenticatedUser(
+            username=user.username,
+            role=user.role or "viewer",
+            permissions=user.permissions or {},
+            user_id=user.id,
+        )
+    finally:
+        db.close()
+
+
 async def verify_auth(request: Request, access_token: Optional[str] = Cookie(None)):
     if request.url.path in ["/login", "/api/login"] or request.url.path.startswith("/static"):
         return None
 
+    username = None
+
+    # HTTP Basic Auth was REMOVED: it authenticated with username+password only,
+    # bypassing the mandatory TOTP second factor, and had no rate limiting — an
+    # unthrottled, MFA-less brute-force surface. All access now requires a JWT
+    # session cookie, which can only be obtained through the MFA login flow.
     if not access_token:
-        # For API clients without cookies, fallback to Basic Auth
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Basic "):
-            import base64
-            try:
-                decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
-                username, password = decoded.split(":", 1)
-                db = next(get_db_generator())
-                from database import User
-                user = db.query(User).filter(User.username == username).first()
-                # Always call bcrypt to prevent timing-based username enumeration
-                _dummy_hash = "$2b$12$LJ3m4ys3Lg2F55HBz6E6ceRzNKPRtTBBBfUvKXFLT7gaBMvHy1jCe"
-                hash_to_check = user.password_hash if user else _dummy_hash
-                password_valid = bcrypt.checkpw(password.encode("utf-8"), hash_to_check.encode("utf-8"))
-                if user and password_valid:
-                    request.state.authenticated_user = username
-                    return username
-            except Exception:
-                pass
         raise NotAuthenticatedException()
 
     try:
@@ -166,7 +264,37 @@ async def verify_auth(request: Request, access_token: Optional[str] = Cookie(Non
             raise NotAuthenticatedException()
         payload = jwt.decode(access_token, JWT_SECRET, algorithms=[ALGORITHM])
         username = payload.get("sub")
-        request.state.authenticated_user = username
-        return username
     except jwt.PyJWTError:
         raise NotAuthenticatedException()
+
+    # Load full RBAC context
+    auth_user = _load_user_context(username)
+    if not auth_user:
+        raise NotAuthenticatedException()
+
+    request.state.authenticated_user = auth_user.username
+    request.state.auth_user = auth_user
+    return auth_user
+
+
+def require_permission(permission: str):
+    """FastAPI dependency that checks a specific permission after authentication.
+
+    Usage:
+        @router.post("/api/blocklist")
+        async def add_blocklist(user: AuthenticatedUser = Depends(require_permission("blocklist.manage"))):
+            ...
+    """
+    from fastapi import Depends, HTTPException
+
+    async def _check(user: AuthenticatedUser = Depends(verify_auth)):
+        if user is None:
+            raise NotAuthenticatedException()
+        if not user.has(permission):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied: {permission} required",
+            )
+        return user
+
+    return _check

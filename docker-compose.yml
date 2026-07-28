@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  soc-dashboard:
+  attijari-dashboard:
     build:
       context: .
       dockerfile: docker/base.Dockerfile
@@ -11,7 +11,7 @@ services:
     volumes:
       - .:/app
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-soc_user}:${POSTGRES_PASSWORD:-soc_pass}@postgres:5432/${POSTGRES_DB:-soc_db}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-attijari_user}:${POSTGRES_PASSWORD:-attijari_pass}@postgres:5432/${POSTGRES_DB:-attijari_db}
       - VAULT_ENCRYPTION_KEY=${VAULT_ENCRYPTION_KEY:?Set VAULT_ENCRYPTION_KEY in .env}
       - IMAP_HOST=${IMAP_HOST}
       - IMAP_USER=${IMAP_USER}
@@ -23,18 +23,22 @@ services:
   nginx:
     image: nginx:latest
     ports:
-      - "80:80"
+      # Bound to loopback only — the dashboard is not exposed on the network
+      # by default. For remote access, terminate TLS here (publish
+      # "127.0.0.1:443:443" behind a host firewall, or front it with a
+      # TLS-terminating proxy) rather than serving plain HTTP to the LAN.
+      - "127.0.0.1:80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - soc-dashboard
+      - attijari-dashboard
 
   postgres:
     image: postgres:15
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-soc_user}
+      - POSTGRES_USER=${POSTGRES_USER:-attijari_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-      - POSTGRES_DB=${POSTGRES_DB:-soc_db}
+      - POSTGRES_DB=${POSTGRES_DB:-attijari_db}
     # Enable pgaudit for WORM logging
     command: >
       postgres
@@ -42,7 +46,10 @@ services:
       -c pgaudit.log='write, ddl'
       -c pgaudit.log_relation=on
     ports:
-      - "5432:5432"
+      # Loopback only. The app container reaches Postgres over the internal
+      # compose network (host "postgres"), so this publish exists only for
+      # local host tools (psql) — it must never listen on 0.0.0.0.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

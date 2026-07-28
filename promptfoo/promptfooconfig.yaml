@@ -1,10 +1,10 @@
-# Promptfoo configuration for Attijari SOC email triage LLM
+# Promptfoo configuration for Attijari email triage LLM
 # Tests gemma3:4b verdict accuracy against known-good/known-bad emails
 #
 # Run:  cd promptfoo && npx promptfoo@latest eval --no-cache
 # View: npx promptfoo@latest view
 
-description: "Attijari SOC - Email Verdict Accuracy"
+description: "Attijari - Email Verdict Accuracy"
 
 prompts:
   - file://prompt_template.txt

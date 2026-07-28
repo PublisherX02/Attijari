@@ -3,45 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Attijari SOC — AI-assisted email security triage dashboard">
+    <meta name="description" content="Attijari — AI-assisted email security triage dashboard">
     {% if ws_token %}<meta name="ws-token" content="{{ ws_token }}">{% endif %}
-    <title>{% block title %}Attijari SOC{% endblock %}</title>
+    <title>{% block title %}Attijari{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="stylesheet" href="{{ static_v('css/dashboard.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body>
+    <div id="detonation-banner" class="detonation-banner" style="display:none">
+        🔬 Detonation window active — email analysis temporarily suspended.
+        Unprocessed submissions stay queued for the next pass.
+    </div>
     <div class="app-layout">
         <!-- Sidebar -->
         <nav class="sidebar">
             <div class="sidebar-brand">
-                <h1>Attijari SOC</h1>
+                <h1>Attijari</h1>
                 <div class="subtitle">Email Security Triage</div>
             </div>
             <div class="sidebar-nav">
+                {% if role == 'admin' or permissions.get('emails.view', False) %}
                 <a href="/" class="nav-link {% if active_page == 'inbox' %}active{% endif %}" id="nav-inbox">
                     <span class="nav-icon">📥</span>
                     <span>Inbox Queue</span>
                     <span class="nav-badge" id="pending-badge">0</span>
                 </a>
+                {% endif %}
+                {% if role == 'admin' or permissions.get('blocklist.view', False) %}
                 <a href="/blocklist" class="nav-link {% if active_page == 'blocklist' %}active{% endif %}">
                     <span class="nav-icon">🚫</span>
                     <span>Blocklist</span>
                 </a>
+                {% endif %}
+                {% if role == 'admin' or permissions.get('whitelist.view', False) %}
                 <a href="/whitelist" class="nav-link {% if active_page == 'whitelist' %}active{% endif %}">
                     <span class="nav-icon">✅</span>
                     <span>Whitelist</span>
                 </a>
+                {% endif %}
+                {% if role == 'admin' or permissions.get('reports.view', False) %}
                 <a href="/reports" class="nav-link {% if active_page == 'reports' %}active{% endif %}">
                     <span class="nav-icon">📊</span>
                     <span>Reports</span>
                 </a>
+                {% endif %}
+                {% if role == 'admin' or permissions.get('health.view', False) %}
                 <a href="/health" class="nav-link {% if active_page == 'health' %}active{% endif %}">
                     <span class="nav-icon">💓</span>
                     <span>System Health</span>
                 </a>
+                {% endif %}
+                {% if role == 'admin' or permissions.get('audit.view', False) %}
                 <a href="/audit" class="nav-link {% if active_page == 'audit' %}active{% endif %}">
                     <span class="nav-icon">🔍</span>
                     <span>Audit Panel</span>
@@ -50,12 +65,27 @@
                     <span class="nav-icon">📜</span>
                     <span>Action History</span>
                 </a>
+                {% endif %}
+                {% if role == 'admin' %}
+                <a href="/admin" class="nav-link {% if active_page == 'admin' %}active{% endif %}">
+                    <span class="nav-icon">👤</span>
+                    <span>User Management</span>
+                </a>
+                {% endif %}
+                {% if role == 'admin' or permissions.get('detonation.manual', False) %}
+                <a href="/manual-detonation" class="nav-link {% if active_page == 'manual_detonation' %}active{% endif %}">
+                    <span class="nav-icon">🧨</span>
+                    <span>Manual Detonation</span>
+                </a>
+                {% endif %}
             </div>
             <div style="padding: 16px 12px; border-top: 1px solid var(--border-glass);">
+                {% if role == 'admin' or permissions.get('health.view', False) %}
                 <a href="/metrics" class="nav-link" target="_blank">
                     <span class="nav-icon">📈</span>
                     <span>Prometheus</span>
                 </a>
+                {% endif %}
             </div>
         </nav>
 
@@ -64,6 +94,13 @@
             {% if username %}
             <div class="user-greeting">
                 <span>Hello, <strong>{{ username }}</strong></span>
+                {% if role == 'admin' %}
+                <span class="status-badge" style="background:rgba(155,89,182,0.15);color:#9b59b6;margin-left:8px;font-size:0.72rem;">admin</span>
+                {% elif role == 'analyst' %}
+                <span class="status-badge" style="background:rgba(41,128,185,0.15);color:#2980b9;margin-left:8px;font-size:0.72rem;">analyst</span>
+                {% elif role == 'viewer' %}
+                <span class="status-badge" style="background:rgba(149,165,166,0.15);color:#7f8c8d;margin-left:8px;font-size:0.72rem;">viewer</span>
+                {% endif %}
                 <a href="/logout" class="btn btn-outline btn-sm" style="margin-left:12px;font-size:0.78rem;padding:4px 12px;">Logout</a>
             </div>
             {% endif %}
@@ -72,7 +109,7 @@
     </div>
 
     <!-- Override modal -->
-    <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal-overlay" id="modal-overlay" data-action="backdrop-close" data-close="closeModal">
         <div class="modal">
             <h3>Override Verdict</h3>
             <div class="form-group">
@@ -90,14 +127,14 @@
                 <textarea class="form-input" id="override-notes" rows="3" placeholder="Reason for override…"></textarea>
             </div>
             <div class="btn-group" style="justify-content: flex-end;">
-                <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="overrideEmail(document.getElementById('modal-overlay').dataset.emailId)">Confirm Override</button>
+                <button class="btn btn-outline" data-action="close-modal">Cancel</button>
+                <button class="btn btn-primary" data-action="confirm-override">Confirm Override</button>
             </div>
         </div>
     </div>
 
     <!-- Reason modal (release/quarantine feedback) -->
-    <div class="modal-overlay" id="reason-modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal-overlay" id="reason-modal-overlay" data-action="backdrop-close" data-close="closeReasonModal">
         <div class="modal">
             <h3>Provide Reasoning</h3>
             <p id="reason-hint" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px"></p>
@@ -106,13 +143,33 @@
                 <textarea class="form-input" id="reason-text" rows="4" placeholder="Why should this email be released/quarantined? This trains the pipeline..."></textarea>
             </div>
             <div class="btn-group" style="justify-content: flex-end;">
-                <button class="btn btn-outline" onclick="document.getElementById('reason-modal-overlay').classList.remove('open')">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmReasonAction()">Confirm</button>
+                <button class="btn btn-outline" data-action="close-reason-modal">Cancel</button>
+                <button class="btn btn-primary" data-action="confirm-reason-action">Confirm</button>
             </div>
         </div>
     </div>
 
-    <script src="/static/js/dashboard.js"></script>
+    <script nonce="{{ csp_nonce }}">
+        // User RBAC context — injected server-side for permission-based UI rendering
+        window.USER_ROLE = "{{ role or '' }}";
+        window.USER_PERMS = {
+            {% if role == 'admin' %}
+            // Admin bypasses all — every permission is true
+            {% for p in ['emails.view','emails.release','emails.quarantine','emails.override','emails.revert','emails.bulk','emails.scan','blocklist.view','blocklist.manage','whitelist.view','whitelist.manage','audit.view','reports.view','health.view','alerts.view','alerts.acknowledge','export.csv','users.manage','detonation.manual'] %}
+            "{{ p }}": true{{ "," if not loop.last }}
+            {% endfor %}
+            {% elif permissions %}
+            {% for key, val in permissions.items() %}
+            "{{ key }}": {{ 'true' if val else 'false' }}{{ "," if not loop.last }}
+            {% endfor %}
+            {% endif %}
+        };
+        function userCan(perm) {
+            if (window.USER_ROLE === 'admin') return true;
+            return !!window.USER_PERMS[perm];
+        }
+    </script>
+    <script src="{{ static_v('js/dashboard.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -42,6 +42,25 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 YARA_RULES_DIR = _PROJECT_ROOT / "data" / "yara_rules"
 EXTRACTION_TIMEOUT = 60  # seconds per attachment
 
+# ---------- SEC-H1: mandatory isolation for complex-format parsers ----------
+# These tools parse attacker-controlled complex/active content (Office VBA,
+# PDF objects, arbitrary MarkItDown formats) where a parser exploit runs with
+# our privileges. They MUST run inside the sandbox container. If the sandbox
+# is unavailable, we escalate the attachment (fail-safe) rather than parse it
+# unsandboxed on the host — the same rule the pipeline applies to timeouts and
+# crashes (CLAUDE.md: the extraction environment must be isolated).
+#
+# magic / yara / tesseract / ioc_finder are intentionally NOT here: they are
+# byte-level type sniffing, pattern matching, OCR, and text regexing — a far
+# smaller parser-exploit surface — and tesseract is host-local by design.
+SANDBOX_REQUIRED_TOOLS = {"oletools", "pdfid", "pymupdf", "markitdown"}
+
+# Escape hatch for local dev ONLY: set EXTRACTION_ALLOW_UNSANDBOXED=1 to permit
+# the old behaviour of running the parsers above locally when Docker is down.
+# Default is secure (fail-safe). Never enable this where real mail is processed.
+def _allow_unsandboxed() -> bool:
+    return os.getenv("EXTRACTION_ALLOW_UNSANDBOXED", "0") == "1"
+
 # ---------- Check sandbox status once at import ----------
 _sandbox_status = None
 
@@ -305,9 +324,33 @@ def _local_markitdown(content: bytes, filename: str) -> dict:
 # Unified tool dispatcher: sandbox first, local fallback
 # =====================================================================
 
+def _sandbox_required_failsafe(tool_name: str, why: str) -> dict:
+    """SEC-H1 fail-safe result for a tool that MUST be sandboxed but can't be.
+
+    Never parses the file locally. Marked suspicious+escalate so the attachment
+    is routed to a human instead of silently passing without isolated analysis.
+    """
+    print(f"[EXTRACTION] {tool_name} requires the sandbox but it is unavailable "
+          f"({why}) — escalating, NOT parsing unsandboxed (SEC-H1 fail-safe)")
+    return {
+        "tool": tool_name,
+        "status": "error",
+        "error": f"sandbox_required_but_unavailable:{why}",
+        "sandbox_required_unavailable": True,
+        "suspicious": True,
+        "escalate": True,
+        "sandboxed": False,
+    }
+
+
 def _run_tool(tool_name: str, content: bytes, stored_path: str,
               filename: str = "file.bin") -> dict:
-    """Run a tool via sandbox if available, else local fallback."""
+    """Run a tool via sandbox if available, else local fallback.
+
+    For SANDBOX_REQUIRED_TOOLS, "no sandbox" means escalate, never local —
+    unless EXTRACTION_ALLOW_UNSANDBOXED=1 (dev only).
+    """
+    requires_sandbox = tool_name in SANDBOX_REQUIRED_TOOLS and not _allow_unsandboxed()
 
     # Try sandbox first
     if _can_sandbox(tool_name):
@@ -323,10 +366,16 @@ def _run_tool(tool_name: str, content: bytes, stored_path: str,
         # If sandbox succeeded, return result
         if result.get("status") != "error" or not result.get("fallback"):
             return result
-        # If sandbox failed with fallback flag, try local
+        # Sandbox failed with fallback flag. For isolation-required tools we do
+        # NOT drop to unsandboxed local parsing — escalate instead (SEC-H1).
+        if requires_sandbox:
+            return _sandbox_required_failsafe(tool_name, "sandbox_run_failed")
         print(f"[EXTRACTION] Sandbox failed for {tool_name}, falling back to local")
+    elif requires_sandbox:
+        # Sandbox not available at all and this tool must be isolated.
+        return _sandbox_required_failsafe(tool_name, "sandbox_unavailable")
 
-    # Local fallback
+    # Local fallback (only non-required tools, or EXTRACTION_ALLOW_UNSANDBOXED=1)
     if tool_name == "magic":
         return _local_detect_type(content)
     elif tool_name == "oletools":
@@ -394,7 +443,7 @@ def _check_pdf_urls_for_phishing(urls: list[str]) -> list[str]:
     from urllib.parse import urlparse
     flags = []
     # Bank domain patterns for typosquat detection
-    _BANK_KEYWORDS = ("attijari", "tijari", "attijar", "wafabank", "wafa")
+    _BANK_KEYWORDS = ("attijari", "attijar", "wafabank", "wafa")
     # Phishing path keywords
     _PHISH_PATHS = ("login", "verify", "confirm", "secure", "account", "auth",
                     "signin", "session", "credential", "password", "update")
@@ -682,6 +731,33 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             total_iocs = sum(len(v) for v in ioc_result["iocs"].values())
             if total_iocs > 0:
                 result["flags"].append(f"iocs_extracted: {total_iocs} indicators found")
+
+    # 7a. SEC-H1 fail-safe propagation — any isolation-required tool that could
+    # not run sandboxed escalates the whole attachment, regardless of which
+    # call site consumed its result (pymupdf/markitdown don't check suspicious).
+    for _tr in result["tools_run"]:
+        if _tr.get("sandbox_required_unavailable"):
+            result["suspicious"] = True
+            result["escalate"] = True
+            _flag = (f"sandbox_unavailable_for_{_tr.get('tool')}: file needs isolated "
+                     f"analysis but no container was available — escalating (never parsed unsandboxed)")
+            if _flag not in result["flags"]:
+                result["flags"].append(_flag)
+
+    # 7b. DETONATION CANDIDATE (Stage 3.5) — DEFERRED, not run inline.
+    # Detonation is memory-gated and runs later in a drained window (see
+    # detonation.py). Here we only MARK a file as a candidate when static
+    # analysis was inconclusive (not escalated) but the file type is detonable.
+    # main.py decides whether to actually enqueue it, combining this marker
+    # with the LLM's confidence.
+    result["detonation_candidate"] = False
+    if not result["escalate"] and stored_path:
+        try:
+            from detonation import should_detonate
+            if should_detonate(filename):
+                result["detonation_candidate"] = True
+        except ImportError:
+            pass
 
     # 8. CRITICAL: encrypted attachment + password in body = auto escalate
     if body_text:

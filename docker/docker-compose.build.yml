@@ -9,46 +9,46 @@ services:
     build:
       context: .
       dockerfile: magic.Dockerfile
-    image: tijari-extract-magic
+    image: attijari-extract-magic
 
   oletools:
     build:
       context: .
       dockerfile: oletools.Dockerfile
-    image: tijari-extract-oletools
+    image: attijari-extract-oletools
 
   pdfid:
     build:
       context: .
       dockerfile: pdfid.Dockerfile
-    image: tijari-extract-pdfid
+    image: attijari-extract-pdfid
 
   pymupdf:
     build:
       context: .
       dockerfile: pymupdf.Dockerfile
-    image: tijari-extract-pymupdf
+    image: attijari-extract-pymupdf
 
   tesseract:
     build:
       context: .
       dockerfile: tesseract.Dockerfile
-    image: tijari-extract-tesseract
+    image: attijari-extract-tesseract
 
   yara:
     build:
       context: .
       dockerfile: yara.Dockerfile
-    image: tijari-extract-yara
+    image: attijari-extract-yara
 
   ioc-finder:
     build:
       context: .
       dockerfile: ioc_finder.Dockerfile
-    image: tijari-extract-ioc-finder
+    image: attijari-extract-ioc-finder
 
   markitdown:
     build:
       context: .
       dockerfile: markitdown.Dockerfile
-    image: tijari-extract-markitdown
+    image: attijari-extract-markitdown

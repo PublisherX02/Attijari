@@ -1,0 +1,121 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master]
+
+jobs:
+  code-health:
+    name: Code Health & Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install Linting Tools
+        run: pip install black isort flake8
+      - name: Check Formatting (Black)
+        run: black --check . || echo "Black formatting issues found"
+      - name: Check Imports (isort)
+        run: isort --check-only . || echo "isort issues found"
+      - name: Lint (flake8)
+        run: flake8 . --exit-zero --max-line-length=88
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  dependency-scan:
+    name: Software Composition Analysis (SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Install pip-audit & safety
+        run: pip install pip-audit safety
+      - name: Run pip-audit
+        run: pip-audit || echo "Vulnerabilities found by pip-audit"
+      - name: Run safety check
+        run: safety check || echo "Vulnerabilities found by safety"
+
+  sast:
+    name: Static Application Security Testing (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Bandit & Semgrep
+        run: pip install bandit semgrep
+      - name: Run Bandit
+        run: bandit -r src -ll -ii -f screen || echo "Bandit issues found"
+      - name: Run Semgrep
+        run: semgrep ci --config=p/ci || echo "Semgrep issues found"
+
+  test:
+    name: Pytest & Coverage
+    runs-on: ubuntu-latest
+    needs: [code-health, secret-scan] # Wait for basic checks to pass
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: attijari_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      - name: Run Pytest
+        run: pytest tests/ --cov=src --cov-report=xml -v
+        env:
+          # Required for some tests as seen in previous ci.yml
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          THREATFOX_AUTH_KEY: ${{ secrets.THREATFOX_AUTH_KEY }}
+          # Live-DB tests (test_jwt_revocation.py, test_detonation_recovery.py, etc.)
+          # need a real Postgres to run against — provided by the service above.
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

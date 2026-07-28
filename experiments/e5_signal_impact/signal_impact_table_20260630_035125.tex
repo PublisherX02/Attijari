@@ -1,0 +1,15 @@
+\begin{table}[h]
+\centering
+\caption{Signal Impact on LLM Verdict Reliability (gemma3:4b)}
+\label{tab:e5_signal_impact}
+\begin{tabular}{l r r r r r r r}
+\hline
+Configuration & Acc. & Prec. & Recall & F1 & FN & FP & $\Delta$F1 \\
+\hline
+LLM Blind & 0.830 & 0.830 & 1.000 & 0.907 & 0 & 8 & +0.000 \\
+LLM + Headers & 0.830 & 0.830 & 1.000 & 0.907 & 0 & 8 & +0.000 \\
+LLM + Auth & 0.830 & 0.830 & 1.000 & 0.907 & 0 & 8 & +0.000 \\
+LLM + All Signals & 0.830 & 0.830 & 1.000 & 0.907 & 0 & 8 & +0.000 \\
+\hline
+\end{tabular}
+\end{table}

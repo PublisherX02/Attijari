@@ -3589,16 +3589,35 @@ def build_benign_cases() -> list[dict]:
 
 # ======================== PIPELINE RUNNER (NO DB) ========================
 
-def run_pipeline_isolated(raw_eml: bytes, run_llm: bool = True) -> dict:
+def _queued_shas(db):
+    """Rows currently sitting in 'queued' status — used to diff before/after
+    a single _maybe_enqueue_detonation call (that function has no return
+    value telling us what it queued)."""
+    from database import PendingDetonation
+    return db.query(PendingDetonation).filter(PendingDetonation.status == "queued").all()
+
+
+def run_pipeline_isolated(raw_eml: bytes, run_llm: bool = True,
+                           enable_detonation: bool = False, db=None) -> dict:
     """Run the full analysis pipeline on a raw email WITHOUT any DB writes.
 
-    Returns a dict with per-stage results and the final verdict.
+    Email/verdict state is not persisted, but when `enable_detonation` is set
+    (with an open `db` session) attachments that meet the same trigger as
+    production (static analysis inconclusive AND the LLM unsure, or static
+    analysis flagged something it couldn't conclusively resolve) are queued
+    into the real `pending_detonation` table with email_id=None, exactly like
+    a manual detonation. The caller is expected to drain that queue once
+    after the whole batch (see epvme_test.py) and fold results back in.
+
+    Returns a dict with per-stage results, the final verdict, and (when
+    detonation is enabled) `detonation_queued`: list of sha256 queued.
     """
     result = {
         "stages": {},
         "final_status": "unknown",
         "flags_total": 0,
         "deterministic_escalation": False,
+        "detonation_queued": [],
     }
 
     # --- Parse ---
@@ -3729,6 +3748,7 @@ def run_pipeline_isolated(raw_eml: bytes, run_llm: bool = True) -> dict:
                 "risk_score": llm_res.get("risk_score"),
                 "reasons": llm_res.get("reasons", []),
             }
+            parsed["llm_analysis"] = {"confidence": llm_res.get("confidence")}
         except Exception as e:
             parsed["status"] = "escalated"
             result["stages"]["llm"] = {"error": str(e), "verdict": "escalated"}
@@ -3736,6 +3756,22 @@ def run_pipeline_isolated(raw_eml: bytes, run_llm: bool = True) -> dict:
         result["stages"]["llm"] = {"skipped": "already_escalated", "verdict": "escalated"}
     else:
         result["stages"]["llm"] = {"skipped": "llm_disabled"}
+
+    # --- Detonation queueing (optional) ---
+    # Same trigger as production (main._maybe_enqueue_detonation): skipped
+    # entirely if a deterministic signal already escalated the email, since
+    # that email is going to a human regardless of what the sandbox finds.
+    if enable_detonation and db is not None:
+        try:
+            from main import _maybe_enqueue_detonation
+            parsed.setdefault("idempotency_key", f"epvme:{hashlib.sha256(raw_eml).hexdigest()[:16]}")
+            before = {r.sha256 for r in _queued_shas(db)}
+            _maybe_enqueue_detonation(db, parsed, email_id=None,
+                                       deterministic_escalation=result["deterministic_escalation"])
+            after = {r.sha256 for r in _queued_shas(db)}
+            result["detonation_queued"] = sorted(after - before)
+        except Exception as e:
+            result["stages"]["detonation_queue"] = {"error": str(e)}
 
     result["final_status"] = parsed["status"]
     result["flags_total"] = sum(
@@ -4235,7 +4271,7 @@ def main():
     run_llm = not args.no_llm
 
     print("=" * 60)
-    print("  ATTIJARI SOC — Pipeline Accuracy Test Suite")
+    print("  ATTIJARI — Pipeline Accuracy Test Suite")
     print("=" * 60)
     print(f"  LLM analysis: {'ON' if run_llm else 'OFF'}")
     print(f"  Live emails: {'YES' if args.live else 'NO'}")

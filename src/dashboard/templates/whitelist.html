@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Whitelist — Attijari SOC{% endblock %}
+{% block title %}Whitelist — Attijari{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -7,6 +7,7 @@
     <p class="page-subtitle">Whitelisted indicators always override the blocklist</p>
 </div>
 
+{% if role == 'admin' or permissions.get('whitelist.manage', False) %}
 <!-- Add entry form -->
 <div class="card" style="margin-bottom: 24px;">
     <div class="card-header">
@@ -29,9 +30,10 @@
             <label class="form-label">Reason</label>
             <input type="text" class="form-input" id="wl-reason" placeholder="Why is this trusted?">
         </div>
-        <button class="btn btn-success" onclick="addWhitelistEntry()" style="height:42px;">✅ Whitelist</button>
+        <button class="btn btn-success" data-action="add-whitelist-entry" style="height:42px;">✅ Whitelist</button>
     </div>
 </div>
+{% endif %}
 
 <!-- Whitelist table -->
 <div class="table-container">
@@ -42,7 +44,7 @@
                 <th>Value</th>
                 <th>Reason</th>
                 <th>Added</th>
-                <th>Action</th>
+                {% if role == 'admin' or permissions.get('whitelist.manage', False) %}<th>Action</th>{% endif %}
             </tr>
         </thead>
         <tbody id="whitelist-body">

@@ -1,0 +1,29 @@
+\begin{table*}[htbp]
+\centering
+\caption{Comparison with Published Phishing Detection Systems}
+\label{tab:literature-comparison}
+\begin{tabular}{l l c c c c c c c}
+\toprule
+System & Type & Local & LLM & Dataset & Acc. & Prec. & Rec. & F1 \\
+\midrule
+  SpamAssassin 4.0 & Rule-based & \checkmark & -- & TREC 2007 Spam & 0.950 & 0.960 & 0.940 & 0.950 \\
+  Nazario Bayesian & ML (Naive Bayes) & \checkmark & -- & Nazario Phishing Corpus & 0.920 & 0.890 & 0.950 & 0.919 \\
+  BERT Phishing & Fine-tuned LM & \checkmark & -- & IWSPA-AP 2018 & 0.967 & 0.963 & 0.972 & 0.967 \\
+  ChatGPT (zero-shot) & Cloud LLM & -- & \checkmark & Mixed phishing & 0.876 & 0.910 & 0.840 & 0.874 \\
+  D-Fence & LLM + Rules & -- & \checkmark & Custom BEC corpus & 0.930 & 0.940 & 0.920 & 0.930 \\
+  GuardPhish & LLM Dataset Gen & -- & \checkmark & LLM-generated & 0.945 & 0.950 & 0.940 & 0.945 \\
+  Thapa et al. FL & Federated ML & \checkmark & -- & LING-SPAM + Enron & 0.971 & 0.965 & 0.978 & 0.971 \\
+\midrule
+  \textbf{TNE (ours)} & \textbf{Pipeline+LLM} & \textbf{\checkmark} & \textbf{\checkmark} & \textbf{Synthetic+Nazario} & \textbf{0.949} & \textbf{0.966} & \textbf{0.949} & \textbf{0.957} \\
+\bottomrule
+\end{tabular}
+\vspace{2mm}
+\footnotesize{
+Metrics from published papers are reported on each system's original dataset. 
+Direct comparison should consider dataset differences. 
+TNE is unique in combining: (1) fully local processing (no email content leaves the system), 
+(2) deterministic pipeline with LLM augmentation, (3) human-in-the-loop for all rejections, 
+(4) weighted signal scoring with auditable breakdown. 
+Sources: Fette et al.\ (2007), Alhogail \& Al-Turaiki (2021), 
+Koide et al.\ (2024, 2026), Wang et al.\ (2025), Thapa et al.\ (2024).}
+\end{table*}
