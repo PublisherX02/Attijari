@@ -623,15 +623,16 @@ function _attachmentPanelRowHtml(emailId, a, detRowsBySha, windowActive) {
 
     if (a.status === 'pending') {
         const taskId = detRow && detRow.result && detRow.result.cape_task_id;
-        const live = (detRow && detRow.status === 'running' && windowActive && taskId)
+        const isRunning = detRow && detRow.status === 'running' && windowActive;
+        const live = (isRunning && taskId)
             ? `<div class="sandbox-live" id="sandbox-live-${parseInt(a.id)}" data-task-id="${parseInt(taskId)}"></div>`
             : `<div class="sandbox-empty"><div class="spinner"></div>
-                   <p>${detRow && detRow.status === 'running' ? 'Detonation running…' : 'Queued for detonation — runs in the next drained window.'}</p></div>`;
+                   <p>${isRunning ? 'Detonating…' : 'Queued for detonation — the sandbox stays hot and works through the queue one file at a time.'}</p></div>`;
         return `
             <div class="sandbox-preview-meta">
                 <div class="detail-row"><span class="detail-label">File</span>
                     <span class="detail-value">${esc(truncate(a.filename, 60))}</span></div>
-                <span class="badge escalated">Verifying…</span>
+                <span class="badge escalated">${isRunning ? 'Detonating' : 'Verifying…'}</span>
             </div>
             ${live}`;
     }
