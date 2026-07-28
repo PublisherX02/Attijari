@@ -707,12 +707,16 @@ async function attachmentInsist(emailId, attachmentId) {
         await API.post(`/api/emails/${emailId}/attachments/${attachmentId}/insist`);
         showToast('Submitting to the sandbox — this may take a few minutes.', 'success');
         refreshAttachmentsPanel(emailId);
+        // Open the live viewer now, same as the manual "run window" button —
+        // otherwise the analyst only catches the run if a 10s panel poll
+        // happens to land while the task is still 'running'.
+        openSandboxViewer(0);
     } catch (err) {
         showToast(`Could not start detonation: ${err.message}`, 'error');
     }
 }
 
-async function mountNoVnc(container, taskId, onFail) {
+async function mountNoVnc(container, taskId, onFail, interactive) {
     try {
         if (_activeRfb) { try { _activeRfb.disconnect(); } catch (_) {} _activeRfb = null; }
         const mod = await import('/static/novnc/core/rfb.js');
@@ -721,7 +725,11 @@ async function mountNoVnc(container, taskId, onFail) {
         const proto = location.protocol === 'https:' ? 'wss' : 'ws';
         const url = `${proto}://${location.host}/ws/vnc/${parseInt(taskId) || 0}?token=${encodeURIComponent(token)}`;
         const rfb = new RFB(container, url);
-        rfb.viewOnly = true;          // analyst watches; never drives the guest
+        // Automated email-attachment detonation stays view-only (display-only
+        // layer, CLAUDE.md rule 1 — nothing here should be able to influence
+        // the run being observed). Manual detonation (analyst uploaded the
+        // sample themselves) opts into mouse/keyboard control instead.
+        rfb.viewOnly = !interactive;
         rfb.scaleViewport = true;
         rfb.addEventListener('disconnect', (ev) => {
             if (!ev.detail.clean) {
@@ -743,7 +751,7 @@ async function mountNoVnc(container, taskId, onFail) {
 
 let _viewerPollTimer = null;
 
-async function openSandboxViewer(taskId) {
+async function openSandboxViewer(taskId, interactive) {
     document.getElementById('sandbox-viewer-overlay')?.remove();
     clearInterval(_viewerPollTimer);
 
@@ -774,7 +782,7 @@ async function openSandboxViewer(taskId) {
             if (!mounted) {
                 body.innerHTML = '<div class="sandbox-live" id="sandbox-viewer-screen"></div>';
                 mountNoVnc(document.getElementById('sandbox-viewer-screen'), parseInt(taskId) || 0,
-                    () => { mounted = false; });
+                    () => { mounted = false; }, interactive);
                 mounted = true;
             }
         } else if (st.window_active) {
@@ -1043,6 +1051,92 @@ async function loadHealth() {
 }
 
 /* =========================================================================
+   Sandbox VM bubble (Health page) — machines / primary VM / recent tasks,
+   backed by cape_client's apiv2 wrappers via /api/detonation/vm-info.
+   ========================================================================= */
+
+function renderVmBubble() {
+    const row = document.getElementById('vm-bubble-row');
+    if (!row) return;
+    row.innerHTML = `
+        <div class="vm-bubble" data-action="open-vm-bubble" title="Click for machines, VM detail, and recent tasks">
+            <span class="vm-bubble-icon">🖥️</span>
+            <span>Sandbox VM</span>
+        </div>`;
+}
+
+async function openVmBubble() {
+    document.getElementById('vm-bubble-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'vm-bubble-overlay';
+    overlay.className = 'sandbox-overlay';
+    overlay.innerHTML = `
+        <div class="sandbox-overlay-box">
+            <div class="sandbox-overlay-head"><span>Sandbox VM</span>
+                <button class="btn btn-outline btn-sm" data-action="close-vm-bubble">✕ Close</button></div>
+            <div id="vm-bubble-body"><div class="loading-overlay"><div class="spinner"></div> Loading…</div></div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    try {
+        const info = await API.get('/api/detonation/vm-info');
+        document.getElementById('vm-bubble-body').innerHTML = _renderVmBubbleBody(info);
+    } catch (err) {
+        const body = document.getElementById('vm-bubble-body');
+        if (body) body.innerHTML = `<div class="empty-state"><p>Could not load sandbox info: ${esc(err.message)}</p></div>`;
+    }
+}
+
+function closeVmBubble() {
+    document.getElementById('vm-bubble-overlay')?.remove();
+}
+
+function _renderVmBubbleBody(info) {
+    const machines = info.machines || { available: false, data: [] };
+    const primary = info.primary_machine || { available: false, name: '', data: null };
+    const tasks = info.recent_tasks || { available: false, data: [] };
+
+    const disabledNote = (label) =>
+        `<p style="color:var(--text-muted)">${esc(label)} API disabled on this CAPE instance.</p>`;
+
+    const machinesHtml = !machines.available
+        ? disabledNote('Machines list')
+        : (machines.data.length
+            ? `<ul style="margin:0;padding-left:18px">${machines.data.map(m =>
+                `<li>${esc(m.name || m.label || '(unnamed)')}${m.platform ? ` · ${esc(m.platform)}` : ''}${m.locked ? ' · locked' : ''}</li>`
+              ).join('')}</ul>`
+            : '<p style="color:var(--text-muted)">No machines registered.</p>');
+
+    const primaryHtml = !primary.available
+        ? disabledNote('Machine view')
+        : `<pre style="white-space:pre-wrap;font-size:0.8rem;margin:0">${esc(JSON.stringify(primary.data, null, 2))}</pre>`;
+
+    const tasksHtml = !tasks.available
+        ? disabledNote('Tasks list')
+        : (tasks.data.length
+            ? `<table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+                 <thead><tr style="text-align:left;color:var(--text-muted)">
+                    <th>ID</th><th>Status</th><th>Package</th><th>Added</th><th></th>
+                 </tr></thead>
+                 <tbody>${tasks.data.map(t => `
+                    <tr>
+                        <td>${esc(String(t.id))}</td>
+                        <td>${esc(t.status || '—')}</td>
+                        <td>${esc(t.package || '—')}</td>
+                        <td>${esc(t.added_on || '—')}</td>
+                        <td><a href="/api/detonation/tasks/${parseInt(t.id) || 0}/mitmdump" download>mitmdump</a></td>
+                    </tr>`).join('')}</tbody>
+               </table>`
+            : '<p style="color:var(--text-muted)">No recent tasks.</p>');
+
+    return `
+        <div style="margin-bottom:18px"><h4 style="margin-bottom:8px">Machines</h4>${machinesHtml}</div>
+        <div style="margin-bottom:18px"><h4 style="margin-bottom:8px">Primary VM — ${esc(primary.name || '')}</h4>${primaryHtml}</div>
+        <div><h4 style="margin-bottom:8px">Recent Tasks</h4>${tasksHtml}</div>
+    `;
+}
+
+/* =========================================================================
    Reports page
    ========================================================================= */
 
@@ -1299,6 +1393,8 @@ registerAction('add-blocklist-entry', () => addBlocklistEntry());
 registerAction('remove-whitelist-entry', (el) => removeWhitelistEntry(parseInt(el.dataset.id)));
 registerAction('add-whitelist-entry', () => addWhitelistEntry());
 registerAction('load-health', () => loadHealth());
+registerAction('open-vm-bubble', () => openVmBubble());
+registerAction('close-vm-bubble', () => closeVmBubble());
 registerAction('generate-report', () => generateReport());
 registerAction('filter-audit-tool', (el) => filterAuditTool(el.dataset.tool));
 registerAction('load-audit-panel', () => loadAuditPanel());

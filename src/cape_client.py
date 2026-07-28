@@ -203,6 +203,72 @@ def parse_report(report: dict[str, Any], task_id: int) -> dict[str, Any]:
     }
 
 
+def _get_json(path: str) -> Optional[Any]:
+    """GET a CAPE apiv2 JSON endpoint. Returns None on transport failure,
+    non-200, or a CAPE-level `{"error": true, ...}` response (several apiv2
+    endpoints return 200 with an error body when the feature is disabled in
+    CAPE's own api.conf — confirmed live: machines/list, machines/view, and
+    tasks/get/mitmdump all do this on this deployment rather than 403/404)."""
+    try:
+        r = requests.get(
+            f"{CAPE_API_URL}/{path}",
+            headers=_headers(), timeout=CAPE_HTTP_TIMEOUT, verify=CAPE_VERIFY_TLS,
+        )
+        if r.status_code != 200:
+            return None
+        payload = r.json()
+        if isinstance(payload, dict) and payload.get("error"):
+            return None
+        return payload.get("data", payload) if isinstance(payload, dict) else payload
+    except Exception:
+        return None
+
+
+def list_machines() -> Optional[list[dict]]:
+    """List CAPE's registered analysis VMs. None if unavailable OR if the
+    machines-list API is disabled on this CAPE instance (its own config
+    choice, not a client-side restriction)."""
+    return _get_json("machines/list/")
+
+
+def view_machine(name: str) -> Optional[dict]:
+    """Detail view for one analysis VM (state, platform, tags, ...)."""
+    return _get_json(f"machines/view/{name}/")
+
+
+def list_tasks(limit: Optional[int] = None, offset: Optional[int] = None) -> Optional[list[dict]]:
+    """Most recent CAPE tasks, newest first. `limit`/`offset` map onto CAPE's
+    own `tasks/list/<limit>/<offset>/` path segments (confirmed live — CAPE
+    paginates by count, there is no server-side "last N days" filter)."""
+    path = "tasks/list/"
+    if limit is not None:
+        path += f"{int(limit)}/"
+        if offset is not None:
+            path += f"{int(offset)}/"
+    return _get_json(path)
+
+
+def fetch_task_mitmdump(task_id: int) -> Optional[bytes]:
+    """Raw mitmdump/HAR capture for a task's decrypted TLS traffic, if CAPE's
+    mitmdump download API is enabled for this deployment (it returns a 200
+    JSON `{"error": true, ...}` body instead of the file when disabled — we
+    treat that the same as unavailable rather than returning the error JSON
+    as if it were file content)."""
+    try:
+        r = requests.get(
+            f"{CAPE_API_URL}/tasks/get/mitmdump/{int(task_id)}/",
+            headers=_headers(), timeout=CAPE_HTTP_TIMEOUT * 2, verify=CAPE_VERIFY_TLS,
+        )
+        if r.status_code != 200:
+            return None
+        ctype = r.headers.get("content-type", "")
+        if ctype.split(";")[0].strip().lower() == "application/json":
+            return None
+        return r.content
+    except Exception:
+        return None
+
+
 def detonate(file_path: str, filename: str) -> dict[str, Any]:
     """Full single-sample cycle: submit → wait → fetch → parse.
 

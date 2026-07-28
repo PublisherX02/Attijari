@@ -140,9 +140,29 @@ async def security_and_metrics_middleware(request: Request, call_next):
 # Background polling
 _poll_task = None
 _retention_task = None
+_gmail_bridge_task = None
 _scan_lock = asyncio.Lock()
 _smtp_controller = None
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
+
+# Bridges real Gmail mail into the local SMTP receiver (see
+# src/gmail_smtp_bridge.py) — restores the personal-Gmail demo path that the
+# 2026-07-24 SMTP-only ingestion change otherwise left with no real mail
+# source. Disable if you only want the swaks/smtplib test-client path the
+# SMTP ingestion spec originally described.
+GMAIL_BRIDGE_ENABLED = os.getenv("GMAIL_BRIDGE_ENABLED", "1") != "0"
+GMAIL_BRIDGE_INTERVAL = int(os.getenv("GMAIL_BRIDGE_INTERVAL_SECONDS", "60"))
+
+async def _gmail_bridge_poll():
+    await asyncio.sleep(5)
+    from gmail_smtp_bridge import run_once as _bridge_run_once
+    while True:
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _bridge_run_once)
+        except Exception as e:
+            print(f"[GMAIL-BRIDGE] Tick error: {e}")
+        await asyncio.sleep(GMAIL_BRIDGE_INTERVAL)
 
 async def _background_poll():
     await asyncio.sleep(5)
@@ -168,7 +188,7 @@ def _update_gauge_metrics():
 
 @app.on_event("startup")
 async def startup():
-    global _poll_task, _retention_task, _smtp_controller
+    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task
     init_db()
     _update_gauge_metrics()
     _poll_task = asyncio.create_task(_background_poll())
@@ -181,13 +201,19 @@ async def startup():
     print(f"[SMTP] Inbound receiver listening on "
           f"{_smtp_controller.hostname}:{_smtp_controller.port}")
 
+    if GMAIL_BRIDGE_ENABLED:
+        _gmail_bridge_task = asyncio.create_task(_gmail_bridge_poll())
+        print(f"[GMAIL-BRIDGE] Started (every {GMAIL_BRIDGE_INTERVAL}s)")
+
 @app.on_event("shutdown")
 async def shutdown():
-    global _poll_task, _retention_task, _smtp_controller
+    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task
     if _poll_task:
         _poll_task.cancel()
     if _retention_task:
         _retention_task.cancel()
+    if _gmail_bridge_task:
+        _gmail_bridge_task.cancel()
     if _smtp_controller:
         _smtp_controller.stop()
         print("[SMTP] Inbound receiver stopped")

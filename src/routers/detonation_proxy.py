@@ -16,6 +16,10 @@ same-origin so the strict CSP stays intact:
   - WS   /ws/vnc/{task_id} — relay to websockify on imania, open only
     during an active detonation window.
   - POST /api/detonation/{pending_id}/retry — re-queue a failed detonation.
+  - GET  /api/detonation/vm-info — machines/primary-VM/recent-tasks snapshot
+    for the Health page's VM bubble (backed by cape_client's apiv2 wrappers).
+  - GET  /api/detonation/tasks/{task_id}/mitmdump — download a task's
+    decrypted-TLS capture, if CAPE's mitmdump API is enabled.
 
 Display-only layer: nothing here influences a verdict (fail-safe rule 1).
 """
@@ -114,13 +118,48 @@ def api_attachment_raw(
 # CAPE web-report reverse proxy (same-origin so CSP stays strict)
 # ---------------------------------------------------------------------------
 
-# Only report pages and their assets — never CAPE admin/API surfaces.
-_REPORT_PREFIX_ALLOW = ("analysis/", "static/")
+# CAPE's own top-level route namespaces, confirmed against a live report page
+# (task 56 on attijari, 2026-07-27) via `curl .../analysis/56/` — every
+# root-relative href/src/data-url in the real CAPE UI starts with one of
+# these: report tabs ("analysis/load_files/<id>/behavior/",
+# "analysis/<id>/pcapstream/<n>/"), the nav bar's Submit/Search/Pending
+# ("submit/", "analysis/search/", "analysis/pending/"), Statistics
+# ("statistics/"), Compare ("compare/"), dropped/static file downloads
+# ("file/"), the JSON export link ("filereport/<id>/json/"), and the nav
+# bar's "API" link itself ("apiv2/"). The proxy only ever forwards GET
+# (see the router decorator below), so this can't be used to trigger CAPE's
+# mutating actions (resubmit, delete, etc. are POSTs) even though their
+# link targets are allow-listed here for viewing.
+_REPORT_PREFIX_ALLOW = (
+    "analysis/", "static/", "apiv2/", "file/", "filereport/",
+    "submit/", "compare/", "statistics/",
+)
 
-# Root-relative references in CAPE's Django HTML/CSS get re-rooted onto the
-# proxy prefix. (?!/) keeps protocol-relative //host URLs untouched.
-_ROOT_REF_RE = re.compile(r'(href=|src=|action=)(["\'])/(?!/)')
-_CSS_URL_RE = re.compile(r'url\((["\']?)/(?!/)')
+# Root-relative references anywhere in CAPE's Django HTML/CSS/inline-JS get
+# re-rooted onto the proxy prefix. CAPE emits these not just as
+# href=/src=/action= attributes but also as jQuery `data-url="/analysis/..."`
+# (behavior/network tabs, loaded via `.load(url)`) and as plain quoted string
+# literals inside <script> blocks (e.g. `$.get("/analysis/56/pcapstream/"...)`
+# for the PCAP viewer) — so this matches any quoted "/<prefix>" occurrence
+# rather than only specific attributes.
+_ROOT_REF_RE = re.compile(
+    r'(["\'])/(?=(?:' + '|'.join(re.escape(p) for p in _REPORT_PREFIX_ALLOW) + r'))'
+)
+# Unquoted CSS `url(/static/...)` form.
+_CSS_URL_RE = re.compile(
+    r'url\(/(?=(?:' + '|'.join(re.escape(p) for p in _REPORT_PREFIX_ALLOW) + r'))'
+)
+
+# CAPE's report page ships its tab-switching logic (the `tabajax` click
+# handler that actually fetches Behavior/Network content) as inline
+# <script> blocks. The dashboard's CSP is nonce-only (no 'unsafe-inline' —
+# see security_and_metrics_middleware in api.py), so any inline script
+# without the per-request nonce is silently dropped by the browser: the
+# click still fires (it's a plain <a href="#behavior">, so the URL fragment
+# changes) but nothing runs to load the tab content. Matches <script> and
+# <script type='...'> but not <script src=...>, which is same-origin after
+# rewriting and already covered by script-src 'self'.
+_INLINE_SCRIPT_RE = re.compile(r'<script(?![^>]*\bsrc=)([^>]*)>', re.IGNORECASE)
 
 _REPORT_ERROR_PAGE = """<!doctype html>
 <div style="font-family:sans-serif;padding:2rem;color:#b91c1c">
@@ -135,16 +174,41 @@ def _upstream_path(task_id: int, path: str) -> Optional[str]:
     """Map a proxied path to the CAPE upstream path, or None if not allowed."""
     if not path:
         return f"analysis/{task_id}/"
-    if path.startswith(_REPORT_PREFIX_ALLOW) and ".." not in path:
+    if ".." in path:
+        return None
+    if path.startswith(_REPORT_PREFIX_ALLOW):
         return path
     return None
 
 
-def _rewrite_report_html(body: str, task_id: int) -> str:
-    """Re-root root-relative asset/link URLs onto this proxy's prefix."""
+def _upstream_headers(request: Request) -> dict:
+    """Headers to forward to CAPE upstream, beyond query params.
+
+    CAPE's report tabs (behavior/network) are loaded via jQuery `.load()`,
+    which auto-sends `X-Requested-With: XMLHttpRequest`; CAPE's Django views
+    check that header and 403 without it (confirmed live against attijari
+    task 56, 2026-07-27 — a request missing this header gets a 403, not the
+    partial's HTML). We only forward what the browser actually sent for this
+    request; nothing else crosses (no cookies/auth headers — this proxy uses
+    its own CAPE credentials via det_cfg, never the analyst's dashboard
+    session).
+    """
+    headers = {}
+    xrw = request.headers.get("x-requested-with")
+    if xrw:
+        headers["X-Requested-With"] = xrw
+    return headers
+
+
+def _rewrite_report_html(body: str, task_id: int, nonce: str = "") -> str:
+    """Re-root root-relative asset/link URLs onto this proxy's prefix, and
+    (when a nonce is supplied) tag CAPE's inline <script> blocks with it so
+    the dashboard's nonce-only CSP doesn't silently drop them."""
     prefix = f"/api/detonation/report/{task_id}"
-    body = _ROOT_REF_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}{prefix}/", body)
-    body = _CSS_URL_RE.sub(lambda m: f"url({m.group(1)}{prefix}/", body)
+    body = _ROOT_REF_RE.sub(lambda m: f"{m.group(1)}{prefix}/", body)
+    body = _CSS_URL_RE.sub(lambda m: f"url({prefix}/", body)
+    if nonce:
+        body = _INLINE_SCRIPT_RE.sub(lambda m: f'<script nonce="{nonce}"{m.group(1)}>', body)
     return body
 
 
@@ -168,6 +232,7 @@ def api_detonation_report(
             url, params=dict(request.query_params),
             timeout=det_cfg.CAPE_HTTP_TIMEOUT * 2,
             verify=det_cfg.CAPE_VERIFY_TLS,
+            headers=_upstream_headers(request),
         )
     except Exception:
         return HTMLResponse(_REPORT_ERROR_PAGE, status_code=502)
@@ -177,12 +242,86 @@ def api_detonation_report(
     ctype = r.headers.get("content-type", "application/octet-stream")
     base_type = ctype.split(";")[0].strip().lower()
     if base_type in ("text/html", "text/css"):
-        return Response(content=_rewrite_report_html(r.text, task_id),
+        nonce = getattr(request.state, "csp_nonce", "")
+        return Response(content=_rewrite_report_html(r.text, task_id, nonce),
                         status_code=r.status_code, media_type=ctype)
     # Binary assets (images, fonts, screenshots) pass through untouched.
     # Upstream headers (incl. any X-Frame-Options) are deliberately dropped;
     # our own middleware applies the dashboard's security headers.
     return Response(content=r.content, status_code=r.status_code, media_type=ctype)
+
+
+# ---------------------------------------------------------------------------
+# VM bubble (Health page): a snapshot of everything cape_client's apiv2
+# wrappers can tell us about the sandbox — machines, the primary VM, recent
+# tasks. Any of those endpoints can come back disabled in CAPE's own
+# api.conf (see cape_client._get_json) — that surfaces here as
+# available=False per section rather than failing the whole panel, since
+# this is a status view (fail-safe rule 1: display-only, never blocks or
+# influences anything).
+# ---------------------------------------------------------------------------
+
+def _primary_machine_name(machines: Optional[list], tasks: Optional[list]) -> str:
+    """The CAPE-registered detonation guest (e.g. "cuckoo2") — NOT
+    det_cfg.CAPE_VM_NAME, which is the outer Hyper-V VM ("cape-ubuntu")
+    hosting CAPE itself, a completely different machine. Prefer whatever
+    CAPE's own machines list reports; when that's disabled (common — see
+    module docstring), fall back to the most recent task's "machine" field,
+    which every reported task carries regardless of the machines-list
+    toggle. "cuckoo2" is the last-resort default, matching this deployment's
+    documented guest name (see cape_dashboard-integration-design.md)."""
+    if machines:
+        name = machines[0].get("name")
+        if name:
+            return name
+    if tasks:
+        name = tasks[0].get("machine")
+        if name:
+            return name
+    return "cuckoo2"
+
+
+@detonation_proxy_router.get("/api/detonation/vm-info")
+def api_detonation_vm_info(
+    user: AuthenticatedUser = Depends(require_permission("health.view")),
+):
+    """Organized snapshot for the Health page's VM bubble: registered
+    machines, the sandbox detonation guest's own detail, and recent tasks."""
+    import cape_client
+
+    machines = cape_client.list_machines()
+    tasks = cape_client.list_tasks(limit=10)
+    primary_name = _primary_machine_name(machines, tasks)
+    primary = cape_client.view_machine(primary_name)
+
+    return {
+        "machines": {"available": machines is not None, "data": machines or []},
+        "primary_machine": {
+            "name": primary_name,
+            "available": primary is not None,
+            "data": primary,
+        },
+        "recent_tasks": {"available": tasks is not None, "data": tasks or []},
+    }
+
+
+@detonation_proxy_router.get("/api/detonation/tasks/{task_id}/mitmdump")
+def api_detonation_task_mitmdump(
+    task_id: int,
+    user: AuthenticatedUser = Depends(require_permission("health.view")),
+):
+    """Download a task's decrypted-TLS capture, if CAPE's mitmdump download
+    API is enabled for this deployment (it's disabled by default in CAPE's
+    own api.conf on several installs, cape_client.fetch_task_mitmdump
+    returns None in that case rather than the JSON error CAPE sends)."""
+    import cape_client
+    data = cape_client.fetch_task_mitmdump(task_id)
+    if data is None:
+        raise HTTPException(404, "Mitmdump capture not available for this task")
+    return Response(
+        content=data, media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="task-{task_id}-mitmdump.bin"'},
+    )
 
 
 # ---------------------------------------------------------------------------

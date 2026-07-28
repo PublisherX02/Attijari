@@ -84,3 +84,86 @@ def test_detonate_failsafe_on_submit_error(monkeypatch):
     assert r["escalate"] is True
     assert r["suspicious"] is True
     assert r["status"] == "error"
+
+
+class _FakeResponse:
+    def __init__(self, status_code=200, json_data=None, content=b"", content_type="application/json"):
+        self.status_code = status_code
+        self._json = json_data
+        self.content = content
+        self.headers = {"content-type": content_type}
+
+    def json(self):
+        return self._json
+
+
+def test_list_machines_returns_data_on_success(monkeypatch):
+    import cape_client
+    fake = _FakeResponse(json_data={"error": False, "data": [{"name": "cuckoo2", "platform": "windows"}]})
+    monkeypatch.setattr(cape_client.requests, "get", lambda *a, **k: fake)
+    machines = cape_client.list_machines()
+    assert machines == [{"name": "cuckoo2", "platform": "windows"}]
+
+
+def test_list_machines_none_when_api_disabled(monkeypatch):
+    """CAPE's machines/list returns HTTP 200 with an error body when the
+    feature is disabled in api.conf (confirmed live) — not a 403/404."""
+    import cape_client
+    fake = _FakeResponse(json_data={"error": True, "error_value": "Machine list API is disabled"})
+    monkeypatch.setattr(cape_client.requests, "get", lambda *a, **k: fake)
+    assert cape_client.list_machines() is None
+
+
+def test_view_machine_builds_correct_path(monkeypatch):
+    import cape_client
+    seen = {}
+
+    def fake_get(url, **kwargs):
+        seen["url"] = url
+        return _FakeResponse(json_data={"error": False, "data": {"name": "cuckoo2"}})
+
+    monkeypatch.setattr(cape_client.requests, "get", fake_get)
+    result = cape_client.view_machine("cuckoo2")
+    assert result == {"name": "cuckoo2"}
+    assert seen["url"].endswith("/machines/view/cuckoo2/")
+
+
+def test_list_tasks_builds_limit_offset_path(monkeypatch):
+    """Confirmed live against a real CAPE instance: tasks/list/<limit>/ and
+    tasks/list/<limit>/<offset>/ are real path segments (a plain count-based
+    page size), not a "last N days" filter — a bare ?days= query param had
+    no effect on the response at all."""
+    import cape_client
+    seen = {}
+
+    def fake_get(url, **kwargs):
+        seen["url"] = url
+        return _FakeResponse(json_data={"error": False, "data": []})
+
+    monkeypatch.setattr(cape_client.requests, "get", fake_get)
+    cape_client.list_tasks()
+    assert seen["url"].endswith("/tasks/list/")
+    cape_client.list_tasks(limit=7)
+    assert seen["url"].endswith("/tasks/list/7/")
+    cape_client.list_tasks(limit=50, offset=10)
+    assert seen["url"].endswith("/tasks/list/50/10/")
+
+
+def test_fetch_task_mitmdump_returns_bytes_on_success(monkeypatch):
+    import cape_client
+    fake = _FakeResponse(content=b"binary-har-data", content_type="application/octet-stream")
+    monkeypatch.setattr(cape_client.requests, "get", lambda *a, **k: fake)
+    assert cape_client.fetch_task_mitmdump(41) == b"binary-har-data"
+
+
+def test_fetch_task_mitmdump_none_when_api_disabled(monkeypatch):
+    """Confirmed live: disabled mitmdump API returns 200 + JSON error body,
+    not a non-200 — must not be handed back as if it were the file."""
+    import cape_client
+    fake = _FakeResponse(
+        json_data={"error": True, "error_value": "Mitmdump HAR download API is disabled"},
+        content=b'{"error": true, "error_value": "Mitmdump HAR download API is disabled"}',
+        content_type="application/json",
+    )
+    monkeypatch.setattr(cape_client.requests, "get", lambda *a, **k: fake)
+    assert cape_client.fetch_task_mitmdump(41) is None

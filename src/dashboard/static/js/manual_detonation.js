@@ -45,10 +45,10 @@
         toast("Queued with priority — you'll be alerted when it's ready.");
       } else if (data.window === "active") {
         toast("Added to the active sandbox window.");
-        if (window.openSandboxViewer) openSandboxViewer(0);
+        if (window.openSandboxViewer) openSandboxViewer(0, true);
       } else {
         toast("Sandbox starting…");
-        if (window.openSandboxViewer) openSandboxViewer(0);
+        if (window.openSandboxViewer) openSandboxViewer(0, true);
       }
     } catch (e) {
       toast("Upload error: " + e, "error");
@@ -98,7 +98,7 @@
     try {
       const r = await (await fetch(`/api/detonation/manual/${c.dataset.confirm}/confirm`, { method: "POST" })).json();
       if (!r.success) { toast(r.error || "Could not start", "error"); }
-      else { toast("Sandbox starting…"); if (window.openSandboxViewer) openSandboxViewer(0); }
+      else { toast("Sandbox starting…"); if (window.openSandboxViewer) openSandboxViewer(0, true); }
     } catch (e) { toast("Error: " + e, "error"); }
     loadTable();
   });

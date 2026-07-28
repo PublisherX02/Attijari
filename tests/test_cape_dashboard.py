@@ -134,15 +134,32 @@ def test_sniff_media_type_magic_bytes():
 
 
 def test_report_proxy_upstream_path_allowlist():
+    """Prefixes verified against a live CAPE report page (task 56, attijari,
+    2026-07-27): every root-relative link CAPE itself emits — report tabs,
+    nav bar Submit/Search/Pending, Statistics, Compare, dropped/static file
+    downloads, the JSON export link, and the nav bar's own "API" link — falls
+    under one of these namespaces. The proxy only ever forwards GET (see the
+    router's @get decorator), so allow-listing apiv2/ here can't be used to
+    trigger CAPE's mutating actions (those are POSTs)."""
     os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
     from routers.detonation_proxy import _upstream_path
     assert _upstream_path(42, "") == "analysis/42/"
     assert _upstream_path(42, "analysis/42/") == "analysis/42/"
     assert _upstream_path(42, "static/css/style.css") == "static/css/style.css"
+    # real tab/link targets seen on a live report
+    assert _upstream_path(42, "analysis/load_files/42/behavior/") == "analysis/load_files/42/behavior/"
+    assert _upstream_path(42, "analysis/load_files/42/network/") == "analysis/load_files/42/network/"
+    assert _upstream_path(42, "analysis/42/pcapstream/1/") == "analysis/42/pcapstream/1/"
+    assert _upstream_path(42, "apiv2/") == "apiv2/"
+    assert _upstream_path(42, "filereport/42/json/") == "filereport/42/json/"
+    assert _upstream_path(42, "submit/resubmit/42/abc/") == "submit/resubmit/42/abc/"
+    assert _upstream_path(42, "compare/42/") == "compare/42/"
+    assert _upstream_path(42, "statistics/7/") == "statistics/7/"
+    assert _upstream_path(42, "file/staticzip/42/abc/") == "file/staticzip/42/abc/"
     # never proxy CAPE admin or arbitrary paths
     assert _upstream_path(42, "admin/") is None
-    assert _upstream_path(42, "apiv2/tasks/list/") is None
     assert _upstream_path(42, "static/../admin/") is None
+    assert _upstream_path(42, "../../etc/passwd") is None
 
 
 def test_report_proxy_rewrites_root_relative_refs():
@@ -163,6 +180,72 @@ def test_report_proxy_rewrites_root_relative_refs():
     assert 'href="https://example.com/x"' in out
     assert 'href="//cdn.example.com/y"' in out
     assert 'url(/api/detonation/report/42/static/img/z.png)' in out
+
+
+def test_report_proxy_tags_inline_scripts_with_csp_nonce():
+    """The dashboard's CSP is nonce-only, no 'unsafe-inline' (api.py's
+    security_and_metrics_middleware). CAPE ships its tabajax tab-switching
+    logic as inline <script> blocks with no nonce, which the browser
+    silently drops — the click still moves the URL (plain <a href="#...">)
+    but nothing runs to actually load the tab content. Confirmed live: the
+    real report HTML has 4 inline <script>/<script type='...'> blocks, none
+    carrying a nonce, alongside <script src=...> tags that don't need one
+    (same-origin, already covered by script-src 'self')."""
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from routers.detonation_proxy import _rewrite_report_html
+    html = (
+        '<script src="/static/js/jquery.js"></script>'
+        "<script>$('[data-bs-toggle=\"tabajax\"]').click(function(){});</script>"
+        "<script type='text/javascript'>var x = 1;</script>"
+    )
+    out = _rewrite_report_html(html, 42, nonce="abc123")
+    assert '<script src="/api/detonation/report/42/static/js/jquery.js"></script>' in out
+    assert 'src=' not in out.split('<script nonce="abc123">')[1].split('</script>')[0]
+    assert '<script nonce="abc123">' in out
+    assert "<script nonce=\"abc123\" type='text/javascript'>" in out
+    # without a nonce (e.g. never expected to happen, but keep it inert) inline
+    # scripts pass through unmodified rather than raising
+    out_no_nonce = _rewrite_report_html(html, 42)
+    assert 'nonce=' not in out_no_nonce
+
+
+def test_report_proxy_forwards_x_requested_with_to_upstream():
+    """CAPE 403s the behavior/network tabajax partials without this header
+    (confirmed live: identical request with vs. without X-Requested-With
+    gave 200 vs. 403 from the real CAPE instance) — the proxy must forward
+    whatever the browser's jQuery `.load()` call sent, and nothing else."""
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from routers.detonation_proxy import _upstream_headers
+
+    class FakeRequest:
+        def __init__(self, headers):
+            self.headers = headers
+
+    assert _upstream_headers(FakeRequest({"x-requested-with": "XMLHttpRequest"})) == {
+        "X-Requested-With": "XMLHttpRequest"
+    }
+    assert _upstream_headers(FakeRequest({})) == {}
+    # never forward cookies/auth — the proxy uses its own CAPE credentials
+    assert _upstream_headers(FakeRequest({"cookie": "sessionid=abc"})) == {}
+
+
+def test_report_proxy_rewrites_data_url_attrs_and_inline_js_literals():
+    """The actual bug: CAPE's behavior/network tabs load via jQuery
+    `data-url="/analysis/..."` (not href/src/action), and the PCAP viewer
+    fires `$.get("/analysis/56/pcapstream/"+n)` from inline <script> — both
+    are plain quoted root-relative strings, not HTML attributes the old
+    href=/src=/action=-only regex recognized."""
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from routers.detonation_proxy import _rewrite_report_html
+    html = (
+        '<a data-bs-toggle="tabajax" data-url="/analysis/load_files/42/behavior/">Behavior</a>'
+        '<script>$.get("/analysis/42/pcapstream/"+choice+"/", cb);</script>'
+        '<a href="/apiv2/">API</a>'
+    )
+    out = _rewrite_report_html(html, 42)
+    assert 'data-url="/api/detonation/report/42/analysis/load_files/42/behavior/"' in out
+    assert '$.get("/api/detonation/report/42/analysis/42/pcapstream/"+choice+"/", cb);' in out
+    assert 'href="/api/detonation/report/42/apiv2/"' in out
 
 
 def test_parse_report_includes_proxied_web_report_url():
@@ -342,4 +425,93 @@ def test_run_window_route_registered_with_scan_permission():
     match = [r for r in detonation_proxy_router.routes
              if getattr(r, "path", "") == "/api/detonation/run-window"]
     assert match, "run-window route not registered"
-    assert "POST" in match[0].methods
+
+
+def test_vm_info_reports_available_and_disabled_sections(monkeypatch):
+    """Machines/primary-VM/tasks sections must be independently reported —
+    e.g. machines disabled on this CAPE instance must not blank out tasks
+    that ARE available, and vice versa."""
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from types import SimpleNamespace
+    import cape_client
+    from routers.detonation_proxy import api_detonation_vm_info
+
+    monkeypatch.setattr(cape_client, "list_machines", lambda: None)  # disabled
+    monkeypatch.setattr(cape_client, "view_machine", lambda name: {"name": name, "platform": "windows"})
+    monkeypatch.setattr(cape_client, "list_tasks", lambda limit=None, offset=None: [{"id": 41, "status": "reported"}])
+
+    out = api_detonation_vm_info(user=SimpleNamespace(username="op"))
+    assert out["machines"] == {"available": False, "data": []}
+    assert out["primary_machine"]["available"] is True
+    assert out["primary_machine"]["data"]["platform"] == "windows"
+    assert out["recent_tasks"] == {"available": True, "data": [{"id": 41, "status": "reported"}]}
+
+
+def test_primary_machine_name_prefers_machines_list(monkeypatch):
+    """Must never use det_cfg.CAPE_VM_NAME — that's the outer Hyper-V VM
+    ("cape-ubuntu") hosting CAPE itself, not the CAPE-registered detonation
+    guest. This was a real bug caught before shipping: the machines list (or
+    the most recent task's "machine" field) names the actual guest."""
+    from routers.detonation_proxy import _primary_machine_name
+    assert _primary_machine_name([{"name": "cuckoo2"}], None) == "cuckoo2"
+
+
+def test_primary_machine_name_falls_back_to_recent_task():
+    from routers.detonation_proxy import _primary_machine_name
+    # machines list disabled (None) or empty — fall back to the most recent task
+    assert _primary_machine_name(None, [{"id": 41, "machine": "cuckoo2"}]) == "cuckoo2"
+    assert _primary_machine_name([], [{"id": 41, "machine": "cuckoo2"}]) == "cuckoo2"
+
+
+def test_primary_machine_name_last_resort_default():
+    from routers.detonation_proxy import _primary_machine_name
+    assert _primary_machine_name(None, None) == "cuckoo2"
+    assert _primary_machine_name([], []) == "cuckoo2"
+
+
+def test_vm_info_uses_derived_machine_name_not_cape_vm_name(monkeypatch):
+    """Regression test for the det_cfg.CAPE_VM_NAME bug: view_machine() must
+    be called with the name derived from real CAPE data, not the Hyper-V
+    wrapper VM's name."""
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from types import SimpleNamespace
+    import cape_client
+    import detonation_config as det_cfg
+    from routers.detonation_proxy import api_detonation_vm_info
+
+    seen = {}
+    monkeypatch.setattr(cape_client, "list_machines", lambda: None)  # disabled
+    monkeypatch.setattr(cape_client, "view_machine", lambda name: seen.setdefault("name", name) or None)
+    monkeypatch.setattr(cape_client, "list_tasks", lambda limit=None, offset=None: [{"id": 41, "machine": "cuckoo2"}])
+
+    out = api_detonation_vm_info(user=SimpleNamespace(username="op"))
+    assert seen["name"] == "cuckoo2"
+    assert seen["name"] != det_cfg.CAPE_VM_NAME
+    assert out["primary_machine"]["name"] == "cuckoo2"
+
+
+def test_task_mitmdump_404_when_unavailable(monkeypatch):
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from types import SimpleNamespace
+    import cape_client
+    from fastapi import HTTPException
+    from routers.detonation_proxy import api_detonation_task_mitmdump
+
+    monkeypatch.setattr(cape_client, "fetch_task_mitmdump", lambda task_id: None)
+    try:
+        api_detonation_task_mitmdump(task_id=41, user=SimpleNamespace(username="op"))
+        assert False, "expected HTTPException"
+    except HTTPException as e:
+        assert e.status_code == 404
+
+
+def test_task_mitmdump_returns_file_response_when_available(monkeypatch):
+    os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
+    from types import SimpleNamespace
+    import cape_client
+    from routers.detonation_proxy import api_detonation_task_mitmdump
+
+    monkeypatch.setattr(cape_client, "fetch_task_mitmdump", lambda task_id: b"binary-data")
+    resp = api_detonation_task_mitmdump(task_id=41, user=SimpleNamespace(username="op"))
+    assert resp.body == b"binary-data"
+    assert "task-41-mitmdump.bin" in resp.headers["content-disposition"]

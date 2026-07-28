@@ -28,7 +28,7 @@ if exist ".venv\Scripts\activate.bat" (
 
 cd src
 echo.
-echo [START] Dashboard + background IMAP polling
+echo [START] Dashboard + background SMTP polling
 echo [START] http://localhost:8000
 echo [START] Admin Audit Panel: http://localhost:8000/audit
 echo [START] Press Ctrl+C to stop

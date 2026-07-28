@@ -14,8 +14,14 @@
 <div class="health-grid" id="health-grid">
     <div class="loading-overlay"><div class="spinner"></div> Checking…</div>
 </div>
+
+<div class="page-header" style="margin-top:32px">
+    <h2>Sandbox VM</h2>
+    <p class="page-subtitle">CAPE machines, the sandbox VM, and recent detonation tasks</p>
+</div>
+<div id="vm-bubble-row"></div>
 {% endblock %}
 
 {% block scripts %}
-<script nonce="{{ csp_nonce }}">document.addEventListener('DOMContentLoaded', () => loadHealth());</script>
+<script nonce="{{ csp_nonce }}">document.addEventListener('DOMContentLoaded', () => { loadHealth(); renderVmBubble(); });</script>
 {% endblock %}
