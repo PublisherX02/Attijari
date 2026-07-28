@@ -886,7 +886,7 @@ async def api_detonation_status(user: AuthenticatedUser = Depends(require_permis
     reports host-side queue/window state, which is cheap and never blocks.
     """
     import detonation_state
-    from database import PendingDetonation, count_queued_detonations
+    from database import PendingDetonation, count_queued_detonations, get_recent_detonation_events
 
     from sqlalchemy import func as _func
 
@@ -917,6 +917,7 @@ async def api_detonation_status(user: AuthenticatedUser = Depends(require_permis
             for r in recent
         ]
         manual_ready = _manual_ready_rows(db)
+        events = get_recent_detonation_events(db)
     finally:
         db.close()
 
@@ -929,6 +930,7 @@ async def api_detonation_status(user: AuthenticatedUser = Depends(require_permis
         "by_status": by_status,
         "recent": recent_out,
         "manual_ready": manual_ready,
+        "events": events,
     }
 
 

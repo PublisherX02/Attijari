@@ -889,6 +889,7 @@ async function refreshDetonationBanner() {
         const st = await API.get('/api/detonation/status');
         banner.style.display = st.window_active ? 'block' : 'none';
         notifyManualReady(st.manual_ready, banner);
+        notifyDetonationEvents(st.events);
     } catch (_) { /* not permitted or transient — leave as-is */ }
 }
 
@@ -915,6 +916,25 @@ function notifyManualReady(ready, banner) {
             g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
             o.start(); o.stop(ctx.currentTime + 0.6);
         } catch (_) { /* audio unavailable — banner + notification still fire */ }
+    });
+}
+
+// Per-email attachment detonation events (always-on flow) → alert on any
+// page. Fires once per (id, event) pair so a 'detonating' + later
+// 'report_ready' for the same row both get their own notification.
+function notifyDetonationEvents(events) {
+    window.__detEventsSeen = window.__detEventsSeen || {};
+    (events || []).forEach(function (ev) {
+        const key = ev.id + ':' + ev.event;
+        if (window.__detEventsSeen[key]) return;
+        window.__detEventsSeen[key] = true;
+        const msg = ev.event === 'detonating'
+            ? 'Detonating "' + (ev.filename || 'attachment') + '" for email #' + ev.email_id + '…'
+            : 'Sandbox report ready for email #' + ev.email_id + ' ("' + (ev.filename || 'attachment') + '")';
+        if ('Notification' in window && Notification.permission === 'granted') {
+            try { new Notification('Attijari — sandbox', { body: msg }); } catch (_) {}
+        }
+        showToast(msg, ev.event === 'detonating' ? 'info' : 'success');
     });
 }
 setInterval(refreshDetonationBanner, 30000);

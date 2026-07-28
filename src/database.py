@@ -920,3 +920,23 @@ def promote_deferred_detonations(db: Session) -> int:
 
 def get_pending_detonation(db: Session, pending_id: int) -> Optional["PendingDetonation"]:
     return db.query(PendingDetonation).filter(PendingDetonation.id == pending_id).first()
+
+
+def get_recent_detonation_events(db: Session, limit: int = 50) -> list[dict]:
+    """Per-email detonation lifecycle events for dashboard notifications.
+    'running' rows are surfaced as 'detonating'; 'done'/'error' rows (which
+    already have a report, good or bad) as 'report_ready'. 'queued' rows
+    produce no event yet — nothing has started for them."""
+    rows = (
+        db.query(PendingDetonation)
+        .filter(PendingDetonation.status.in_(["running", "done", "error"]),
+                PendingDetonation.email_id.isnot(None))
+        .order_by(PendingDetonation.updated_at.desc())
+        .limit(limit)
+        .all()
+    )
+    events = []
+    for r in rows:
+        event = "detonating" if r.status == "running" else "report_ready"
+        events.append({"id": r.id, "email_id": r.email_id, "filename": r.filename, "event": event})
+    return events
