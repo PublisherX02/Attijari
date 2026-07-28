@@ -814,13 +814,17 @@ def run_pipeline():
                         print(f"[ATTACHMENTS] Failed to persist attachment records: {e} "
                               f"(email save unaffected; detail page attachment list will be incomplete for this email)")
 
-                    # --- Detonation trigger (Stage 3.5, DEFERRED) ---
-                    # Queue detonable attachments when static analysis was
-                    # inconclusive AND the LLM was unsure. Deterministically
-                    # escalated emails already go to a human, so we don't spend
-                    # a VM run on them. Processed later in a drained window.
+                    # --- Detonation trigger (always-on) ---
+                    # Every detonable, non-rejected attachment queues here.
+                    # If anything was queued and the email isn't already a
+                    # deterministic reject, hold it at pending_detonation
+                    # instead of a final accepted/escalated — the second LLM
+                    # pass (post-detonation) decides the real final status.
                     try:
-                        _maybe_enqueue_detonation(db, parsed, saved.id, _deterministic_escalation)
+                        queued_any = _maybe_enqueue_detonation(db, parsed, saved.id, _deterministic_escalation)
+                        if queued_any and not _deterministic_escalation:
+                            saved.status = "pending_detonation"
+                            db.commit()
                     except Exception as _de:
                         print(f"[DETONATION] Enqueue skipped: {_de}")
 

@@ -34,7 +34,7 @@ def _update_gauge_metrics():
             ).count()
             blocklist_size.labels(indicator_type=itype).set(count)
         pending = db.query(Email).filter(
-            Email.status.in_(["escalated", "recu", "pending"])
+            Email.status.in_(["escalated", "recu", "pending", "pending_detonation"])
         ).count()
         emails_in_queue.set(pending)
         db.close()

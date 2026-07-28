@@ -100,7 +100,7 @@ class Email(Base):
         nullable=False,
         default="recu",
         index=True,
-    )  # pending, recu, accepted, escalated, quarantined, released
+    )  # pending, recu, accepted, escalated, quarantined, released, pending_detonation
     rules_result = Column(JSONB, nullable=True)
     enrichment_result = Column(JSONB, nullable=True)
     llm_result = Column(JSONB, nullable=True)
