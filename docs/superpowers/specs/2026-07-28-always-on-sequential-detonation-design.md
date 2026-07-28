@@ -66,6 +66,7 @@ value in place (harmless) or remove it if unused elsewhere — confirm during
 implementation.
 
 For each individual attachment:
+
 1. Fire a "detonating" notification naming the email before submission.
 2. Submit, poll, parse the report (existing `cape_client.detonate`,
    unchanged).
@@ -124,6 +125,7 @@ On the email detail page's attachment section (`renderAttachmentsPanel` /
 pending/running rows and mounts a live noVNC feed via `mountNoVnc` for
 whatever's currently running in an active window), while an attachment's
 detonation is in flight:
+
 - Show a `detonating` status badge (extend the existing row-status
   rendering with this new state).
 - The live sandbox feed is already mounted automatically for a running
