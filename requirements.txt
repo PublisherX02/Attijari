@@ -31,7 +31,7 @@ filelock==3.29.4
 
 # Email parsing & auth
 dkimpy==1.1.8
-checkdmarc==5.17.1
+checkdmarc==5.17.3
 dnspython==2.6.1
 
 # Inbound SMTP server (replaces IMAP polling)
