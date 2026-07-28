@@ -285,14 +285,33 @@ def process_detonation_queue() -> dict[str, Any]:
             _escalate_all_queued("cape_unavailable")
             return summary
 
-        db = SessionLocal()
-        try:
-            batch = get_queued_detonations(db, limit=cfg.DETONATION_BATCH_SIZE)
-            for row in batch:
-                if time.time() > cycle_deadline:
-                    print("[DETONATION] Cycle timeout — stopping batch early")
-                    summary["status"] = "cycle_timeout"
-                    break
+        # One item at a time, re-querying the queue before each pick, so a
+        # priority row inserted while something else is detonating (the
+        # analyst's "insist" action, or a fresh always-on enqueue) is picked
+        # up right after the CURRENT item finishes — never interrupting it.
+        # The VM stays resumed across the whole run; only an empty queue that
+        # stays empty for DETONATION_IDLE_TIMEOUT_SECONDS closes the window.
+        last_activity = time.time()
+        while True:
+            if time.time() > cycle_deadline:
+                print("[DETONATION] Cycle timeout — stopping window early")
+                summary["status"] = "cycle_timeout"
+                break
+
+            db = SessionLocal()
+            try:
+                rows = get_queued_detonations(db, limit=1)
+                row = rows[0] if rows else None
+
+                if row is None:
+                    idle_for = time.time() - last_activity
+                    if idle_for > cfg.DETONATION_IDLE_TIMEOUT_SECONDS:
+                        print(f"[DETONATION] Queue empty for {idle_for:.0f}s — closing window")
+                        break
+                    db.close()
+                    time.sleep(cfg.DETONATION_IDLE_POLL_SECONDS)
+                    continue
+
                 row.status = "running"
                 row.attempts = (row.attempts or 0) + 1
                 db.commit()
@@ -314,8 +333,10 @@ def process_detonation_queue() -> dict[str, Any]:
                     summary["escalated"] += 1
                 if result.get("status") == "error":
                     summary["errors"] += 1
-        finally:
-            db.close()
+            finally:
+                db.close()
+
+            last_activity = time.time()
 
         return summary
 

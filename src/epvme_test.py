@@ -234,9 +234,11 @@ def main():
         detonation_summary = {"queued": n_queued, "processed": 0, "escalated": 0,
                                "errors": 0, "flipped_to_malicious": 0}
         drain_t0 = time.time()
-        # process_detonation_queue() handles DETONATION_BATCH_SIZE (default 5)
-        # per call and its own drain/restore window; loop until the queue —
-        # scoped to what we enqueued above — is empty.
+        # process_detonation_queue() now drains the whole queue itself (one
+        # item at a time, idle-timeout gated) within its own drain/restore
+        # window; this outer loop is a defensive re-check in case anything
+        # was queued after the window closed — scoped to what we enqueued
+        # above, until empty.
         guard = 0
         while count_queued_detonations(db) > 0 and guard < 200:
             summary = detonation_mod.process_detonation_queue()

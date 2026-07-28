@@ -49,6 +49,16 @@ DETONATION_CYCLE_TIMEOUT = int(os.getenv("DETONATION_CYCLE_TIMEOUT", "1800"))  #
 # so ingestion is never starved for too long when the queue is large.
 DETONATION_BATCH_SIZE = int(os.getenv("DETONATION_BATCH_SIZE", "5"))
 
+# How long (seconds) the drained window stays open with an empty queue
+# before suspending the VM again. Keeps the VM "hot" across a burst of
+# attachments arriving close together (e.g. a live demo) instead of paying
+# the VM resume-from-savestate cost per attachment.
+DETONATION_IDLE_TIMEOUT_SECONDS = int(os.getenv("DETONATION_IDLE_TIMEOUT_SECONDS", "300"))
+
+# How long to sleep between empty-queue checks while waiting out the idle
+# timeout. Short enough that a newly-arrived attachment starts promptly.
+DETONATION_IDLE_POLL_SECONDS = int(os.getenv("DETONATION_IDLE_POLL_SECONDS", "2"))
+
 # --------------------------------------------------------------------------
 # Verdict mapping (CAPE malscore is 0–10)
 # --------------------------------------------------------------------------
