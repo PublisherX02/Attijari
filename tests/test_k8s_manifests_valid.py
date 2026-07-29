@@ -42,3 +42,23 @@ def test_configmap_has_expected_keys():
         assert key in data, f"configmap missing expected key {key}"
     assert data["SANDBOX_BACKEND"] == "kubernetes"
     assert data["DASHBOARD_HOST"] == "0.0.0.0"
+
+
+def test_postgres_statefulset_has_headless_service_and_pvc():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "postgres-statefulset.yaml").read_text(encoding="utf-8")))
+    kinds = {doc["kind"] for doc in docs}
+    assert "StatefulSet" in kinds
+    assert "Service" in kinds
+    svc = next(d for d in docs if d["kind"] == "Service")
+    assert svc["spec"]["clusterIP"] == "None", "postgres Service must be headless for stable StatefulSet DNS"
+    sts = next(d for d in docs if d["kind"] == "StatefulSet")
+    assert sts["spec"]["volumeClaimTemplates"][0]["spec"]["accessModes"] == ["ReadWriteOnce"]
+
+
+def test_redis_statefulset_has_headless_service_and_pvc():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "redis-statefulset.yaml").read_text(encoding="utf-8")))
+    kinds = {doc["kind"] for doc in docs}
+    assert "StatefulSet" in kinds
+    assert "Service" in kinds
+    svc = next(d for d in docs if d["kind"] == "Service")
+    assert svc["spec"]["clusterIP"] == "None"
