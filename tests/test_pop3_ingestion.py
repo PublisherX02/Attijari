@@ -12,7 +12,7 @@ if not os.getenv("VAULT_ENCRYPTION_KEY"):
     from cryptography.fernet import Fernet
     os.environ["VAULT_ENCRYPTION_KEY"] = Fernet.generate_key().decode()
 
-from email_extraction import Pop3Ingestion
+from email_extraction import Pop3Ingestion, CONNECT_TIMEOUT
 
 
 def _raw_message(subject: str, date: datetime) -> bytes:
@@ -31,6 +31,19 @@ def test_connect_uses_pop3_ssl_with_explicit_context():
         assert kwargs.get("context") is not None
         mock_conn.user.assert_called_once_with("a@example.com")
         mock_conn.pass_.assert_called_once_with("pw")
+
+
+def test_connect_passes_connect_timeout_to_pop3_ssl():
+    """Finding 3: an unresponsive POP3 host must not hang the executor
+    thread forever — POP3_SSL needs an explicit timeout, matching
+    EmailIngestion.connect()'s pattern for IMAP4_SSL."""
+    ing = Pop3Ingestion(host="pop.example.com", user="a@example.com", password="pw", port=995)
+    with patch("email_extraction.poplib.POP3_SSL") as mock_pop3_ssl:
+        mock_conn = MagicMock()
+        mock_pop3_ssl.return_value = mock_conn
+        ing.connect()
+        _, kwargs = mock_pop3_ssl.call_args
+        assert kwargs.get("timeout") == CONNECT_TIMEOUT
 
 
 def test_disconnect_calls_quit():

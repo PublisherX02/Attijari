@@ -523,7 +523,7 @@ async function loadMailboxes() {
             <td>
                 <div class="btn-group" style="gap:4px;">
                     <button class="btn btn-outline btn-sm" data-action="retest-mailbox" data-id="${m.id}" title="Re-test">Retest</button>
-                    <button class="btn btn-outline btn-sm" data-action="open-outbound-smtp-modal" data-id="${m.id}" title="Configure outbound relay">Relay</button>
+                    <button class="btn btn-outline btn-sm" data-action="open-outbound-smtp-modal" data-id="${m.id}" data-smtp-host="${esc(m.smtp_out_host || '')}" data-smtp-port="${esc(m.smtp_out_port || '')}" data-smtp-user="${esc(m.smtp_out_user || '')}" title="Configure outbound relay">Relay</button>
                     ${!m.is_active ? `<button class="btn btn-outline btn-sm" style="color:#e74c3c;" data-action="delete-mailbox" data-id="${m.id}" data-email="${esc(m.email)}" title="Delete">X</button>` : ''}
                 </div>
             </td>
@@ -640,11 +640,14 @@ registerAction('delete-mailbox', (el) => deleteMailbox(parseInt(el.dataset.id), 
 
 let _outboundSmtpMailboxId = null;
 
-function openOutboundSmtpModal(mailboxId) {
+function openOutboundSmtpModal(mailboxId, currentHost, currentPort, currentUser) {
     _outboundSmtpMailboxId = mailboxId;
-    document.getElementById('outbound-smtp-host').value = '';
-    document.getElementById('outbound-smtp-port').value = '465';
-    document.getElementById('outbound-smtp-user').value = '';
+    document.getElementById('outbound-smtp-host').value = currentHost || '';
+    document.getElementById('outbound-smtp-port').value = currentPort || '465';
+    document.getElementById('outbound-smtp-user').value = currentUser || '';
+    // Password is never returned by the API — always left blank. Leaving it
+    // blank on save means "keep the existing stored password" (see
+    // update_mailbox_outbound_smtp), not "clear it".
     document.getElementById('outbound-smtp-password').value = '';
     document.getElementById('outbound-smtp-modal').classList.add('open');
 }
@@ -666,7 +669,8 @@ async function saveOutboundSmtp() {
     loadMailboxes();
 }
 
-registerAction('open-outbound-smtp-modal', (el) => openOutboundSmtpModal(parseInt(el.dataset.id, 10)));
+registerAction('open-outbound-smtp-modal', (el) => openOutboundSmtpModal(
+    parseInt(el.dataset.id, 10), el.dataset.smtpHost, el.dataset.smtpPort, el.dataset.smtpUser));
 registerAction('close-outbound-smtp-modal', () => closeOutboundSmtpModal());
 registerAction('save-outbound-smtp', () => saveOutboundSmtp());
 

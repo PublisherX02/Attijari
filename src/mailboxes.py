@@ -134,8 +134,21 @@ def get_active_mailbox_outbound_smtp(db: Session) -> Optional[dict]:
 def update_mailbox_outbound_smtp(db: Session, mailbox_id: int, host: Optional[str],
                                  port: Optional[int], user: Optional[str],
                                  password: Optional[str]) -> MailboxAccount:
-    """host=None or empty clears the outbound relay config entirely."""
+    """host=None or empty clears the outbound relay config entirely.
+
+    When host is being set (kept/updated) but password is left blank (the API
+    never returns stored passwords, so an admin editing e.g. just the port has
+    no way to resupply it), the existing encrypted password is preserved
+    instead of being wiped. Only an explicit host=None/empty clears everything,
+    including the password.
+    """
     from database import set_mailbox_outbound_smtp
     host = host or None
-    encrypted = vault.encrypt_field(password) if (host and password) else None
+    if not host:
+        encrypted = None
+    elif password:
+        encrypted = vault.encrypt_field(password)
+    else:
+        current = get_mailbox_account(db, mailbox_id)
+        encrypted = current.smtp_out_password_encrypted if current else None
     return set_mailbox_outbound_smtp(db, mailbox_id, host=host, port=port, user=user, password_encrypted=encrypted)

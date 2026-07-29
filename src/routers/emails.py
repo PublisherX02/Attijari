@@ -26,15 +26,23 @@ _scan_lock = asyncio.Lock()
 def _active_account_filter(db):
     """SQLAlchemy filter clause scoping Email queries to the active mailbox,
     or None if no mailbox is configured (no filtering — legacy behavior).
-    Pre-migration rows are backfilled to their real mailbox at migration
-    time (see database._migrate_email_account_column), so there's no
-    NULL-account fallback here — a leftover fallback would otherwise make
-    old rows bleed into every mailbox's view forever."""
+
+    Includes a NULL-inclusive OR: rows can get account=NULL not just from
+    pre-migration legacy data (backfilled once at migration time, see
+    database._migrate_email_account_column) but also from ingestion that ran
+    with no active mailbox AND no IMAP_USER set in .env (a supported state —
+    see main.py's `_account_tag = os.getenv("IMAP_USER")` fallback). Those
+    rows have no definite owning mailbox, so excluding NULL here would make
+    them permanently disappear from every view the moment any mailbox is
+    later activated — a silent, unrecoverable data-loss bug. Showing
+    NULL-account rows in every mailbox's view is a much smaller problem (a
+    cosmetic cross-mailbox visibility overlap) than that, so it's accepted
+    intentionally, matching the same accepted behavior for legacy rows."""
     from database import get_active_mailbox
     active = get_active_mailbox(db)
     if not active:
         return None
-    return Email.account == active.email
+    return (Email.account == active.email) | (Email.account.is_(None))
 
 
 def _update_gauge_metrics():
@@ -646,7 +654,7 @@ async def api_stats(user: AuthenticatedUser = Depends(require_permission("emails
         _account_clause = ""
         _params = {"cutoff": cutoff_30d}
         if _active:
-            _account_clause = "AND account = :active_account"
+            _account_clause = "AND (account = :active_account OR account IS NULL)"
             _params["active_account"] = _active.email
 
         avg_conf_row = db.execute(

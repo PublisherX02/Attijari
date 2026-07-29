@@ -418,7 +418,7 @@ class Pop3Ingestion:
 
     def connect(self):
         ctx = ssl.create_default_context()
-        self.conn = poplib.POP3_SSL(self.host, port=self.port, context=ctx)
+        self.conn = poplib.POP3_SSL(self.host, port=self.port, context=ctx, timeout=CONNECT_TIMEOUT)
         self.conn.user(self.user)
         self.conn.pass_(self.password)
 
@@ -426,12 +426,14 @@ class Pop3Ingestion:
         self.conn.quit()
 
     def fetch_recent(self, since_days: int = 7, limit: int = 50) -> list[bytes]:
+        t0 = time.time()
         cutoff = datetime.now(timezone.utc) - timedelta(days=since_days)
         _, listing, _ = self.conn.list()
         msg_nums = [int(line.decode().split()[0]) for line in listing]
 
         candidates = []
         for num in msg_nums:
+            _check_elapsed(t0, FETCH_TIMEOUT, "POP3 fetch batch")
             _, lines, _ = self.conn.retr(num)
             raw = b"\r\n".join(lines)
             if len(raw) > MAX_EMAIL_SIZE:

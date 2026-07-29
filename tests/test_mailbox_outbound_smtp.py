@@ -55,6 +55,37 @@ def test_update_and_get_active_mailbox_outbound_smtp(db_session):
     assert creds == {"host": "smtp.example.com", "port": 587, "user": "relay@example.com", "password": "relay-pass"}
 
 
+def test_update_with_blank_password_preserves_existing_password(db_session):
+    """Finding 1 (Critical): an admin opening the outbound-relay modal to
+    change e.g. just the port has no way to resupply the password (the API
+    never returns it). Sending password=None with the same host must NOT
+    wipe the previously-stored password — it must be preserved."""
+    row = _add_and_activate(db_session, "outbound-preserve@example.com")
+    mailboxes.update_mailbox_outbound_smtp(
+        db_session, row.id, host="smtp.example.com", port=587, user="relay@example.com", password="relay-pass",
+    )
+    # Admin edits only the port, leaving password blank (as the UI does).
+    mailboxes.update_mailbox_outbound_smtp(
+        db_session, row.id, host="smtp.example.com", port=2525, user="relay@example.com", password=None,
+    )
+    creds = mailboxes.get_active_mailbox_outbound_smtp(db_session)
+    assert creds == {"host": "smtp.example.com", "port": 2525, "user": "relay@example.com", "password": "relay-pass"}
+
+
+def test_clearing_host_still_clears_password(db_session):
+    """Explicitly clearing the outbound config (host=None/empty) must still
+    wipe everything, including the password — only the "leave password
+    blank while keeping host" case is treated as "preserve"."""
+    row = _add_and_activate(db_session, "outbound-clear@example.com")
+    mailboxes.update_mailbox_outbound_smtp(
+        db_session, row.id, host="smtp.example.com", port=587, user="relay@example.com", password="relay-pass",
+    )
+    mailboxes.update_mailbox_outbound_smtp(
+        db_session, row.id, host=None, port=None, user=None, password=None,
+    )
+    assert mailboxes.get_active_mailbox_outbound_smtp(db_session) is None
+
+
 def test_send_smtp_report_uses_mailbox_override(monkeypatch):
     fake_report = {
         "period": "daily",

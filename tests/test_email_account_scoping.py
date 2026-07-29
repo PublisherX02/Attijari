@@ -88,11 +88,15 @@ def test_get_email_404s_for_other_mailbox(scoped_data):
     assert exc_info.value.status_code == 404
 
 
-def test_legacy_null_account_rows_do_not_leak_into_every_mailbox(scoped_data):
-    """Regression: pre-migration rows used to be tagged account=NULL and the
-    old filter OR'd them into every mailbox's view forever. Now that the
-    migration backfills them, NULL should mean "orphaned data", not "visible
-    everywhere" — a stray NULL row must not appear once any mailbox is active."""
+def test_null_account_rows_remain_visible_regardless_of_active_mailbox(scoped_data):
+    """NULL-account rows have no definite owning mailbox — they can come from
+    pre-migration legacy data, or from ingestion that ran with no active
+    mailbox and no IMAP_USER set in .env (a supported fallback state). Either
+    way, excluding them from every mailbox's view would make them
+    permanently invisible (silent data loss) the moment any mailbox is
+    activated, which is worse than the small cosmetic cost of showing them
+    in every mailbox's view. So a NULL-account row must remain visible no
+    matter which mailbox is active."""
     legacy = Email(idempotency_key="scope-test-legacy", raw_sha256="c" * 64,
                     sender="legacy@x.com", subject="scope-test-marker legacy NULL row",
                     status="recu", account=None)
@@ -103,7 +107,36 @@ def test_legacy_null_account_rows_do_not_leak_into_every_mailbox(scoped_data):
         result = asyncio.run(emails_router_mod.api_list_emails(
             status=None, search="scope-test-marker", page=1, per_page=25, user=VIEWER))
         subjects = {e["subject"] for e in result["emails"]}
-        assert "scope-test-marker legacy NULL row" not in subjects
+        assert "scope-test-marker legacy NULL row" in subjects
+
+        set_active_mailbox(scoped_data.db, scoped_data.m2.id)
+        result2 = asyncio.run(emails_router_mod.api_list_emails(
+            status=None, search="scope-test-marker", page=1, per_page=25, user=VIEWER))
+        subjects2 = {e["subject"] for e in result2["emails"]}
+        assert "scope-test-marker legacy NULL row" in subjects2
     finally:
         scoped_data.db.query(Email).filter(Email.id == legacy.id).delete(synchronize_session=False)
+        scoped_data.db.commit()
+
+
+def test_email_ingested_with_no_active_mailbox_stays_visible_after_activation(scoped_data):
+    """Finding 2 scenario: an ingest ran with no dashboard mailbox active and
+    no IMAP_USER configured in .env, so the email was saved with
+    account=None (see main.py's `_account_tag = os.getenv("IMAP_USER")`
+    fallback). That row must not vanish once an admin later activates a
+    mailbox in the dashboard."""
+    orphan = Email(idempotency_key="scope-test-orphan", raw_sha256="d" * 64,
+                   sender="orphan@x.com", subject="scope-test-marker orphaned ingest row",
+                   status="recu", account=None)
+    scoped_data.db.add(orphan)
+    scoped_data.db.commit()
+    try:
+        # No mailbox active yet at ingest time; now an admin activates one.
+        set_active_mailbox(scoped_data.db, scoped_data.m1.id)
+        result = asyncio.run(emails_router_mod.api_list_emails(
+            status=None, search="scope-test-marker", page=1, per_page=25, user=VIEWER))
+        subjects = {e["subject"] for e in result["emails"]}
+        assert "scope-test-marker orphaned ingest row" in subjects
+    finally:
+        scoped_data.db.query(Email).filter(Email.id == orphan.id).delete(synchronize_session=False)
         scoped_data.db.commit()
