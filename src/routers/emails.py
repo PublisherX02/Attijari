@@ -23,6 +23,19 @@ emails_router = APIRouter()
 _scan_lock = asyncio.Lock()
 
 
+def _active_account_filter(db):
+    """SQLAlchemy filter clause scoping Email queries to the active mailbox,
+    or None if no mailbox is configured (no filtering — legacy behavior).
+    account IS NULL rows (pre-migration history) are always included so
+    nothing that existed before this feature disappears."""
+    from database import get_active_mailbox
+    from sqlalchemy import or_
+    active = get_active_mailbox(db)
+    if not active:
+        return None
+    return or_(Email.account == active.email, Email.account.is_(None))
+
+
 def _update_gauge_metrics():
     """Refresh Prometheus gauge metrics from current DB state."""
     try:
@@ -146,6 +159,10 @@ async def api_list_emails(
             Email.created_at
         ).order_by(Email.email_date.desc().nullslast(), Email.created_at.desc())
 
+        scope = _active_account_filter(db)
+        if scope is not None:
+            q = q.filter(scope)
+
         if status:
             q = q.filter(Email.status == status)
         if search:
@@ -190,7 +207,11 @@ async def api_get_email(email_id: int, user: AuthenticatedUser = Depends(require
     """Get full email details including all analysis data."""
     db = SessionLocal()
     try:
-        email = db.query(Email).filter(Email.id == email_id).first()
+        _q = db.query(Email).filter(Email.id == email_id)
+        _scope = _active_account_filter(db)
+        if _scope is not None:
+            _q = _q.filter(_scope)
+        email = _q.first()
         if not email:
             raise HTTPException(404, "Email not found")
 
@@ -573,20 +594,27 @@ async def api_stats(user: AuthenticatedUser = Depends(require_permission("emails
         from sqlalchemy import func
         from datetime import timedelta
 
+        scope = _active_account_filter(db)
+
         # All-time counts per status (for the overview cards)
-        status_counts = dict(
-            db.query(Email.status, func.count(Email.id))
-            .group_by(Email.status).all()
-        )
+        status_q = db.query(Email.status, func.count(Email.id))
+        if scope is not None:
+            status_q = status_q.filter(scope)
+        status_counts = dict(status_q.group_by(Email.status).all())
         total = sum(status_counts.values())
 
         # Recent activity — last 24 h
         cutoff_24h = utcnow() - timedelta(hours=24)
-        recent = db.query(Email).filter(Email.created_at >= cutoff_24h).count()
+        recent_q = db.query(Email).filter(Email.created_at >= cutoff_24h)
+        if scope is not None:
+            recent_q = recent_q.filter(scope)
+        recent = recent_q.count()
 
         # --- Compliance metrics: rolling 30-day window ---
         cutoff_30d = utcnow() - timedelta(days=30)
         base_q = db.query(Email).filter(Email.created_at >= cutoff_30d)
+        if scope is not None:
+            base_q = base_q.filter(scope)
 
         # Emails ever flagged (still escalated, or resolved as released/quarantined)
         total_escalated_30d = base_q.filter(
@@ -612,15 +640,24 @@ async def api_stats(user: AuthenticatedUser = Depends(require_permission("emails
         ).count()
 
         # Average LLM confidence — requires llm_result JSONB with 'confiance' key
+        from database import get_active_mailbox
+        _active = get_active_mailbox(db)
+        _account_clause = ""
+        _params = {"cutoff": cutoff_30d}
+        if _active:
+            _account_clause = "AND (account = :active_account OR account IS NULL)"
+            _params["active_account"] = _active.email
+
         avg_conf_row = db.execute(
             text(
                 "SELECT AVG((llm_result->>'confiance')::float) "
                 "FROM emails "
                 "WHERE created_at >= :cutoff "
                 "AND llm_result IS NOT NULL "
-                "AND llm_result->>'confiance' IS NOT NULL"
+                "AND llm_result->>'confiance' IS NOT NULL "
+                f"{_account_clause}"
             ),
-            {"cutoff": cutoff_30d},
+            _params,
         ).scalar()
         avg_confidence = round(float(avg_conf_row), 4) if avg_conf_row is not None else None
 
@@ -707,6 +744,10 @@ async def api_export_emails(
     try:
         cutoff = utcnow() - timedelta(days=days)
         q = db.query(Email).filter(Email.created_at >= cutoff).order_by(Email.created_at.desc())
+
+        scope = _active_account_filter(db)
+        if scope is not None:
+            q = q.filter(scope)
 
         if status:
             q = q.filter(Email.status == status)
