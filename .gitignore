@@ -24,3 +24,6 @@ __pycache__/
 *.onnx
 *.weights
 models/
+
+# Local git worktrees (superpowers:using-git-worktrees)
+.worktrees/
