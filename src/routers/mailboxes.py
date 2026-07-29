@@ -3,9 +3,11 @@
 All endpoints require the mailboxes.manage permission (admin by default,
 see database.ALL_PERMISSIONS). Passwords are never returned in any response.
 """
-from fastapi import APIRouter, Depends, HTTPException
+import os
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import Optional
+from slowapi import Limiter
 
 from api_core import require_permission, AuthenticatedUser
 from database import SessionLocal, add_audit_entry
@@ -13,6 +15,25 @@ import mailboxes
 
 mailboxes_router = APIRouter()
 _admin_dep = require_permission("mailboxes.manage")
+
+
+def _get_real_client_ip(request: Request) -> str:
+    """Extract client IP ignoring X-Forwarded-For unless from trusted proxy.
+    Mirrors routers/auth.py's helper of the same name."""
+    trusted_proxies = os.getenv("TRUSTED_PROXIES", "127.0.0.1").split(",")
+    trusted_proxies = {p.strip() for p in trusted_proxies if p.strip()}
+    client_ip = request.client.host if request.client else "unknown"
+    if client_ip in trusted_proxies:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return client_ip
+
+
+# These three endpoints open a real outbound IMAP/POP3/SSL connection to an
+# admin-supplied host:port — rate-limited so a hijacked admin session can't
+# use them to port-scan/timing-probe internal hosts or exhaust connections.
+_limiter = Limiter(key_func=_get_real_client_ip)
 
 
 class TestMailboxRequest(BaseModel):
@@ -52,7 +73,8 @@ def _serialize(row) -> dict:
 
 
 @mailboxes_router.post("/api/mailboxes/test")
-async def api_test_mailbox(body: TestMailboxRequest, admin: AuthenticatedUser = Depends(_admin_dep)):
+@_limiter.limit("10/minute")
+async def api_test_mailbox(request: Request, body: TestMailboxRequest, admin: AuthenticatedUser = Depends(_admin_dep)):
     try:
         host, port = mailboxes.resolve_host_port(body.provider, body.host, body.port, body.protocol)
     except ValueError as e:
@@ -62,7 +84,8 @@ async def api_test_mailbox(body: TestMailboxRequest, admin: AuthenticatedUser = 
 
 
 @mailboxes_router.post("/api/mailboxes")
-async def api_add_mailbox(body: TestMailboxRequest, admin: AuthenticatedUser = Depends(_admin_dep)):
+@_limiter.limit("10/minute")
+async def api_add_mailbox(request: Request, body: TestMailboxRequest, admin: AuthenticatedUser = Depends(_admin_dep)):
     db = SessionLocal()
     try:
         try:
@@ -94,7 +117,8 @@ async def api_list_mailboxes(admin: AuthenticatedUser = Depends(_admin_dep)):
 
 
 @mailboxes_router.post("/api/mailboxes/{mailbox_id}/retest")
-async def api_retest_mailbox(mailbox_id: int, admin: AuthenticatedUser = Depends(_admin_dep)):
+@_limiter.limit("10/minute")
+async def api_retest_mailbox(request: Request, mailbox_id: int, admin: AuthenticatedUser = Depends(_admin_dep)):
     db = SessionLocal()
     try:
         try:

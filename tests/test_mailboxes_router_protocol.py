@@ -1,6 +1,7 @@
 """Router-level tests for the protocol field and outbound-SMTP-relay endpoint."""
 import asyncio
 import os
+import random
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -14,11 +15,25 @@ if not os.getenv("VAULT_ENCRYPTION_KEY"):
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-key-32-bytes-long!!")
 
 import pytest
+from starlette.requests import Request
 from database import Base, MailboxAccount, SessionLocal, engine
 from routers import mailboxes as mailboxes_router_mod
 import mailboxes as mailboxes_service
 
 ADMIN = SimpleNamespace(username="admin", role="admin", user_id=1)
+
+
+def _fake_request() -> Request:
+    """Minimal Starlette Request satisfying @_limiter.limit(...) — a random
+    client IP per call so tests don't share a rate-limit bucket. Mirrors
+    the identical helper in test_mailboxes_router.py."""
+    ip = f"10.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+    scope = {
+        "type": "http", "method": "POST", "path": "/", "headers": [],
+        "client": (ip, 12345), "server": ("127.0.0.1", 8000),
+        "scheme": "http", "query_string": b"", "app": None,
+    }
+    return Request(scope)
 
 
 @pytest.fixture
@@ -38,7 +53,7 @@ def test_add_endpoint_accepts_pop3_protocol(db_cleanup):
         host="pop.example.com", port=995, protocol="pop3",
     )
     with patch.object(mailboxes_service, "test_connection", return_value=(True, None)):
-        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(body, ADMIN))
+        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(_fake_request(), body, ADMIN))
     db_cleanup.append(result["mailbox"]["id"])
     assert result["mailbox"]["protocol"] == "pop3"
 
@@ -56,7 +71,7 @@ def test_outbound_smtp_set_then_clear(db_cleanup):
         email="router-outbound@gmail.com", provider="gmail", password="right",
     )
     with patch.object(mailboxes_service, "test_connection", return_value=(True, None)):
-        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(body, ADMIN))
+        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(_fake_request(), body, ADMIN))
     db_cleanup.append(result["mailbox"]["id"])
     mailbox_id = result["mailbox"]["id"]
 

@@ -3,6 +3,7 @@ AuthenticatedUser, mirroring the codebase's existing pattern of testing
 FastAPI handlers as plain async functions rather than spinning up a TestClient."""
 import asyncio
 import os
+import random
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -16,11 +17,25 @@ if not os.getenv("VAULT_ENCRYPTION_KEY"):
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-key-32-bytes-long!!")
 
 import pytest
+from starlette.requests import Request
 from database import Base, MailboxAccount, SessionLocal, engine
 from routers import mailboxes as mailboxes_router_mod
 import mailboxes as mailboxes_service
 
 ADMIN = SimpleNamespace(username="admin", role="admin", user_id=1)
+
+
+def _fake_request() -> Request:
+    """Minimal Starlette Request satisfying @_limiter.limit(...) — a random
+    client IP per call so tests don't share a rate-limit bucket and trip
+    each other up within the same test-session minute."""
+    ip = f"10.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+    scope = {
+        "type": "http", "method": "POST", "path": "/", "headers": [],
+        "client": (ip, 12345), "server": ("127.0.0.1", 8000),
+        "scheme": "http", "query_string": b"", "app": None,
+    }
+    return Request(scope)
 
 
 @pytest.fixture
@@ -40,7 +55,7 @@ def test_add_endpoint_rejects_bad_password(db_cleanup):
     )
     with patch.object(mailboxes_service, "test_connection", return_value=(False, "AUTHENTICATIONFAILED")):
         with pytest.raises(Exception) as exc_info:
-            asyncio.run(mailboxes_router_mod.api_add_mailbox(body, ADMIN))
+            asyncio.run(mailboxes_router_mod.api_add_mailbox(_fake_request(), body, ADMIN))
     assert "AUTHENTICATIONFAILED" in str(exc_info.value)
 
 
@@ -49,7 +64,7 @@ def test_add_then_list_then_activate(db_cleanup):
         email="router-ok@gmail.com", provider="gmail", password="right",
     )
     with patch.object(mailboxes_service, "test_connection", return_value=(True, None)):
-        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(body, ADMIN))
+        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(_fake_request(), body, ADMIN))
     db_cleanup.append(result["mailbox"]["id"])
     assert result["success"] is True
     assert "password" not in result["mailbox"]
@@ -66,7 +81,7 @@ def test_deactivate_endpoint_clears_active_flag(db_cleanup):
         email="router-deact@gmail.com", provider="gmail", password="right",
     )
     with patch.object(mailboxes_service, "test_connection", return_value=(True, None)):
-        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(body, ADMIN))
+        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(_fake_request(), body, ADMIN))
     db_cleanup.append(result["mailbox"]["id"])
     asyncio.run(mailboxes_router_mod.api_activate_mailbox(result["mailbox"]["id"], ADMIN))
 
@@ -88,7 +103,7 @@ def test_delete_active_mailbox_rejected(db_cleanup):
         email="router-del@gmail.com", provider="gmail", password="right",
     )
     with patch.object(mailboxes_service, "test_connection", return_value=(True, None)):
-        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(body, ADMIN))
+        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(_fake_request(), body, ADMIN))
     db_cleanup.append(result["mailbox"]["id"])
     asyncio.run(mailboxes_router_mod.api_activate_mailbox(result["mailbox"]["id"], ADMIN))
 

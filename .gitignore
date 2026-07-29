@@ -27,3 +27,5 @@ models/
 
 # Local git worktrees (superpowers:using-git-worktrees)
 .worktrees/
+
+docs/
