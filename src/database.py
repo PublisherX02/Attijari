@@ -139,6 +139,11 @@ class MailboxAccount(Base):
     last_test_error = Column(Text, nullable=True)
     last_tested_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, nullable=False, default=False, index=True)
+    protocol = Column(String(10), nullable=False, default="imap")  # imap, pop3 — which bridge polls this mailbox
+    smtp_out_host = Column(String(255), nullable=True)   # outbound relay; NULL = not configured, falls back to .env SMTP_*
+    smtp_out_port = Column(Integer, nullable=True, default=465)
+    smtp_out_user = Column(String(320), nullable=True)
+    smtp_out_password_encrypted = Column(Text, nullable=True)
     added_by = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
@@ -506,6 +511,33 @@ def _migrate_email_account_column():
         print(f"[DB] emails.account migration skipped: {e}")
 
 
+def _migrate_mailbox_protocol_and_outbound_smtp():
+    """One-time: add mailbox_accounts.protocol (default 'imap') and the four
+    nullable outbound-SMTP-relay columns. All additive — existing rows get
+    protocol='imap' (correct, since IMAP was the only option before this) and
+    NULL outbound fields (correct 'not configured' state)."""
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        if "mailbox_accounts" not in inspector.get_table_names():
+            return
+        existing = {c["name"] for c in inspector.get_columns("mailbox_accounts")}
+        with engine.begin() as conn:
+            if "protocol" not in existing:
+                conn.execute(sa_text(
+                    "ALTER TABLE mailbox_accounts ADD COLUMN protocol VARCHAR(10) NOT NULL DEFAULT 'imap'"
+                ))
+                print("[DB] Added column mailbox_accounts.protocol")
+            if "smtp_out_host" not in existing:
+                conn.execute(sa_text('ALTER TABLE mailbox_accounts ADD COLUMN smtp_out_host VARCHAR(255)'))
+                conn.execute(sa_text('ALTER TABLE mailbox_accounts ADD COLUMN smtp_out_port INTEGER'))
+                conn.execute(sa_text('ALTER TABLE mailbox_accounts ADD COLUMN smtp_out_user VARCHAR(320)'))
+                conn.execute(sa_text('ALTER TABLE mailbox_accounts ADD COLUMN smtp_out_password_encrypted TEXT'))
+                print("[DB] Added mailbox_accounts outbound SMTP relay columns")
+    except Exception as e:
+        print(f"[DB] mailbox protocol/outbound-smtp migration skipped: {e}")
+
+
 def _migrate_encrypt_totp_secrets():
     """One-time (SEC-H2): encrypt any plaintext TOTP secrets already in the DB.
 
@@ -566,6 +598,7 @@ def init_db():
     _migrate_pending_detonation_manual()
     _migrate_encrypt_totp_secrets()
     _migrate_email_account_column()
+    _migrate_mailbox_protocol_and_outbound_smtp()
 
     # Initialize default admin if no users exist
     try:
@@ -1007,7 +1040,7 @@ def get_recent_detonation_events(db: Session, limit: int = 50) -> list[dict]:
 
 def add_mailbox_account(db: Session, email: str, provider: str, imap_host: str,
                         imap_port: int, password_encrypted: str,
-                        added_by: Optional[str] = None) -> "MailboxAccount":
+                        added_by: Optional[str] = None, protocol: str = "imap") -> "MailboxAccount":
     row = MailboxAccount(
         email=email.strip().lower(),
         provider=provider,
@@ -1015,6 +1048,7 @@ def add_mailbox_account(db: Session, email: str, provider: str, imap_host: str,
         imap_port=imap_port,
         password_encrypted=password_encrypted,
         added_by=added_by,
+        protocol=protocol,
     )
     db.add(row)
     db.commit()
@@ -1074,4 +1108,19 @@ def mark_mailbox_tested(db: Session, mailbox_id: int, ok: bool,
     db.commit()
     db.refresh(target)
     return target
-    return events
+
+
+def set_mailbox_outbound_smtp(db: Session, mailbox_id: int, host: Optional[str],
+                              port: Optional[int], user: Optional[str],
+                              password_encrypted: Optional[str]) -> "MailboxAccount":
+    """host=None clears the whole outbound relay config back to 'not configured'."""
+    target = get_mailbox_account(db, mailbox_id)
+    if not target:
+        raise ValueError(f"Mailbox {mailbox_id} not found")
+    target.smtp_out_host = host
+    target.smtp_out_port = port if host else None
+    target.smtp_out_user = user if host else None
+    target.smtp_out_password_encrypted = password_encrypted if host else None
+    db.commit()
+    db.refresh(target)
+    return target
