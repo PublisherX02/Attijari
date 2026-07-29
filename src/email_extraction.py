@@ -67,19 +67,20 @@ def verify_sender_authentication(raw_email_bytes: bytes) -> bool:
     return True
 
 class EmailIngestion:
-    def __init__(self , host: str , user:str , password: str , folder: str = "INBOX" ):
+    def __init__(self , host: str , user:str , password: str , folder: str = "INBOX" , port: int = 993 ):
         self.host = host
         self.user = user
         self.password = password
         self.folder = folder
+        self.port = port
         self.parser = BytesParser(policy = policy.default) #MIME policy rules
 
     def connect(self):
-        print(f"[CONNECT] Connecting to {self.host}...")
+        print(f"[CONNECT] Connecting to {self.host}:{self.port}...")
         t0 = time.time()
         # Explicit SSL context — enforce certificate verification (CRIT-02)
         ctx = ssl.create_default_context()
-        self.conn = imaplib.IMAP4_SSL(self.host, ssl_context=ctx)
+        self.conn = imaplib.IMAP4_SSL(self.host, port=self.port, ssl_context=ctx)
         _check_elapsed(t0, CONNECT_TIMEOUT, "SSL connection")
         print(f"[CONNECT] SSL OK ({time.time()-t0:.1f}s), logging in as {self.user}...")
         self.conn.login(self.user, self.password)
