@@ -112,6 +112,18 @@ async def api_activate_mailbox(mailbox_id: int, admin: AuthenticatedUser = Depen
         db.close()
 
 
+@mailboxes_router.post("/api/mailboxes/deactivate")
+async def api_deactivate_mailbox(admin: AuthenticatedUser = Depends(_admin_dep)):
+    """Clear the active mailbox, restoring the .env IMAP_* fallback."""
+    db = SessionLocal()
+    try:
+        mailboxes.deactivate_mailbox(db)
+        add_audit_entry(db, action="mailbox_deactivate", actor=admin.username, details={})
+        return {"success": True}
+    finally:
+        db.close()
+
+
 @mailboxes_router.delete("/api/mailboxes/{mailbox_id}")
 async def api_delete_mailbox(mailbox_id: int, admin: AuthenticatedUser = Depends(_admin_dep)):
     db = SessionLocal()

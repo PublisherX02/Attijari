@@ -86,3 +86,24 @@ def test_get_email_404s_for_other_mailbox(scoped_data):
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(emails_router_mod.api_get_email(scoped_data.e2_id, user=VIEWER))
     assert exc_info.value.status_code == 404
+
+
+def test_legacy_null_account_rows_do_not_leak_into_every_mailbox(scoped_data):
+    """Regression: pre-migration rows used to be tagged account=NULL and the
+    old filter OR'd them into every mailbox's view forever. Now that the
+    migration backfills them, NULL should mean "orphaned data", not "visible
+    everywhere" — a stray NULL row must not appear once any mailbox is active."""
+    legacy = Email(idempotency_key="scope-test-legacy", raw_sha256="c" * 64,
+                    sender="legacy@x.com", subject="scope-test-marker legacy NULL row",
+                    status="recu", account=None)
+    scoped_data.db.add(legacy)
+    scoped_data.db.commit()
+    try:
+        set_active_mailbox(scoped_data.db, scoped_data.m1.id)
+        result = asyncio.run(emails_router_mod.api_list_emails(
+            status=None, search="scope-test-marker", page=1, per_page=25, user=VIEWER))
+        subjects = {e["subject"] for e in result["emails"]}
+        assert "scope-test-marker legacy NULL row" not in subjects
+    finally:
+        scoped_data.db.query(Email).filter(Email.id == legacy.id).delete(synchronize_session=False)
+        scoped_data.db.commit()

@@ -61,6 +61,28 @@ def test_add_then_list_then_activate(db_cleanup):
     assert activated["mailbox"]["is_active"] is True
 
 
+def test_deactivate_endpoint_clears_active_flag(db_cleanup):
+    body = mailboxes_router_mod.TestMailboxRequest(
+        email="router-deact@gmail.com", provider="gmail", password="right",
+    )
+    with patch.object(mailboxes_service, "test_connection", return_value=(True, None)):
+        result = asyncio.run(mailboxes_router_mod.api_add_mailbox(body, ADMIN))
+    db_cleanup.append(result["mailbox"]["id"])
+    asyncio.run(mailboxes_router_mod.api_activate_mailbox(result["mailbox"]["id"], ADMIN))
+
+    outcome = asyncio.run(mailboxes_router_mod.api_deactivate_mailbox(ADMIN))
+    assert outcome["success"] is True
+
+    listing = asyncio.run(mailboxes_router_mod.api_list_mailboxes(ADMIN))
+    row = next(m for m in listing["mailboxes"] if m["id"] == result["mailbox"]["id"])
+    assert row["is_active"] is False
+
+    # now deletable, since nothing is active anymore
+    deleted = asyncio.run(mailboxes_router_mod.api_delete_mailbox(result["mailbox"]["id"], ADMIN))
+    db_cleanup.remove(result["mailbox"]["id"])
+    assert deleted["success"] is True
+
+
 def test_delete_active_mailbox_rejected(db_cleanup):
     body = mailboxes_router_mod.TestMailboxRequest(
         email="router-del@gmail.com", provider="gmail", password="right",

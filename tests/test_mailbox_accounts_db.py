@@ -90,6 +90,46 @@ def test_mark_tested_updates_status(db_session):
     assert a.last_test_error is None
 
 
+def test_migrate_email_account_column_backfills_legacy_rows(monkeypatch):
+    """_migrate_email_account_column must backfill pre-existing NULL rows to
+    IMAP_USER when it adds the column — otherwise those rows have no owner
+    and (depending on the filter) either vanish or leak everywhere."""
+    from sqlalchemy import inspect, text as sa_text
+    from database import engine, _migrate_email_account_column, Email
+
+    monkeypatch.setenv("IMAP_USER", "legacy-owner@gmail.com")
+
+    inspector = inspect(engine)
+    if "emails" in inspector.get_table_names():
+        existing = {c["name"] for c in inspector.get_columns("emails")}
+        if "account" in existing:
+            pytest.skip("column already present on this DB — backfill path not exercised")
+
+    Base.metadata.create_all(bind=engine)  # creates 'emails' with the account column already
+    with engine.begin() as conn:
+        conn.execute(sa_text('ALTER TABLE emails DROP COLUMN "account"'))
+
+    session = SessionLocal()
+    row = Email(idempotency_key="migrate-test-legacy", raw_sha256="d" * 64,
+                sender="legacy@x.com", subject="migrate-test-marker", status="recu")
+    session.add(row)
+    session.commit()
+    row_id = row.id
+    session.close()
+
+    try:
+        _migrate_email_account_column()
+        session = SessionLocal()
+        refreshed = session.query(Email).filter(Email.id == row_id).first()
+        assert refreshed.account == "legacy-owner@gmail.com"
+        session.close()
+    finally:
+        session = SessionLocal()
+        session.query(Email).filter(Email.id == row_id).delete(synchronize_session=False)
+        session.commit()
+        session.close()
+
+
 def test_mailboxes_manage_is_admin_only_by_default():
     from database import ALL_PERMISSIONS, ANALYST_PERMISSIONS, VIEWER_PERMISSIONS
     assert "mailboxes.manage" in ALL_PERMISSIONS

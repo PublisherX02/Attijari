@@ -26,14 +26,15 @@ _scan_lock = asyncio.Lock()
 def _active_account_filter(db):
     """SQLAlchemy filter clause scoping Email queries to the active mailbox,
     or None if no mailbox is configured (no filtering — legacy behavior).
-    account IS NULL rows (pre-migration history) are always included so
-    nothing that existed before this feature disappears."""
+    Pre-migration rows are backfilled to their real mailbox at migration
+    time (see database._migrate_email_account_column), so there's no
+    NULL-account fallback here — a leftover fallback would otherwise make
+    old rows bleed into every mailbox's view forever."""
     from database import get_active_mailbox
-    from sqlalchemy import or_
     active = get_active_mailbox(db)
     if not active:
         return None
-    return or_(Email.account == active.email, Email.account.is_(None))
+    return Email.account == active.email
 
 
 def _update_gauge_metrics():
@@ -645,7 +646,7 @@ async def api_stats(user: AuthenticatedUser = Depends(require_permission("emails
         _account_clause = ""
         _params = {"cutoff": cutoff_30d}
         if _active:
-            _account_clause = "AND (account = :active_account OR account IS NULL)"
+            _account_clause = "AND account = :active_account"
             _params["active_account"] = _active.email
 
         avg_conf_row = db.execute(

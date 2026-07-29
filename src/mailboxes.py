@@ -16,6 +16,7 @@ from database import (
     get_mailbox_account,
     get_active_mailbox,
     set_active_mailbox,
+    deactivate_all_mailboxes,
     delete_mailbox_account,
     mark_mailbox_tested,
 )
@@ -83,6 +84,11 @@ def retest_mailbox(db: Session, mailbox_id: int) -> MailboxAccount:
 
 def activate_mailbox(db: Session, mailbox_id: int) -> MailboxAccount:
     return set_active_mailbox(db, mailbox_id)
+
+
+def deactivate_mailbox(db: Session) -> None:
+    """No mailbox active -> pipeline falls back to the .env IMAP_* credentials."""
+    deactivate_all_mailboxes(db)
 
 
 def remove_mailbox(db: Session, mailbox_id: int) -> bool:

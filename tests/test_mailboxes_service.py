@@ -80,3 +80,23 @@ def test_get_active_mailbox_credentials_decrypts_password(db_session):
         "host": "outlook.office365.com", "user": "creds@outlook.com",
         "port": 993, "password": "super-secret",
     }
+
+
+def test_deactivate_mailbox_restores_env_fallback(db_session):
+    with patch.object(mailboxes, "test_connection", return_value=(True, None)):
+        row = mailboxes.add_and_test_mailbox(
+            db_session, email="revert@gmail.com", provider="gmail",
+            password="app-pw", added_by="admin",
+        )
+    db_session.info["ids"].append(row.id)
+    mailboxes.activate_mailbox(db_session, row.id)
+    assert mailboxes.get_active_mailbox_credentials(db_session) is not None
+
+    mailboxes.deactivate_mailbox(db_session)
+    assert mailboxes.get_active_mailbox_credentials(db_session) is None
+
+    db_session.refresh(row)
+    assert row.is_active is False
+    # deactivating doesn't delete anything — the row can be reactivated later
+    from database import list_mailbox_accounts
+    assert any(r.id == row.id for r in list_mailbox_accounts(db_session))

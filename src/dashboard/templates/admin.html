@@ -30,7 +30,10 @@
 <!-- Mailboxes -->
 <div class="page-header" style="margin-top:32px;">
     <h2>Mailboxes</h2>
-    <button class="btn btn-primary" data-action="open-add-mailbox-modal">+ Add email</button>
+    <div class="btn-group" style="gap:8px;">
+        <button class="btn btn-outline" id="deactivate-mailbox-btn" style="display:none;" data-action="deactivate-mailbox">Revert to .env fallback</button>
+        <button class="btn btn-primary" data-action="open-add-mailbox-modal">+ Add email</button>
+    </div>
 </div>
 
 <div class="card" style="margin-top:20px;">
@@ -458,10 +461,13 @@ async function loadMailboxes() {
         '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No access</td></tr>'; return; }
     const data = await res.json();
     const tbody = document.getElementById('mailboxes-body');
+    const deactivateBtn = document.getElementById('deactivate-mailbox-btn');
     if (!data.mailboxes || data.mailboxes.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No mailboxes added yet — using .env fallback</td></tr>';
+        if (deactivateBtn) deactivateBtn.style.display = 'none';
         return;
     }
+    if (deactivateBtn) deactivateBtn.style.display = data.mailboxes.some(m => m.is_active) ? '' : 'none';
     tbody.innerHTML = data.mailboxes.map(m => {
         const statusBadge = m.status === 'verified'
             ? '<span class="status-badge status-accepted">Verified</span>'
@@ -555,6 +561,14 @@ async function activateMailbox(mailboxId) {
     loadMailboxes();
 }
 
+async function deactivateMailbox() {
+    if (!confirm('Revert to the .env IMAP_* mailbox? No dashboard mailbox will be active.')) return;
+    const res = await fetch('/api/mailboxes/deactivate', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to deactivate'); return; }
+    loadMailboxes();
+}
+
 async function retestMailbox(mailboxId) {
     const res = await fetch(`/api/mailboxes/${mailboxId}/retest`, { method: 'POST' });
     const data = await res.json();
@@ -576,6 +590,7 @@ registerChangeAction('apply-mailbox-provider', () => applyMailboxProvider());
 registerAction('test-mailbox', () => testMailbox());
 registerAction('save-mailbox', () => saveMailbox());
 registerAction('activate-mailbox', (el) => activateMailbox(parseInt(el.dataset.id)));
+registerAction('deactivate-mailbox', () => deactivateMailbox());
 registerAction('retest-mailbox', (el) => retestMailbox(parseInt(el.dataset.id)));
 registerAction('delete-mailbox', (el) => deleteMailbox(parseInt(el.dataset.id), el.dataset.email));
 

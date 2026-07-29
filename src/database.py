@@ -479,7 +479,11 @@ def _migrate_pending_detonation_manual():
 
 
 def _migrate_email_account_column():
-    """One-time: add emails.account for pre-existing rows (NULL = shown under every mailbox)."""
+    """One-time: add emails.account, backfilling pre-existing rows to the
+    .env mailbox they were actually fetched from (IMAP_USER) — otherwise
+    they'd be untagged and, under the old NULL-fallback filter, would leak
+    into every dashboard mailbox's view forever."""
+    import os
     from sqlalchemy import inspect, text as sa_text
     try:
         inspector = inspect(engine)
@@ -491,6 +495,13 @@ def _migrate_email_account_column():
                 conn.execute(sa_text('ALTER TABLE emails ADD COLUMN "account" VARCHAR(320)'))
                 conn.execute(sa_text('CREATE INDEX IF NOT EXISTS ix_emails_account ON emails ("account")'))
                 print("[DB] Added column emails.account")
+                legacy_account = os.getenv("IMAP_USER")
+                if legacy_account:
+                    conn.execute(
+                        sa_text('UPDATE emails SET "account" = :account WHERE "account" IS NULL'),
+                        {"account": legacy_account},
+                    )
+                    print(f"[DB] Backfilled emails.account for pre-existing rows -> {legacy_account}")
     except Exception as e:
         print(f"[DB] emails.account migration skipped: {e}")
 
@@ -1032,6 +1043,13 @@ def set_active_mailbox(db: Session, mailbox_id: int) -> "MailboxAccount":
     db.commit()
     db.refresh(target)
     return target
+
+
+def deactivate_all_mailboxes(db: Session) -> None:
+    """Clear is_active on every mailbox row, restoring the .env fallback
+    (get_active_mailbox_credentials returns None -> pipeline uses IMAP_USER)."""
+    db.query(MailboxAccount).filter(MailboxAccount.is_active == True).update({"is_active": False})
+    db.commit()
 
 
 def delete_mailbox_account(db: Session, mailbox_id: int) -> bool:
