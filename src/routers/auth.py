@@ -10,18 +10,23 @@ from typing import Optional
 
 from api_core import templates, get_db_generator, JWT_SECRET, ALGORITHM, revoke_token, limiter as _limiter
 
-# In-memory TOTP replay prevention (codes expire after 60s)
-_used_totp_codes: dict[str, bool] = {}
-_totp_cleanup_counter = 0
+from redis_client import get_client
+import redis
 
 
-def _cleanup_totp_cache():
-    """Periodically clear the TOTP replay cache (every 50 logins)."""
-    global _totp_cleanup_counter
-    _totp_cleanup_counter += 1
-    if _totp_cleanup_counter >= 50:
-        _used_totp_codes.clear()
-        _totp_cleanup_counter = 0
+def _is_totp_replayed(cache_key: str) -> bool:
+    try:
+        return get_client().exists(cache_key) == 1
+    except redis.exceptions.RedisError as e:
+        print(f"[AUTH] Redis unreachable for TOTP replay check, failing open: {e}")
+        return False  # fail open — allow login through
+
+
+def _mark_totp_used(cache_key: str, ttl_seconds: int = 60) -> None:
+    try:
+        get_client().set(cache_key, "1", ex=ttl_seconds)
+    except redis.exceptions.RedisError as e:
+        print(f"[AUTH] Redis unreachable, could not record TOTP use: {e}")
 
 
 auth_router = APIRouter()
@@ -60,12 +65,11 @@ async def login_post(request: Request, username: str = Form(...), password: str 
         totp_obj = pyotp.TOTP(decrypt_field(user.totp_secret))
         if not totp or not totp_obj.verify(totp, valid_window=0):
             return templates.TemplateResponse(request, "login.html", {"request": request, "error": "Invalid MFA code", "mfa_required": mfa_required})
-        # Prevent TOTP replay — reject codes already used in this 30s window
+        # Prevent TOTP replay — reject codes already used in this window
         cache_key = f"totp_used:{user.username}:{totp}"
-        if _used_totp_codes.get(cache_key):
+        if _is_totp_replayed(cache_key):
             return templates.TemplateResponse(request, "login.html", {"request": request, "error": "MFA code already used. Wait for next code.", "mfa_required": mfa_required})
-        _used_totp_codes[cache_key] = True
-        _cleanup_totp_cache()
+        _mark_totp_used(cache_key)
 
     # Update last_login timestamp
     from database import utcnow as _utcnow
