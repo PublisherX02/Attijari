@@ -27,6 +27,106 @@
     </table>
 </div>
 
+<!-- Mailboxes -->
+<div class="page-header" style="margin-top:32px;">
+    <h2>Mailboxes</h2>
+    <div class="btn-group" style="gap:8px;">
+        <button class="btn btn-outline" id="deactivate-mailbox-btn" style="display:none;" data-action="deactivate-mailbox">Revert to .env fallback</button>
+        <button class="btn btn-primary" data-action="open-add-mailbox-modal">+ Add email</button>
+    </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+    <table class="data-table" id="mailboxes-table">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Provider</th>
+                <th>Protocol</th>
+                <th>Status</th>
+                <th>Active</th>
+                <th>Added by</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="mailboxes-body">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Mailbox Modal -->
+<div class="modal-overlay" id="add-mailbox-modal" data-action="backdrop-close" data-close="closeAddMailboxModal">
+    <div class="modal" style="max-width:480px;">
+        <h3>Add email</h3>
+        <div class="form-group">
+            <label class="form-label">Email address</label>
+            <input class="form-input" id="mailbox-email" type="email" placeholder="person@gmail.com" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Provider</label>
+            <select class="form-select" id="mailbox-provider" data-change-action="apply-mailbox-provider">
+                <option value="gmail">Gmail</option>
+                <option value="outlook">Outlook</option>
+                <option value="custom">Custom IMAP</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Protocol</label>
+            <select class="form-select" id="mailbox-protocol" data-change-action="apply-mailbox-provider">
+                <option value="imap" selected>IMAP</option>
+                <option value="pop3">POP3</option>
+            </select>
+        </div>
+        <div class="form-group" id="mailbox-host-group" style="display:none;">
+            <label class="form-label">IMAP host</label>
+            <input class="form-input" id="mailbox-host" type="text" placeholder="mail.example.com">
+        </div>
+        <div class="form-group" id="mailbox-port-group" style="display:none;">
+            <label class="form-label">IMAP port</label>
+            <input class="form-input" id="mailbox-port" type="number" value="993">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Password (app password)</label>
+            <input class="form-input" id="mailbox-password" type="password" required>
+        </div>
+        <div id="mailbox-test-result" style="margin:8px 0;font-size:0.85rem;"></div>
+        <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-outline" data-action="close-add-mailbox-modal">Cancel</button>
+            <button class="btn btn-outline" data-action="test-mailbox">Test connection</button>
+            <button class="btn btn-primary" data-action="save-mailbox">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Outbound Relay Modal -->
+<div class="modal-overlay" id="outbound-smtp-modal" data-action="backdrop-close" data-close="closeOutboundSmtpModal">
+    <div class="modal" style="max-width:480px;">
+        <h3>Outbound relay (optional)</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);">Used to send scheduled reports through this mailbox's own SMTP server instead of the default .env relay. Leave host blank to clear.</p>
+        <div class="form-group">
+            <label class="form-label">SMTP host</label>
+            <input class="form-input" id="outbound-smtp-host" type="text" placeholder="smtp.example.com">
+        </div>
+        <div class="form-group">
+            <label class="form-label">SMTP port</label>
+            <input class="form-input" id="outbound-smtp-port" type="number" value="465">
+        </div>
+        <div class="form-group">
+            <label class="form-label">SMTP user</label>
+            <input class="form-input" id="outbound-smtp-user" type="text">
+        </div>
+        <div class="form-group">
+            <label class="form-label">SMTP password</label>
+            <input class="form-input" id="outbound-smtp-password" type="password">
+        </div>
+        <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-outline" data-action="close-outbound-smtp-modal">Cancel</button>
+            <button class="btn btn-primary" data-action="save-outbound-smtp">Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- Create User Modal -->
 <div class="modal-overlay" id="create-modal" data-action="backdrop-close" data-close="closeCreateModal">
     <div class="modal" style="max-width:520px;">
@@ -390,7 +490,192 @@ registerAction('reset-password', (el) => resetPassword(parseInt(el.dataset.id), 
 registerAction('reset-totp', (el) => resetTotp(parseInt(el.dataset.id), el.dataset.username));
 registerAction('deactivate-user', (el) => deactivateUser(parseInt(el.dataset.id), el.dataset.username));
 
+// ----- Mailboxes -----
+async function loadMailboxes() {
+    const res = await fetch('/api/mailboxes');
+    if (res.status === 403) { document.getElementById('mailboxes-body').innerHTML =
+        '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No access</td></tr>'; return; }
+    const data = await res.json();
+    const tbody = document.getElementById('mailboxes-body');
+    const deactivateBtn = document.getElementById('deactivate-mailbox-btn');
+    if (!data.mailboxes || data.mailboxes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No mailboxes added yet — using .env fallback</td></tr>';
+        if (deactivateBtn) deactivateBtn.style.display = 'none';
+        return;
+    }
+    if (deactivateBtn) deactivateBtn.style.display = data.mailboxes.some(m => m.is_active) ? '' : 'none';
+    tbody.innerHTML = data.mailboxes.map(m => {
+        const statusBadge = m.status === 'verified'
+            ? '<span class="status-badge status-accepted">Verified</span>'
+            : m.status === 'failed'
+            ? `<span class="status-badge status-quarantined" title="${esc(m.last_test_error || '')}">Failed</span>`
+            : '<span class="status-badge" style="background:rgba(149,165,166,0.15);color:#7f8c8d;">Untested</span>';
+        const activeBadge = m.is_active
+            ? '<span class="status-badge status-accepted">Active</span>'
+            : `<button class="btn btn-outline btn-sm" data-action="activate-mailbox" data-id="${m.id}">Select</button>`;
+        return `<tr>
+            <td><strong>${esc(m.email)}</strong></td>
+            <td>${esc(m.provider)}</td>
+            <td>${esc((m.protocol || 'imap').toUpperCase())}</td>
+            <td>${statusBadge}</td>
+            <td>${activeBadge}</td>
+            <td>${esc(m.added_by || '-')}</td>
+            <td>
+                <div class="btn-group" style="gap:4px;">
+                    <button class="btn btn-outline btn-sm" data-action="retest-mailbox" data-id="${m.id}" title="Re-test">Retest</button>
+                    <button class="btn btn-outline btn-sm" data-action="open-outbound-smtp-modal" data-id="${m.id}" data-smtp-host="${esc(m.smtp_out_host || '')}" data-smtp-port="${esc(m.smtp_out_port || '')}" data-smtp-user="${esc(m.smtp_out_user || '')}" title="Configure outbound relay">Relay</button>
+                    ${!m.is_active ? `<button class="btn btn-outline btn-sm" style="color:#e74c3c;" data-action="delete-mailbox" data-id="${m.id}" data-email="${esc(m.email)}" title="Delete">X</button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function openAddMailboxModal() {
+    document.getElementById('mailbox-email').value = '';
+    document.getElementById('mailbox-password').value = '';
+    document.getElementById('mailbox-provider').value = 'gmail';
+    document.getElementById('mailbox-protocol').value = 'imap';
+    document.getElementById('mailbox-test-result').textContent = '';
+    applyMailboxProvider();
+    document.getElementById('add-mailbox-modal').classList.add('open');
+}
+function closeAddMailboxModal() { document.getElementById('add-mailbox-modal').classList.remove('open'); }
+
+function applyMailboxProvider() {
+    const provider = document.getElementById('mailbox-provider').value;
+    const protocol = document.getElementById('mailbox-protocol').value;
+    const showCustom = provider === 'custom';
+    document.getElementById('mailbox-host-group').style.display = showCustom ? '' : 'none';
+    document.getElementById('mailbox-port-group').style.display = showCustom ? '' : 'none';
+    if (showCustom) {
+        document.getElementById('mailbox-port').value = protocol === 'pop3' ? '995' : '993';
+    }
+}
+
+function _mailboxPayload() {
+    const provider = document.getElementById('mailbox-provider').value;
+    const payload = {
+        email: document.getElementById('mailbox-email').value.trim(),
+        provider,
+        password: document.getElementById('mailbox-password').value,
+        protocol: document.getElementById('mailbox-protocol').value,
+    };
+    if (provider === 'custom') {
+        payload.host = document.getElementById('mailbox-host').value.trim();
+        payload.port = parseInt(document.getElementById('mailbox-port').value, 10) || 993;
+    }
+    return payload;
+}
+
+async function testMailbox() {
+    const payload = _mailboxPayload();
+    const resultEl = document.getElementById('mailbox-test-result');
+    resultEl.textContent = 'Testing...';
+    resultEl.style.color = 'var(--text-muted)';
+    const res = await fetch('/api/mailboxes/test', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        resultEl.textContent = 'Connection successful';
+        resultEl.style.color = '#27ae60';
+    } else {
+        resultEl.textContent = 'Failed: ' + (data.error || 'unknown error');
+        resultEl.style.color = '#e74c3c';
+    }
+}
+
+async function saveMailbox() {
+    const payload = _mailboxPayload();
+    if (!payload.email || !payload.password) { alert('Email and password are required'); return; }
+    const res = await fetch('/api/mailboxes', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to add mailbox'); return; }
+    closeAddMailboxModal();
+    loadMailboxes();
+}
+
+async function activateMailbox(mailboxId) {
+    const res = await fetch(`/api/mailboxes/${mailboxId}/activate`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to activate'); return; }
+    loadMailboxes();
+}
+
+async function deactivateMailbox() {
+    if (!confirm('Revert to the .env IMAP_* mailbox? No dashboard mailbox will be active.')) return;
+    const res = await fetch('/api/mailboxes/deactivate', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to deactivate'); return; }
+    loadMailboxes();
+}
+
+async function retestMailbox(mailboxId) {
+    const res = await fetch(`/api/mailboxes/${mailboxId}/retest`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Retest failed'); return; }
+    loadMailboxes();
+}
+
+async function deleteMailbox(mailboxId, email) {
+    if (!confirm(`Remove mailbox "${email}"? Its already-fetched emails stay in the system, just no longer selectable as active from this row.`)) return;
+    const res = await fetch(`/api/mailboxes/${mailboxId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to delete'); return; }
+    loadMailboxes();
+}
+
+registerAction('open-add-mailbox-modal', () => openAddMailboxModal());
+registerAction('close-add-mailbox-modal', () => closeAddMailboxModal());
+registerChangeAction('apply-mailbox-provider', () => applyMailboxProvider());
+registerAction('test-mailbox', () => testMailbox());
+registerAction('save-mailbox', () => saveMailbox());
+registerAction('activate-mailbox', (el) => activateMailbox(parseInt(el.dataset.id)));
+registerAction('deactivate-mailbox', () => deactivateMailbox());
+registerAction('retest-mailbox', (el) => retestMailbox(parseInt(el.dataset.id)));
+registerAction('delete-mailbox', (el) => deleteMailbox(parseInt(el.dataset.id), el.dataset.email));
+
+let _outboundSmtpMailboxId = null;
+
+function openOutboundSmtpModal(mailboxId, currentHost, currentPort, currentUser) {
+    _outboundSmtpMailboxId = mailboxId;
+    document.getElementById('outbound-smtp-host').value = currentHost || '';
+    document.getElementById('outbound-smtp-port').value = currentPort || '465';
+    document.getElementById('outbound-smtp-user').value = currentUser || '';
+    // Password is never returned by the API — always left blank. Leaving it
+    // blank on save means "keep the existing stored password" (see
+    // update_mailbox_outbound_smtp), not "clear it".
+    document.getElementById('outbound-smtp-password').value = '';
+    document.getElementById('outbound-smtp-modal').classList.add('open');
+}
+function closeOutboundSmtpModal() { document.getElementById('outbound-smtp-modal').classList.remove('open'); }
+
+async function saveOutboundSmtp() {
+    const payload = {
+        host: document.getElementById('outbound-smtp-host').value.trim() || null,
+        port: parseInt(document.getElementById('outbound-smtp-port').value, 10) || 465,
+        user: document.getElementById('outbound-smtp-user').value.trim() || null,
+        password: document.getElementById('outbound-smtp-password').value || null,
+    };
+    const res = await fetch(`/api/mailboxes/${_outboundSmtpMailboxId}/outbound-smtp`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to save outbound relay'); return; }
+    closeOutboundSmtpModal();
+    loadMailboxes();
+}
+
+registerAction('open-outbound-smtp-modal', (el) => openOutboundSmtpModal(
+    parseInt(el.dataset.id, 10), el.dataset.smtpHost, el.dataset.smtpPort, el.dataset.smtpUser));
+registerAction('close-outbound-smtp-modal', () => closeOutboundSmtpModal());
+registerAction('save-outbound-smtp', () => saveOutboundSmtp());
+
 // Initial load
 loadUsers();
+loadMailboxes();
 </script>
 {% endblock %}

@@ -95,12 +95,13 @@ class Email(Base):
     sender_domain = Column(String(255), nullable=True)
     subject = Column(Text, nullable=True)
     attachment_count = Column(Integer, default=0)
+    account = Column(String(320), nullable=True, index=True)  # mailbox that fetched this email
     status = Column(
         String(20),
         nullable=False,
         default="recu",
         index=True,
-    )  # pending, recu, accepted, escalated, quarantined, released
+    )  # pending, recu, accepted, escalated, quarantined, released, pending_detonation
     rules_result = Column(JSONB, nullable=True)
     enrichment_result = Column(JSONB, nullable=True)
     llm_result = Column(JSONB, nullable=True)
@@ -114,6 +115,38 @@ class Email(Base):
 
     # Relationships
     audit_entries = relationship("AuditLog", back_populates="email", cascade="all, delete-orphan")
+
+
+class MailboxAccount(Base):
+    """A mailbox the dashboard can poll (replaces hardcoded .env IMAP_* vars).
+
+    Exactly one row has is_active=True at a time — that's the mailbox
+    run_pipeline() and gmail_smtp_bridge.py poll next. Every Email row saved
+    while a mailbox is active is stamped with that mailbox's address in
+    Email.account, so switching which mailbox is active only changes what
+    the dashboard *shows* — no email is ever deleted or moved.
+    """
+
+    __tablename__ = "mailbox_accounts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(320), unique=True, nullable=False, index=True)
+    provider = Column(String(20), nullable=False, default="custom")  # gmail, outlook, custom
+    imap_host = Column(String(255), nullable=False)
+    imap_port = Column(Integer, nullable=False, default=993)
+    password_encrypted = Column(Text, nullable=False)  # vault.encrypt_field output
+    status = Column(String(20), nullable=False, default="untested")  # untested, verified, failed
+    last_test_error = Column(Text, nullable=True)
+    last_tested_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=False, index=True)
+    protocol = Column(String(10), nullable=False, default="imap")  # imap, pop3 — which bridge polls this mailbox
+    smtp_out_host = Column(String(255), nullable=True)   # outbound relay; NULL = not configured, falls back to .env SMTP_*
+    smtp_out_port = Column(Integer, nullable=True)
+    smtp_out_user = Column(String(320), nullable=True)
+    smtp_out_password_encrypted = Column(Text, nullable=True)
+    added_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class Blocklist(Base):
@@ -350,6 +383,7 @@ ALL_PERMISSIONS = {
     "export.csv": True,          # export email data as CSV
     "users.manage": True,        # create/edit/delete users (admin only)
     "detonation.manual": True,   # upload + detonate an arbitrary file in the sandbox
+    "mailboxes.manage": True,    # add/test/activate/delete dashboard-managed mailboxes (admin only)
 }
 
 VIEWER_PERMISSIONS = {
@@ -449,6 +483,61 @@ def _migrate_pending_detonation_manual():
         print(f"[DB] pending_detonation manual migration skipped: {e}")
 
 
+def _migrate_email_account_column():
+    """One-time: add emails.account, backfilling pre-existing rows to the
+    .env mailbox they were actually fetched from (IMAP_USER) — otherwise
+    they'd be untagged and, under the old NULL-fallback filter, would leak
+    into every dashboard mailbox's view forever."""
+    import os
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        if "emails" not in inspector.get_table_names():
+            return
+        existing = {c["name"] for c in inspector.get_columns("emails")}
+        if "account" not in existing:
+            with engine.begin() as conn:
+                conn.execute(sa_text('ALTER TABLE emails ADD COLUMN "account" VARCHAR(320)'))
+                conn.execute(sa_text('CREATE INDEX IF NOT EXISTS ix_emails_account ON emails ("account")'))
+                print("[DB] Added column emails.account")
+                legacy_account = os.getenv("IMAP_USER")
+                if legacy_account:
+                    conn.execute(
+                        sa_text('UPDATE emails SET "account" = :account WHERE "account" IS NULL'),
+                        {"account": legacy_account},
+                    )
+                    print(f"[DB] Backfilled emails.account for pre-existing rows -> {legacy_account}")
+    except Exception as e:
+        print(f"[DB] emails.account migration skipped: {e}")
+
+
+def _migrate_mailbox_protocol_and_outbound_smtp():
+    """One-time: add mailbox_accounts.protocol (default 'imap') and the four
+    nullable outbound-SMTP-relay columns. All additive — existing rows get
+    protocol='imap' (correct, since IMAP was the only option before this) and
+    NULL outbound fields (correct 'not configured' state)."""
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        if "mailbox_accounts" not in inspector.get_table_names():
+            return
+        existing = {c["name"] for c in inspector.get_columns("mailbox_accounts")}
+        with engine.begin() as conn:
+            if "protocol" not in existing:
+                conn.execute(sa_text(
+                    "ALTER TABLE mailbox_accounts ADD COLUMN protocol VARCHAR(10) NOT NULL DEFAULT 'imap'"
+                ))
+                print("[DB] Added column mailbox_accounts.protocol")
+            if "smtp_out_host" not in existing:
+                conn.execute(sa_text('ALTER TABLE mailbox_accounts ADD COLUMN smtp_out_host VARCHAR(255)'))
+                conn.execute(sa_text('ALTER TABLE mailbox_accounts ADD COLUMN smtp_out_port INTEGER'))
+                conn.execute(sa_text('ALTER TABLE mailbox_accounts ADD COLUMN smtp_out_user VARCHAR(320)'))
+                conn.execute(sa_text('ALTER TABLE mailbox_accounts ADD COLUMN smtp_out_password_encrypted TEXT'))
+                print("[DB] Added mailbox_accounts outbound SMTP relay columns")
+    except Exception as e:
+        print(f"[DB] mailbox protocol/outbound-smtp migration skipped: {e}")
+
+
 def _migrate_encrypt_totp_secrets():
     """One-time (SEC-H2): encrypt any plaintext TOTP secrets already in the DB.
 
@@ -508,6 +597,8 @@ def init_db():
     _migrate_users_rbac()
     _migrate_pending_detonation_manual()
     _migrate_encrypt_totp_secrets()
+    _migrate_email_account_column()
+    _migrate_mailbox_protocol_and_outbound_smtp()
 
     # Initialize default admin if no users exist
     try:
@@ -632,6 +723,7 @@ def save_email(db: Session, data: dict) -> Email:
         sender_domain=data.get("sender_domain"),
         subject=data.get("subject"),
         attachment_count=data.get("attachment_count", 0),
+        account=data.get("account"),
         status=data.get("status", "recu"),
         email_date=data.get("email_date"),
         rules_result=data.get("rules_result"),
@@ -920,3 +1012,115 @@ def promote_deferred_detonations(db: Session) -> int:
 
 def get_pending_detonation(db: Session, pending_id: int) -> Optional["PendingDetonation"]:
     return db.query(PendingDetonation).filter(PendingDetonation.id == pending_id).first()
+
+
+def get_recent_detonation_events(db: Session, limit: int = 50) -> list[dict]:
+    """Per-email detonation lifecycle events for dashboard notifications.
+    'running' rows are surfaced as 'detonating'; 'done'/'error' rows (which
+    already have a report, good or bad) as 'report_ready'. 'queued' rows
+    produce no event yet — nothing has started for them."""
+    rows = (
+        db.query(PendingDetonation)
+        .filter(PendingDetonation.status.in_(["running", "done", "error"]),
+                PendingDetonation.email_id.isnot(None))
+        .order_by(PendingDetonation.updated_at.desc())
+        .limit(limit)
+        .all()
+    )
+    events = []
+    for r in rows:
+        event = "detonating" if r.status == "running" else "report_ready"
+        events.append({"id": r.id, "email_id": r.email_id, "filename": r.filename, "event": event})
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Mailbox accounts — dashboard-managed IMAP credentials
+# ---------------------------------------------------------------------------
+
+def add_mailbox_account(db: Session, email: str, provider: str, imap_host: str,
+                        imap_port: int, password_encrypted: str,
+                        added_by: Optional[str] = None, protocol: str = "imap") -> "MailboxAccount":
+    row = MailboxAccount(
+        email=email.strip().lower(),
+        provider=provider,
+        imap_host=imap_host,
+        imap_port=imap_port,
+        password_encrypted=password_encrypted,
+        added_by=added_by,
+        protocol=protocol,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def list_mailbox_accounts(db: Session) -> list["MailboxAccount"]:
+    return db.query(MailboxAccount).order_by(MailboxAccount.created_at.desc()).all()
+
+
+def get_mailbox_account(db: Session, mailbox_id: int) -> Optional["MailboxAccount"]:
+    return db.query(MailboxAccount).filter(MailboxAccount.id == mailbox_id).first()
+
+
+def get_active_mailbox(db: Session) -> Optional["MailboxAccount"]:
+    return db.query(MailboxAccount).filter(MailboxAccount.is_active == True).first()
+
+
+def set_active_mailbox(db: Session, mailbox_id: int) -> "MailboxAccount":
+    target = get_mailbox_account(db, mailbox_id)
+    if not target:
+        raise ValueError(f"Mailbox {mailbox_id} not found")
+    db.query(MailboxAccount).filter(MailboxAccount.is_active == True).update({"is_active": False})
+    target.is_active = True
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+def deactivate_all_mailboxes(db: Session) -> None:
+    """Clear is_active on every mailbox row, restoring the .env fallback
+    (get_active_mailbox_credentials returns None -> pipeline uses IMAP_USER)."""
+    db.query(MailboxAccount).filter(MailboxAccount.is_active == True).update({"is_active": False})
+    db.commit()
+
+
+def delete_mailbox_account(db: Session, mailbox_id: int) -> bool:
+    target = get_mailbox_account(db, mailbox_id)
+    if not target:
+        return False
+    if target.is_active:
+        raise ValueError("Cannot delete the active mailbox — activate a different one first")
+    db.delete(target)
+    db.commit()
+    return True
+
+
+def mark_mailbox_tested(db: Session, mailbox_id: int, ok: bool,
+                        error: Optional[str] = None) -> "MailboxAccount":
+    target = get_mailbox_account(db, mailbox_id)
+    if not target:
+        raise ValueError(f"Mailbox {mailbox_id} not found")
+    target.status = "verified" if ok else "failed"
+    target.last_test_error = None if ok else (error or "unknown error")[:2000]
+    target.last_tested_at = utcnow()
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+def set_mailbox_outbound_smtp(db: Session, mailbox_id: int, host: Optional[str],
+                              port: Optional[int], user: Optional[str],
+                              password_encrypted: Optional[str]) -> "MailboxAccount":
+    """host=None clears the whole outbound relay config back to 'not configured'."""
+    target = get_mailbox_account(db, mailbox_id)
+    if not target:
+        raise ValueError(f"Mailbox {mailbox_id} not found")
+    target.smtp_out_host = host
+    target.smtp_out_port = port if host else None
+    target.smtp_out_user = user if host else None
+    target.smtp_out_password_encrypted = password_encrypted if host else None
+    db.commit()
+    db.refresh(target)
+    return target

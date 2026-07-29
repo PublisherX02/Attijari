@@ -60,6 +60,7 @@ from routers.dashboard import dashboard_router
 from routers.websockets import ws_router
 from routers.emails import emails_router
 from routers.users import users_router
+from routers.mailboxes import mailboxes_router
 from routers.detonation_proxy import detonation_proxy_router, detonation_ws_router
 from tasks.background import data_retention_and_backup_task
 from routers.emails import _run_pipeline_sync
@@ -141,6 +142,7 @@ async def security_and_metrics_middleware(request: Request, call_next):
 _poll_task = None
 _retention_task = None
 _gmail_bridge_task = None
+_pop3_bridge_task = None
 _scan_lock = asyncio.Lock()
 _smtp_controller = None
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
@@ -163,6 +165,20 @@ async def _gmail_bridge_poll():
         except Exception as e:
             print(f"[GMAIL-BRIDGE] Tick error: {e}")
         await asyncio.sleep(GMAIL_BRIDGE_INTERVAL)
+
+POP3_BRIDGE_ENABLED = os.getenv("POP3_BRIDGE_ENABLED", "1") != "0"
+POP3_BRIDGE_INTERVAL = int(os.getenv("POP3_BRIDGE_INTERVAL_SECONDS", "60"))
+
+async def _pop3_bridge_poll():
+    await asyncio.sleep(5)
+    from pop3_smtp_bridge import run_once as _pop3_bridge_run_once
+    while True:
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _pop3_bridge_run_once)
+        except Exception as e:
+            print(f"[POP3-BRIDGE] Tick error: {e}")
+        await asyncio.sleep(POP3_BRIDGE_INTERVAL)
 
 async def _background_poll():
     await asyncio.sleep(5)
@@ -188,7 +204,7 @@ def _update_gauge_metrics():
 
 @app.on_event("startup")
 async def startup():
-    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task
+    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task
     init_db()
     _update_gauge_metrics()
     _poll_task = asyncio.create_task(_background_poll())
@@ -205,15 +221,21 @@ async def startup():
         _gmail_bridge_task = asyncio.create_task(_gmail_bridge_poll())
         print(f"[GMAIL-BRIDGE] Started (every {GMAIL_BRIDGE_INTERVAL}s)")
 
+    if POP3_BRIDGE_ENABLED:
+        _pop3_bridge_task = asyncio.create_task(_pop3_bridge_poll())
+        print(f"[POP3-BRIDGE] Started (every {POP3_BRIDGE_INTERVAL}s)")
+
 @app.on_event("shutdown")
 async def shutdown():
-    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task
+    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task
     if _poll_task:
         _poll_task.cancel()
     if _retention_task:
         _retention_task.cancel()
     if _gmail_bridge_task:
         _gmail_bridge_task.cancel()
+    if _pop3_bridge_task:
+        _pop3_bridge_task.cancel()
     if _smtp_controller:
         _smtp_controller.stop()
         print("[SMTP] Inbound receiver stopped")
@@ -224,6 +246,7 @@ app.include_router(dashboard_router, dependencies=[Depends(verify_auth)])
 app.include_router(ws_router)
 app.include_router(emails_router, dependencies=[Depends(verify_auth)])
 app.include_router(users_router, dependencies=[Depends(verify_auth)])
+app.include_router(mailboxes_router, dependencies=[Depends(verify_auth)])
 app.include_router(detonation_proxy_router, dependencies=[Depends(verify_auth)])
 # No verify_auth here: the WS route does its own token-based auth (_ws_token_ok) —
 # a WebSocket scope has no HTTP Request for verify_auth to depend on.

@@ -406,6 +406,7 @@ tbody td {
 .badge.released { background: var(--color-released-bg); color: var(--color-released); }
 .badge.recu { background: var(--color-recu-bg); color: var(--color-recu); }
 .badge.pending { background: var(--color-pending-bg); color: var(--color-pending); }
+.badge.pending_detonation { background: var(--color-pending-bg); color: var(--color-pending); }
 
 .badge::before {
     content: '';

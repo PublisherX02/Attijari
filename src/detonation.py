@@ -30,6 +30,7 @@ from typing import Any
 import detonation_config as cfg
 import detonation_state as state
 import cape_client
+from analysis import analyze_email_body
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +206,46 @@ def _process_one(row) -> dict[str, Any]:
     return cape_client.detonate(path, fname)
 
 
+def _second_pass_verdict(db, email, result: dict) -> None:
+    """Re-run LLM analysis with the CAPE report folded in. Sets email.status
+    to 'accepted' or 'escalated' ONLY — never 'quarantined'/'released'
+    (CLAUDE.md: all rejections require human confirmation; those two
+    statuses are analyst-only actions on an already-escalated email).
+    A CAPE-confirmed-malicious result always pins the verdict to
+    'escalated', matching the existing rule that deterministic signals
+    can't be overridden by the LLM."""
+    enr = email.enrichment_result or {}
+    body_text = enr.get("body_text") or ""
+    context = {
+        "headers": enr.get("headers") or {},
+        "attachments": enr.get("attachments_meta") or [],
+        "enrichment": {"detonation": result},
+    }
+
+    try:
+        llm_res = analyze_email_body(body_text, context=context)
+        raw_verdict = (llm_res.get("verdict") or "").lower().strip()
+        llm_says_accepted = raw_verdict in ("accepter", "accepted", "accept", "clean", "safe")
+    except Exception as e:
+        print(f"[DETONATION] Second-pass LLM analysis failed: {e} -> ESCALATED (fail-safe)")
+        llm_says_accepted = False
+        llm_res = {"verdict": "escalated", "reasons": [f"second_pass_error: {e}"]}
+
+    cape_malicious = bool(result.get("escalate")) or (
+        result.get("malscore") is not None and result["malscore"] >= cfg.CAPE_MALSCORE_ESCALATE
+    )
+
+    if cape_malicious or not llm_says_accepted:
+        email.status = "escalated"
+        if cape_malicious:
+            llm_res["sandbox_confirmed_malicious"] = True
+    else:
+        email.status = "accepted"
+
+    email.llm_result = llm_res
+    db.commit()
+
+
 def _apply_result_to_email(db, row, result: dict[str, Any]) -> None:
     """Fold the detonation verdict back into the email record + audit log."""
     from database import Email, add_audit_entry
@@ -226,6 +267,15 @@ def _apply_result_to_email(db, row, result: dict[str, Any]) -> None:
     if result.get("escalate") and email.status not in ("quarantined", "released"):
         email.status = "escalated"
     db.commit()
+
+    if email.status == "pending_detonation":
+        try:
+            _second_pass_verdict(db, email, result)
+        except Exception as e:
+            # Fail-safe: never leave an email stuck on pending_detonation.
+            email.status = "escalated"
+            db.commit()
+            print(f"[DETONATION] Second-pass verdict crashed: {e} -> ESCALATED (fail-safe)")
 
     try:
         add_audit_entry(
@@ -285,14 +335,33 @@ def process_detonation_queue() -> dict[str, Any]:
             _escalate_all_queued("cape_unavailable")
             return summary
 
-        db = SessionLocal()
-        try:
-            batch = get_queued_detonations(db, limit=cfg.DETONATION_BATCH_SIZE)
-            for row in batch:
-                if time.time() > cycle_deadline:
-                    print("[DETONATION] Cycle timeout — stopping batch early")
-                    summary["status"] = "cycle_timeout"
-                    break
+        # One item at a time, re-querying the queue before each pick, so a
+        # priority row inserted while something else is detonating (the
+        # analyst's "insist" action, or a fresh always-on enqueue) is picked
+        # up right after the CURRENT item finishes — never interrupting it.
+        # The VM stays resumed across the whole run; only an empty queue that
+        # stays empty for DETONATION_IDLE_TIMEOUT_SECONDS closes the window.
+        last_activity = time.time()
+        while True:
+            if time.time() > cycle_deadline:
+                print("[DETONATION] Cycle timeout — stopping window early")
+                summary["status"] = "cycle_timeout"
+                break
+
+            db = SessionLocal()
+            try:
+                rows = get_queued_detonations(db, limit=1)
+                row = rows[0] if rows else None
+
+                if row is None:
+                    idle_for = time.time() - last_activity
+                    if idle_for > cfg.DETONATION_IDLE_TIMEOUT_SECONDS:
+                        print(f"[DETONATION] Queue empty for {idle_for:.0f}s — closing window")
+                        break
+                    db.close()
+                    time.sleep(cfg.DETONATION_IDLE_POLL_SECONDS)
+                    continue
+
                 row.status = "running"
                 row.attempts = (row.attempts or 0) + 1
                 db.commit()
@@ -314,8 +383,10 @@ def process_detonation_queue() -> dict[str, Any]:
                     summary["escalated"] += 1
                 if result.get("status") == "error":
                     summary["errors"] += 1
-        finally:
-            db.close()
+            finally:
+                db.close()
+
+            last_activity = time.time()
 
         return summary
 

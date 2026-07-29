@@ -336,6 +336,16 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
                 else:
                     ctx_parts.append(f"ABUSEIPDB-CLEAN: ip={ip} score={score}")
 
+        # CAPE sandbox detonation report (added post-detonation, second pass only)
+        det = enr.get("detonation")
+        if isinstance(det, dict) and det.get("cape_task_id") is not None:
+            behaviors = ", ".join(det.get("suspicious_behaviors", [])[:5]) or "none reported"
+            ctx_parts.append(
+                f"SANDBOX-REPORT: cape_task_id={det.get('cape_task_id')} "
+                f"malscore={det.get('malscore')} escalate={det.get('escalate')} "
+                f"suspicious_behaviors=[{behaviors}]"
+            )
+
         # VirusTotal results
         vt_results = enr.get("virustotal")
         if isinstance(vt_results, list):

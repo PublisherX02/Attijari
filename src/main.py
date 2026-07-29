@@ -24,24 +24,24 @@ from whois_check import check_domain_age
 from validators import is_valid_domain, is_valid_sha256, extract_ips_from_text
 
 
-def _maybe_enqueue_detonation(db, parsed: dict, email_id: int, deterministic_escalation: bool) -> None:
-    """Queue detonable attachments for behavioral analysis when warranted.
+def _maybe_enqueue_detonation(db, parsed: dict, email_id: int, deterministic_escalation: bool) -> bool:
+    """Queue every detonable attachment for behavioral analysis.
 
-    Trigger (per design): the file type is detonable AND static analysis was
-    inconclusive AND either the LLM was unsure (low confidence) or extraction
-    found something suspicious it could not conclusively flag. Emails already
-    escalated by deterministic signals are skipped — they're going to a human
-    regardless, so a VM run would just burn memory.
+    Trigger (per 2026-07-28 always-on design): any attachment extraction
+    marked as a detonation_candidate gets queued, unconditionally. Extraction
+    already excludes rules-engine-rejected attachments from being a candidate
+    at all (extraction.py sets detonation_candidate=False when the
+    per-attachment result was escalated) — so "always enqueue candidates"
+    already means "skip evident rejects". Emails deterministically escalated
+    at the email level are skipped entirely: they're going to a human
+    regardless, so a VM run would just burn memory for no new information.
+
+    Returns True if at least one attachment was enqueued for this email.
     """
     from database import enqueue_detonation
 
     if deterministic_escalation:
-        return
-
-    threshold = float(os.getenv("DETONATION_CONFIDENCE_THRESHOLD", "0.85"))
-    llm = parsed.get("llm_analysis") or {}
-    conf = llm.get("confidence")
-    llm_unsure = conf is not None and conf < threshold
+        return False
 
     ext_results = parsed.get("extraction", {}).get("results", [])
     # Map sha256 -> stored_path from the parsed attachments
@@ -51,23 +51,23 @@ def _maybe_enqueue_detonation(db, parsed: dict, email_id: int, deterministic_esc
         if sha and att.get("stored_path"):
             path_by_sha[sha] = att["stored_path"]
 
+    queued_any = False
     for er in ext_results:
         if not er.get("detonation_candidate"):
-            continue
-        static_suspicious = bool(er.get("suspicious"))
-        if not (llm_unsure or static_suspicious):
             continue
         sha = er.get("sha256")
         stored_path = path_by_sha.get(sha)
         if not (sha and stored_path):
             continue
-        reason = "llm_unsure" if llm_unsure else "static_suspicious"
         enqueue_detonation(
             db, sha256=sha, stored_path=stored_path,
             filename=er.get("filename"), email_id=email_id,
-            idempotency_key=parsed.get("idempotency_key"), reason=reason,
+            idempotency_key=parsed.get("idempotency_key"),
+            reason="always_on_auto_detonate",
         )
-        print(f"[DETONATION] Queued {er.get('filename')} for detonation ({reason})")
+        queued_any = True
+        print(f"[DETONATION] Queued {er.get('filename')} for detonation (always-on)")
+    return queued_any
 
 
 def _ollama_reachable(timeout: float = 5.0) -> bool:
@@ -148,11 +148,30 @@ def run_pipeline():
         print(f"[DB] PostgreSQL unavailable ({e}) — using JSON ledger fallback")
         db = None
 
-    ingestion = EmailIngestion(
-        host=os.getenv("IMAP_HOST"),
-        user=os.getenv("IMAP_USER"),
-        password=os.getenv("IMAP_PASSWORD"),
-    )
+    from mailboxes import get_active_mailbox_credentials
+    _active_mailbox = None
+    if db:
+        try:
+            _active_mailbox = get_active_mailbox_credentials(db)
+        except Exception as e:
+            print(f"[MAILBOX] Failed to load active mailbox, falling back to .env: {e}")
+
+    if _active_mailbox:
+        ingestion = EmailIngestion(
+            host=_active_mailbox["host"],
+            user=_active_mailbox["user"],
+            password=_active_mailbox["password"],
+            port=_active_mailbox["port"],
+        )
+        _account_tag = _active_mailbox["user"]
+        print(f"[MAILBOX] Using dashboard-configured mailbox: {_account_tag}")
+    else:
+        ingestion = EmailIngestion(
+            host=os.getenv("IMAP_HOST"),
+            user=os.getenv("IMAP_USER"),
+            password=os.getenv("IMAP_PASSWORD"),
+        )
+        _account_tag = os.getenv("IMAP_USER")
     engine = RuleEngine()
 
     try:
@@ -243,6 +262,7 @@ def run_pipeline():
                         "attachment_count": len(parsed["attachments"]),
                         "status": parsed.get("status", "pending"),
                         "email_date": _email_date,
+                        "account": _account_tag,
                     }
                     pending_record = _save_pending(db, pending_data)
                     print(f"[DB] Email #{pending_record.id} saved as PENDING")
@@ -355,6 +375,7 @@ def run_pipeline():
                                 "llm_result": None,
                                 "llm_reasoning": "Auto-quarantined: sender on analyst-confirmed blocklist",
                                 "parse_errors": parsed.get("parse_errors"),
+                                "account": _account_tag,
                             })
                             print(f"[DB] Auto-quarantined email from {_auto_q_addr}")
                             # Audit trail
@@ -779,6 +800,7 @@ def run_pipeline():
                         "attachment_count": len(parsed["attachments"]),
                         "status": parsed["status"],
                         "email_date": _email_date,
+                        "account": _account_tag,
                         "rules_result": parsed.get("analysis"),
                         "enrichment_result": {
                             "threatfox": parsed.get("analysis", {}).get("threatfox"),
@@ -788,6 +810,9 @@ def run_pipeline():
                             "dnstwist": parsed.get("analysis", {}).get("dnstwist"),
                             "whois": parsed.get("analysis", {}).get("whois"),
                             "auth": parsed.get("auth"),
+                            "body_text": parsed.get("body_text"),
+                            "headers": parsed.get("headers"),
+                            "attachments_meta": parsed.get("attachments"),
                         },
                         "llm_result": parsed.get("llm_analysis"),
                         "llm_reasoning": llm_raw_reasons,
@@ -811,13 +836,17 @@ def run_pipeline():
                         print(f"[ATTACHMENTS] Failed to persist attachment records: {e} "
                               f"(email save unaffected; detail page attachment list will be incomplete for this email)")
 
-                    # --- Detonation trigger (Stage 3.5, DEFERRED) ---
-                    # Queue detonable attachments when static analysis was
-                    # inconclusive AND the LLM was unsure. Deterministically
-                    # escalated emails already go to a human, so we don't spend
-                    # a VM run on them. Processed later in a drained window.
+                    # --- Detonation trigger (always-on) ---
+                    # Every detonable, non-rejected attachment queues here.
+                    # If anything was queued and the email isn't already a
+                    # deterministic reject, hold it at pending_detonation
+                    # instead of a final accepted/escalated — the second LLM
+                    # pass (post-detonation) decides the real final status.
                     try:
-                        _maybe_enqueue_detonation(db, parsed, saved.id, _deterministic_escalation)
+                        queued_any = _maybe_enqueue_detonation(db, parsed, saved.id, _deterministic_escalation)
+                        if queued_any and not _deterministic_escalation:
+                            saved.status = "pending_detonation"
+                            db.commit()
                     except Exception as _de:
                         print(f"[DETONATION] Enqueue skipped: {_de}")
 

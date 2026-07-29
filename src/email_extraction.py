@@ -1,5 +1,6 @@
 import email
 import imaplib
+import poplib
 import hashlib
 import json
 import os
@@ -7,7 +8,7 @@ import ssl
 import time
 from email import policy
 from email.parser import BytesParser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:
@@ -67,19 +68,20 @@ def verify_sender_authentication(raw_email_bytes: bytes) -> bool:
     return True
 
 class EmailIngestion:
-    def __init__(self , host: str , user:str , password: str , folder: str = "INBOX" ):
+    def __init__(self , host: str , user:str , password: str , folder: str = "INBOX" , port: int = 993 ):
         self.host = host
         self.user = user
         self.password = password
         self.folder = folder
+        self.port = port
         self.parser = BytesParser(policy = policy.default) #MIME policy rules
 
     def connect(self):
-        print(f"[CONNECT] Connecting to {self.host}...")
+        print(f"[CONNECT] Connecting to {self.host}:{self.port}...")
         t0 = time.time()
         # Explicit SSL context — enforce certificate verification (CRIT-02)
         ctx = ssl.create_default_context()
-        self.conn = imaplib.IMAP4_SSL(self.host, ssl_context=ctx)
+        self.conn = imaplib.IMAP4_SSL(self.host, port=self.port, ssl_context=ctx)
         _check_elapsed(t0, CONNECT_TIMEOUT, "SSL connection")
         print(f"[CONNECT] SSL OK ({time.time()-t0:.1f}s), logging in as {self.user}...")
         self.conn.login(self.user, self.password)
@@ -391,6 +393,64 @@ class EmailIngestion:
         except Exception as e:
             print(f"[ATTACHMENT] FAILED: {e}")
             return {"error":str(e) , "original_name" : "parse_failed"}
+
+
+class Pop3Ingestion:
+    """Mirrors EmailIngestion's public interface (connect/disconnect/fetch_recent)
+    for mailboxes that only offer POP3, not IMAP.
+
+    Two behavioral differences from EmailIngestion, both safe:
+    - No PEEK equivalent: POP3's RETR has no no-mark-read option. This does
+      NOT threaten repeated-poll safety — that guarantee lives entirely in
+      the SMTP receiver's SHA-256 content dedup (see gmail_smtp_bridge.py),
+      not in the source protocol. Re-relaying an already-seen message via
+      POP3 is still a no-op downstream.
+    - No server-side date search: POP3's LIST only gives sequence numbers,
+      not dates. Filtering by since_days happens client-side after parsing
+      each message's Date header.
+    """
+    def __init__(self, host: str, user: str, password: str, port: int = 995):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.port = port
+        self.parser = BytesParser(policy=policy.default)
+
+    def connect(self):
+        ctx = ssl.create_default_context()
+        self.conn = poplib.POP3_SSL(self.host, port=self.port, context=ctx, timeout=CONNECT_TIMEOUT)
+        self.conn.user(self.user)
+        self.conn.pass_(self.password)
+
+    def disconnect(self):
+        self.conn.quit()
+
+    def fetch_recent(self, since_days: int = 7, limit: int = 50) -> list[bytes]:
+        t0 = time.time()
+        cutoff = datetime.now(timezone.utc) - timedelta(days=since_days)
+        _, listing, _ = self.conn.list()
+        msg_nums = [int(line.decode().split()[0]) for line in listing]
+
+        candidates = []
+        for num in msg_nums:
+            _check_elapsed(t0, FETCH_TIMEOUT, "POP3 fetch batch")
+            _, lines, _ = self.conn.retr(num)
+            raw = b"\r\n".join(lines)
+            if len(raw) > MAX_EMAIL_SIZE:
+                continue
+            msg = self.parser.parsebytes(raw)
+            date_header = msg.get("Date")
+            try:
+                msg_date = email.utils.parsedate_to_datetime(date_header) if date_header else None
+                if msg_date and msg_date.tzinfo is None:
+                    msg_date = msg_date.replace(tzinfo=timezone.utc)
+            except Exception:
+                msg_date = None
+            if msg_date is None or msg_date >= cutoff:
+                candidates.append((msg_date or cutoff, raw))
+
+        candidates.sort(key=lambda pair: pair[0], reverse=True)
+        return [raw for _, raw in candidates[:limit]]
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
