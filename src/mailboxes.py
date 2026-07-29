@@ -20,7 +20,7 @@ from database import (
     delete_mailbox_account,
     mark_mailbox_tested,
 )
-from email_extraction import EmailIngestion
+from email_extraction import EmailIngestion, Pop3Ingestion
 import vault
 
 PROVIDER_PRESETS: dict[str, tuple[str, int]] = {
@@ -29,19 +29,27 @@ PROVIDER_PRESETS: dict[str, tuple[str, int]] = {
 }
 
 
-def resolve_host_port(provider: str, host: Optional[str], port: Optional[int]) -> tuple[str, int]:
-    """Gmail/Outlook use their fixed preset regardless of what's passed in;
-    'custom' requires an explicit host (port defaults to 993 if omitted)."""
+def resolve_host_port(provider: str, host: Optional[str], port: Optional[int],
+                      protocol: str = "imap") -> tuple[str, int]:
+    """Gmail/Outlook use their fixed IMAP preset regardless of what's passed
+    in (these presets are IMAP-only; POP3 mailboxes should use provider
+    'custom'). 'custom' requires an explicit host — port defaults to 993 for
+    IMAP or 995 for POP3 if omitted."""
     if provider in PROVIDER_PRESETS:
         return PROVIDER_PRESETS[provider]
     if not host:
         raise ValueError("host is required for provider 'custom'")
-    return host, port or 993
+    default_port = 993 if protocol == "imap" else 995
+    return host, port or default_port
 
 
-def test_connection(host: str, user: str, password: str, port: int = 993) -> tuple[bool, Optional[str]]:
-    """Attempt a real IMAP login. Returns (ok, error_message)."""
-    ingestion = EmailIngestion(host=host, user=user, password=password, port=port)
+def test_connection(host: str, user: str, password: str, port: int = 993,
+                    protocol: str = "imap") -> tuple[bool, Optional[str]]:
+    """Attempt a real IMAP or POP3 login depending on protocol. Returns (ok, error_message)."""
+    if protocol == "pop3":
+        ingestion = Pop3Ingestion(host=host, user=user, password=password, port=port)
+    else:
+        ingestion = EmailIngestion(host=host, user=user, password=password, port=port)
     try:
         ingestion.connect()
     except Exception as e:
@@ -56,17 +64,17 @@ def test_connection(host: str, user: str, password: str, port: int = 993) -> tup
 
 def add_and_test_mailbox(db: Session, email: str, provider: str, password: str,
                          host: Optional[str] = None, port: Optional[int] = None,
-                         added_by: Optional[str] = None) -> MailboxAccount:
+                         added_by: Optional[str] = None, protocol: str = "imap") -> MailboxAccount:
     """Test the connection FIRST; only persist (with encrypted password) on success."""
-    resolved_host, resolved_port = resolve_host_port(provider, host, port)
-    ok, error = test_connection(resolved_host, email, password, resolved_port)
+    resolved_host, resolved_port = resolve_host_port(provider, host, port, protocol)
+    ok, error = test_connection(resolved_host, email, password, resolved_port, protocol)
     if not ok:
-        raise ValueError(error or "IMAP connection failed")
+        raise ValueError(error or f"{protocol.upper()} connection failed")
 
     row = add_mailbox_account(
         db, email=email, provider=provider, imap_host=resolved_host,
         imap_port=resolved_port, password_encrypted=vault.encrypt_field(password),
-        added_by=added_by,
+        added_by=added_by, protocol=protocol,
     )
     mark_mailbox_tested(db, row.id, ok=True)
     db.refresh(row)
@@ -78,7 +86,7 @@ def retest_mailbox(db: Session, mailbox_id: int) -> MailboxAccount:
     if not row:
         raise ValueError(f"Mailbox {mailbox_id} not found")
     password = vault.decrypt_field(row.password_encrypted)
-    ok, error = test_connection(row.imap_host, row.email, password, row.imap_port)
+    ok, error = test_connection(row.imap_host, row.email, password, row.imap_port, row.protocol)
     return mark_mailbox_tested(db, mailbox_id, ok=ok, error=error)
 
 
