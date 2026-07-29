@@ -122,3 +122,75 @@ def test_send_smtp_report_falls_back_to_env_when_mailbox_none(monkeypatch):
     assert ok is True
     assert captured["host"] == "env-smtp.example.com"
     assert captured["user"] == "env-user@example.com"
+
+
+def test_generate_and_deliver_falls_back_when_outbound_config_fails(monkeypatch):
+    """generate_and_deliver() must fall back to .env SMTP and continue with
+    Slack/Teams delivery even if resolving the mailbox outbound config fails."""
+    fake_report = {
+        "period": "daily",
+        "counts": {"total": 1, "accepted": 1, "escalated": 0, "quarantined": 0, "released": 0, "recu": 0},
+        "period_start": "2026-01-01T00:00:00+00:00",
+        "period_end": "2026-01-02T00:00:00+00:00",
+        "generated_at": "2026-01-02T01:00:00+00:00",
+        "top_threats": [],
+        "details": [],
+    }
+
+    # Mock generate_report to return a known report
+    monkeypatch.setattr(reporting, "generate_report", lambda period: fake_report)
+
+    # Mock store_report to succeed
+    monkeypatch.setattr(reporting, "store_report", lambda report: 1)
+
+    # Mock get_active_mailbox_outbound_smtp to raise an exception
+    monkeypatch.setattr(
+        mailboxes, "get_active_mailbox_outbound_smtp",
+        MagicMock(side_effect=RuntimeError("Database connection failed"))
+    )
+
+    # Set up .env SMTP
+    monkeypatch.setenv("SMTP_HOST", "env-smtp.example.com")
+    monkeypatch.setenv("SMTP_USER", "env-user@example.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "env-pass")
+    monkeypatch.setenv("REPORT_RECIPIENTS", "recipient@example.com")
+
+    smtp_called_with_mailbox = {}
+
+    class FakeSMTPSSL:
+        def __init__(self, host, port):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def login(self, user, password):
+            pass
+        def send_message(self, msg):
+            pass
+
+    def fake_send_smtp_report(report, recipients=None, mailbox=None):
+        smtp_called_with_mailbox["mailbox"] = mailbox
+        return True
+
+    def fake_send_slack_report(report, webhook_url=None):
+        return True
+
+    def fake_send_teams_report(report, webhook_url=None):
+        return True
+
+    monkeypatch.setattr(reporting.smtplib, "SMTP_SSL", FakeSMTPSSL)
+    monkeypatch.setattr(reporting, "send_smtp_report", fake_send_smtp_report)
+    monkeypatch.setattr(reporting, "send_slack_report", fake_send_slack_report)
+    monkeypatch.setattr(reporting, "send_teams_report", fake_send_teams_report)
+
+    # Call generate_and_deliver
+    result = reporting.generate_and_deliver()
+
+    # Verify the exception was caught and SMTP was called with mailbox=None (fallback)
+    assert smtp_called_with_mailbox["mailbox"] is None
+    # Verify delivery happened via all channels
+    assert "dashboard" in result["delivered_via"]
+    assert "smtp" in result["delivered_via"]
+    assert "slack" in result["delivered_via"]
+    assert "teams" in result["delivered_via"]

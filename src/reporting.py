@@ -371,13 +371,17 @@ def generate_and_deliver(period: str = "daily") -> dict:
         print(f"[REPORT] DB store failed: {e}")
 
     # SMTP
-    from database import SessionLocal
-    from mailboxes import get_active_mailbox_outbound_smtp
-    _db = SessionLocal()
     try:
-        _outbound = get_active_mailbox_outbound_smtp(_db)
-    finally:
-        _db.close()
+        from database import SessionLocal
+        from mailboxes import get_active_mailbox_outbound_smtp
+        _db = SessionLocal()
+        try:
+            _outbound = get_active_mailbox_outbound_smtp(_db)
+        finally:
+            _db.close()
+    except Exception as e:
+        print(f"[REPORT] Failed to resolve mailbox outbound SMTP config, falling back to .env: {e}")
+        _outbound = None
     if send_smtp_report(report, mailbox=_outbound):
         delivered.append("smtp")
 
