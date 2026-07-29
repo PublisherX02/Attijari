@@ -105,4 +105,5 @@ def get_active_mailbox_credentials(db: Session) -> Optional[dict]:
         "user": active.email,
         "port": active.imap_port,
         "password": vault.decrypt_field(active.password_encrypted),
+        "protocol": active.protocol,
     }

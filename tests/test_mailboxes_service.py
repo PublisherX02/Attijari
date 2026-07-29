@@ -78,7 +78,7 @@ def test_get_active_mailbox_credentials_decrypts_password(db_session):
     creds = mailboxes.get_active_mailbox_credentials(db_session)
     assert creds == {
         "host": "outlook.office365.com", "user": "creds@outlook.com",
-        "port": 993, "password": "super-secret",
+        "port": 993, "password": "super-secret", "protocol": "imap",
     }
 
 

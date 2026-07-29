@@ -78,6 +78,10 @@ def run_once() -> int:
     finally:
         db.close()
 
+    if active and active.get("protocol") == "pop3":
+        print("[MAIL-BRIDGE] Active mailbox is POP3 — skipping (handled by pop3_smtp_bridge)")
+        return 0
+
     if active:
         host, user, password, port = active["host"], active["user"], active["password"], active["port"]
     else:
