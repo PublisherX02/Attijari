@@ -79,3 +79,30 @@ def test_gpu_overlay_adds_gpu_resources():
     assert patch_docs, "GPU overlay patch must not be empty"
     kustomization = yaml.safe_load((_DEPLOY_K8S / "overlays" / "gpu" / "kustomization.yaml").read_text(encoding="utf-8"))
     assert kustomization["resources"] == ["../../"]
+
+
+def test_sandbox_rbac_scoped_to_namespace_only():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "sandbox-rbac.yaml").read_text(encoding="utf-8")))
+    kinds = {doc["kind"] for doc in docs}
+    assert kinds == {"ServiceAccount", "Role", "RoleBinding"}, \
+        "must use namespaced Role/RoleBinding, never ClusterRole/ClusterRoleBinding"
+    role = next(d for d in docs if d["kind"] == "Role")
+    resources_touched = {r for rule in role["rules"] for r in rule["resources"]}
+    assert resources_touched <= {"jobs", "pods", "pods/log"}, \
+        f"sandbox RBAC must be scoped to jobs/pods/pods-log only, found: {resources_touched}"
+
+
+def test_sandbox_networkpolicy_denies_all_traffic():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "sandbox-networkpolicy.yaml").read_text(encoding="utf-8")))
+    netpol = next(d for d in docs if d["kind"] == "NetworkPolicy")
+    assert netpol["spec"]["podSelector"]["matchLabels"] == {"app": "attijari-sandbox"}
+    assert set(netpol["spec"]["policyTypes"]) == {"Ingress", "Egress"}
+    assert netpol["spec"].get("ingress", []) == []
+    assert netpol["spec"].get("egress", []) == []
+
+
+def test_sandbox_workdir_pvc_is_rwx():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "sandbox-workdir-pvc.yaml").read_text(encoding="utf-8")))
+    pvc = next(d for d in docs if d["kind"] == "PersistentVolumeClaim")
+    assert pvc["metadata"]["name"] == "sandbox-workdir"
+    assert "ReadWriteMany" in pvc["spec"]["accessModes"]
