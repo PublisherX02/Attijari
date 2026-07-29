@@ -62,3 +62,20 @@ def test_redis_statefulset_has_headless_service_and_pvc():
     assert "Service" in kinds
     svc = next(d for d in docs if d["kind"] == "Service")
     assert svc["spec"]["clusterIP"] == "None"
+
+
+def test_ollama_deployment_has_no_gpu_by_default():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "ollama-deployment.yaml").read_text(encoding="utf-8")))
+    deploy = next(d for d in docs if d["kind"] == "Deployment")
+    container = deploy["spec"]["template"]["spec"]["containers"][0]
+    resources = container.get("resources", {})
+    limits = resources.get("limits", {})
+    assert "nvidia.com/gpu" not in limits, "base manifest must be GPU-free; GPU is opt-in via the overlay"
+    assert "nodeSelector" not in deploy["spec"]["template"]["spec"]
+
+
+def test_gpu_overlay_adds_gpu_resources():
+    patch_docs = list(yaml.safe_load_all((_DEPLOY_K8S / "overlays" / "gpu" / "ollama-gpu-patch.yaml").read_text(encoding="utf-8")))
+    assert patch_docs, "GPU overlay patch must not be empty"
+    kustomization = yaml.safe_load((_DEPLOY_K8S / "overlays" / "gpu" / "kustomization.yaml").read_text(encoding="utf-8"))
+    assert kustomization["resources"] == ["../../"]
