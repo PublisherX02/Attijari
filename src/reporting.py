@@ -121,12 +121,20 @@ def store_report(report: dict) -> int:
 # SMTP delivery
 # ---------------------------------------------------------------------------
 
-def send_smtp_report(report: dict, recipients: Optional[list[str]] = None) -> bool:
-    """Send the report as an HTML email via SMTP."""
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "465"))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_pass = os.getenv("SMTP_PASSWORD")
+def send_smtp_report(report: dict, recipients: Optional[list[str]] = None, mailbox: Optional[dict] = None) -> bool:
+    """Send the report as an HTML email via SMTP. `mailbox`, if given, is
+    {host, port, user, password} for a dashboard-configured mailbox's own
+    outbound relay — overrides the .env SMTP_* fallback."""
+    if mailbox:
+        smtp_host = mailbox["host"]
+        smtp_port = mailbox["port"]
+        smtp_user = mailbox["user"]
+        smtp_pass = mailbox["password"]
+    else:
+        smtp_host = os.getenv("SMTP_HOST")
+        smtp_port = int(os.getenv("SMTP_PORT", "465"))
+        smtp_user = os.getenv("SMTP_USER")
+        smtp_pass = os.getenv("SMTP_PASSWORD")
 
     if not all([smtp_host, smtp_user, smtp_pass]):
         print("[REPORT] SMTP not configured — skipping email delivery.")
@@ -363,7 +371,14 @@ def generate_and_deliver(period: str = "daily") -> dict:
         print(f"[REPORT] DB store failed: {e}")
 
     # SMTP
-    if send_smtp_report(report):
+    from database import SessionLocal
+    from mailboxes import get_active_mailbox_outbound_smtp
+    _db = SessionLocal()
+    try:
+        _outbound = get_active_mailbox_outbound_smtp(_db)
+    finally:
+        _db.close()
+    if send_smtp_report(report, mailbox=_outbound):
         delivered.append("smtp")
 
     # Slack

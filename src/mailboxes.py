@@ -107,3 +107,27 @@ def get_active_mailbox_credentials(db: Session) -> Optional[dict]:
         "password": vault.decrypt_field(active.password_encrypted),
         "protocol": active.protocol,
     }
+
+
+def get_active_mailbox_outbound_smtp(db: Session) -> Optional[dict]:
+    """Outbound relay creds for the active mailbox, or None if unconfigured
+    (caller falls back to .env SMTP_*)."""
+    active = get_active_mailbox(db)
+    if not active or not active.smtp_out_host:
+        return None
+    return {
+        "host": active.smtp_out_host,
+        "port": active.smtp_out_port,
+        "user": active.smtp_out_user,
+        "password": vault.decrypt_field(active.smtp_out_password_encrypted),
+    }
+
+
+def update_mailbox_outbound_smtp(db: Session, mailbox_id: int, host: Optional[str],
+                                 port: Optional[int], user: Optional[str],
+                                 password: Optional[str]) -> MailboxAccount:
+    """host=None or empty clears the outbound relay config entirely."""
+    from database import set_mailbox_outbound_smtp
+    host = host or None
+    encrypted = vault.encrypt_field(password) if (host and password) else None
+    return set_mailbox_outbound_smtp(db, mailbox_id, host=host, port=port, user=user, password_encrypted=encrypted)
