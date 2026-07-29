@@ -31,29 +31,12 @@ load_dotenv()
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from database import init_db
 from metrics import api_requests_total, api_request_duration_seconds
-from api_core import verify_auth, NotAuthenticatedException
-
-
-def _get_real_client_ip(request: Request) -> str:
-    """Extract client IP ignoring X-Forwarded-For unless from trusted proxy."""
-    trusted_proxies = os.getenv("TRUSTED_PROXIES", "127.0.0.1").split(",")
-    trusted_proxies = {p.strip() for p in trusted_proxies if p.strip()}
-    client_ip = request.client.host if request.client else "unknown"
-    if client_ip in trusted_proxies:
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-    return client_ip
-
-
-# Rate limiter — keyed by real client IP (not spoofable X-Forwarded-For)
-limiter = Limiter(key_func=_get_real_client_ip, default_limits=["200/minute"])
+from api_core import verify_auth, NotAuthenticatedException, limiter
 
 from routers.auth import auth_router
 from routers.dashboard import dashboard_router

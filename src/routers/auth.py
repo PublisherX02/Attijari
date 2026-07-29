@@ -6,11 +6,9 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Cookie, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from typing import Optional
 
-from api_core import templates, get_db_generator, JWT_SECRET, ALGORITHM, revoke_token
+from api_core import templates, get_db_generator, JWT_SECRET, ALGORITHM, revoke_token, limiter as _limiter
 
 # In-memory TOTP replay prevention (codes expire after 60s)
 _used_totp_codes: dict[str, bool] = {}
@@ -34,20 +32,6 @@ def _mfa_required() -> bool:
     username/password. Defaults to required (fail-safe) if unset."""
     return os.getenv("REQUIRE_MFA", "true").strip().lower() not in ("false", "0", "no")
 
-
-def _get_real_client_ip(request: Request) -> str:
-    """Extract client IP ignoring X-Forwarded-For unless from trusted proxy."""
-    trusted_proxies = os.getenv("TRUSTED_PROXIES", "127.0.0.1").split(",")
-    trusted_proxies = {p.strip() for p in trusted_proxies if p.strip()}
-    client_ip = request.client.host if request.client else "unknown"
-    if client_ip in trusted_proxies:
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-    return client_ip
-
-
-_limiter = Limiter(key_func=_get_real_client_ip)
 
 @auth_router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):

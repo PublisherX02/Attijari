@@ -3,37 +3,21 @@
 All endpoints require the mailboxes.manage permission (admin by default,
 see database.ALL_PERMISSIONS). Passwords are never returned in any response.
 """
-import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import Optional
-from slowapi import Limiter
 
-from api_core import require_permission, AuthenticatedUser
+from api_core import require_permission, AuthenticatedUser, limiter as _limiter
 from database import SessionLocal, add_audit_entry
 import mailboxes
 
 mailboxes_router = APIRouter()
 _admin_dep = require_permission("mailboxes.manage")
 
-
-def _get_real_client_ip(request: Request) -> str:
-    """Extract client IP ignoring X-Forwarded-For unless from trusted proxy.
-    Mirrors routers/auth.py's helper of the same name."""
-    trusted_proxies = os.getenv("TRUSTED_PROXIES", "127.0.0.1").split(",")
-    trusted_proxies = {p.strip() for p in trusted_proxies if p.strip()}
-    client_ip = request.client.host if request.client else "unknown"
-    if client_ip in trusted_proxies:
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-    return client_ip
-
-
-# These three endpoints open a real outbound IMAP/POP3/SSL connection to an
-# admin-supplied host:port — rate-limited so a hijacked admin session can't
-# use them to port-scan/timing-probe internal hosts or exhaust connections.
-_limiter = Limiter(key_func=_get_real_client_ip)
+# The three test/add/retest endpoints below open a real outbound IMAP/POP3/SSL
+# connection to an admin-supplied host:port — rate-limited (via the shared
+# _limiter imported above) so a hijacked admin session can't use them to
+# port-scan/timing-probe internal hosts or exhaust connections.
 
 
 class TestMailboxRequest(BaseModel):
