@@ -28,6 +28,8 @@ sys.path.insert(0, str(_SRC_DIR))
 
 load_dotenv()
 
+from redis_async_lock import RedisAsyncLock
+
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -126,7 +128,7 @@ _poll_task = None
 _retention_task = None
 _gmail_bridge_task = None
 _pop3_bridge_task = None
-_scan_lock = asyncio.Lock()
+_scan_lock = RedisAsyncLock("pipeline_scan", timeout=600)
 _smtp_controller = None
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
 
