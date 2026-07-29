@@ -60,6 +60,7 @@ from routers.dashboard import dashboard_router
 from routers.websockets import ws_router
 from routers.emails import emails_router
 from routers.users import users_router
+from routers.mailboxes import mailboxes_router
 from routers.detonation_proxy import detonation_proxy_router, detonation_ws_router
 from tasks.background import data_retention_and_backup_task
 from routers.emails import _run_pipeline_sync
@@ -224,6 +225,7 @@ app.include_router(dashboard_router, dependencies=[Depends(verify_auth)])
 app.include_router(ws_router)
 app.include_router(emails_router, dependencies=[Depends(verify_auth)])
 app.include_router(users_router, dependencies=[Depends(verify_auth)])
+app.include_router(mailboxes_router, dependencies=[Depends(verify_auth)])
 app.include_router(detonation_proxy_router, dependencies=[Depends(verify_auth)])
 # No verify_auth here: the WS route does its own token-based auth (_ws_token_ok) —
 # a WebSocket scope has no HTTP Request for verify_auth to depend on.
