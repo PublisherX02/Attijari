@@ -31,7 +31,7 @@ filelock==3.29.4
 
 # Email parsing & auth
 dkimpy==1.1.8
-checkdmarc==5.17.1
+checkdmarc==5.17.4
 dnspython==2.6.1
 
 # Inbound SMTP server (replaces IMAP polling)
@@ -65,5 +65,11 @@ google-auth-oauthlib==1.4.0
 ollama
 
 # Semantic prompt guard (Llama Guard 3)
+# torch is pinned to the CUDA 12.1 build (matches this machine's RTX 4060 —
+# cu121 fully supports its Ada Lovelace architecture) so Llama Guard inference
+# actually runs on GPU. The plain PyPI index only hosts CPU-only Windows
+# wheels for torch; --extra-index-url pulls the +cu121 build without
+# replacing the default index for every other package in this file.
+--extra-index-url https://download.pytorch.org/whl/cu121
 transformers==5.12.1
-torch==2.5.1
+torch==2.5.1+cu121
