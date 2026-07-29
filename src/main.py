@@ -148,11 +148,30 @@ def run_pipeline():
         print(f"[DB] PostgreSQL unavailable ({e}) — using JSON ledger fallback")
         db = None
 
-    ingestion = EmailIngestion(
-        host=os.getenv("IMAP_HOST"),
-        user=os.getenv("IMAP_USER"),
-        password=os.getenv("IMAP_PASSWORD"),
-    )
+    from mailboxes import get_active_mailbox_credentials
+    _active_mailbox = None
+    if db:
+        try:
+            _active_mailbox = get_active_mailbox_credentials(db)
+        except Exception as e:
+            print(f"[MAILBOX] Failed to load active mailbox, falling back to .env: {e}")
+
+    if _active_mailbox:
+        ingestion = EmailIngestion(
+            host=_active_mailbox["host"],
+            user=_active_mailbox["user"],
+            password=_active_mailbox["password"],
+            port=_active_mailbox["port"],
+        )
+        _account_tag = _active_mailbox["user"]
+        print(f"[MAILBOX] Using dashboard-configured mailbox: {_account_tag}")
+    else:
+        ingestion = EmailIngestion(
+            host=os.getenv("IMAP_HOST"),
+            user=os.getenv("IMAP_USER"),
+            password=os.getenv("IMAP_PASSWORD"),
+        )
+        _account_tag = os.getenv("IMAP_USER")
     engine = RuleEngine()
 
     try:
@@ -243,6 +262,7 @@ def run_pipeline():
                         "attachment_count": len(parsed["attachments"]),
                         "status": parsed.get("status", "pending"),
                         "email_date": _email_date,
+                        "account": _account_tag,
                     }
                     pending_record = _save_pending(db, pending_data)
                     print(f"[DB] Email #{pending_record.id} saved as PENDING")
@@ -355,6 +375,7 @@ def run_pipeline():
                                 "llm_result": None,
                                 "llm_reasoning": "Auto-quarantined: sender on analyst-confirmed blocklist",
                                 "parse_errors": parsed.get("parse_errors"),
+                                "account": _account_tag,
                             })
                             print(f"[DB] Auto-quarantined email from {_auto_q_addr}")
                             # Audit trail
@@ -779,6 +800,7 @@ def run_pipeline():
                         "attachment_count": len(parsed["attachments"]),
                         "status": parsed["status"],
                         "email_date": _email_date,
+                        "account": _account_tag,
                         "rules_result": parsed.get("analysis"),
                         "enrichment_result": {
                             "threatfox": parsed.get("analysis", {}).get("threatfox"),

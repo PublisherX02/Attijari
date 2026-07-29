@@ -679,6 +679,7 @@ def save_email(db: Session, data: dict) -> Email:
         sender_domain=data.get("sender_domain"),
         subject=data.get("subject"),
         attachment_count=data.get("attachment_count", 0),
+        account=data.get("account"),
         status=data.get("status", "recu"),
         email_date=data.get("email_date"),
         rules_result=data.get("rules_result"),
