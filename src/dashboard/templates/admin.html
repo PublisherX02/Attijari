@@ -27,6 +27,67 @@
     </table>
 </div>
 
+<!-- Mailboxes -->
+<div class="page-header" style="margin-top:32px;">
+    <h2>Mailboxes</h2>
+    <button class="btn btn-primary" data-action="open-add-mailbox-modal">+ Add email</button>
+</div>
+
+<div class="card" style="margin-top:20px;">
+    <table class="data-table" id="mailboxes-table">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Provider</th>
+                <th>Status</th>
+                <th>Active</th>
+                <th>Added by</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="mailboxes-body">
+            <tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Mailbox Modal -->
+<div class="modal-overlay" id="add-mailbox-modal" data-action="backdrop-close" data-close="closeAddMailboxModal">
+    <div class="modal" style="max-width:480px;">
+        <h3>Add email</h3>
+        <div class="form-group">
+            <label class="form-label">Email address</label>
+            <input class="form-input" id="mailbox-email" type="email" placeholder="person@gmail.com" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Provider</label>
+            <select class="form-select" id="mailbox-provider" data-change-action="apply-mailbox-provider">
+                <option value="gmail">Gmail</option>
+                <option value="outlook">Outlook</option>
+                <option value="custom">Custom IMAP</option>
+            </select>
+        </div>
+        <div class="form-group" id="mailbox-host-group" style="display:none;">
+            <label class="form-label">IMAP host</label>
+            <input class="form-input" id="mailbox-host" type="text" placeholder="mail.example.com">
+        </div>
+        <div class="form-group" id="mailbox-port-group" style="display:none;">
+            <label class="form-label">IMAP port</label>
+            <input class="form-input" id="mailbox-port" type="number" value="993">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Password (app password)</label>
+            <input class="form-input" id="mailbox-password" type="password" required>
+        </div>
+        <div id="mailbox-test-result" style="margin:8px 0;font-size:0.85rem;"></div>
+        <div class="btn-group" style="justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-outline" data-action="close-add-mailbox-modal">Cancel</button>
+            <button class="btn btn-outline" data-action="test-mailbox">Test connection</button>
+            <button class="btn btn-primary" data-action="save-mailbox">Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- Create User Modal -->
 <div class="modal-overlay" id="create-modal" data-action="backdrop-close" data-close="closeCreateModal">
     <div class="modal" style="max-width:520px;">
@@ -390,7 +451,136 @@ registerAction('reset-password', (el) => resetPassword(parseInt(el.dataset.id), 
 registerAction('reset-totp', (el) => resetTotp(parseInt(el.dataset.id), el.dataset.username));
 registerAction('deactivate-user', (el) => deactivateUser(parseInt(el.dataset.id), el.dataset.username));
 
+// ----- Mailboxes -----
+async function loadMailboxes() {
+    const res = await fetch('/api/mailboxes');
+    if (res.status === 403) { document.getElementById('mailboxes-body').innerHTML =
+        '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No access</td></tr>'; return; }
+    const data = await res.json();
+    const tbody = document.getElementById('mailboxes-body');
+    if (!data.mailboxes || data.mailboxes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No mailboxes added yet — using .env fallback</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.mailboxes.map(m => {
+        const statusBadge = m.status === 'verified'
+            ? '<span class="status-badge status-accepted">Verified</span>'
+            : m.status === 'failed'
+            ? `<span class="status-badge status-quarantined" title="${esc(m.last_test_error || '')}">Failed</span>`
+            : '<span class="status-badge" style="background:rgba(149,165,166,0.15);color:#7f8c8d;">Untested</span>';
+        const activeBadge = m.is_active
+            ? '<span class="status-badge status-accepted">Active</span>'
+            : `<button class="btn btn-outline btn-sm" data-action="activate-mailbox" data-id="${m.id}">Select</button>`;
+        return `<tr>
+            <td><strong>${esc(m.email)}</strong></td>
+            <td>${esc(m.provider)}</td>
+            <td>${statusBadge}</td>
+            <td>${activeBadge}</td>
+            <td>${esc(m.added_by || '-')}</td>
+            <td>
+                <div class="btn-group" style="gap:4px;">
+                    <button class="btn btn-outline btn-sm" data-action="retest-mailbox" data-id="${m.id}" title="Re-test">Retest</button>
+                    ${!m.is_active ? `<button class="btn btn-outline btn-sm" style="color:#e74c3c;" data-action="delete-mailbox" data-id="${m.id}" data-email="${esc(m.email)}" title="Delete">X</button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function openAddMailboxModal() {
+    document.getElementById('mailbox-email').value = '';
+    document.getElementById('mailbox-password').value = '';
+    document.getElementById('mailbox-provider').value = 'gmail';
+    document.getElementById('mailbox-test-result').textContent = '';
+    applyMailboxProvider();
+    document.getElementById('add-mailbox-modal').classList.add('open');
+}
+function closeAddMailboxModal() { document.getElementById('add-mailbox-modal').classList.remove('open'); }
+
+function applyMailboxProvider() {
+    const provider = document.getElementById('mailbox-provider').value;
+    const showCustom = provider === 'custom';
+    document.getElementById('mailbox-host-group').style.display = showCustom ? '' : 'none';
+    document.getElementById('mailbox-port-group').style.display = showCustom ? '' : 'none';
+}
+
+function _mailboxPayload() {
+    const provider = document.getElementById('mailbox-provider').value;
+    const payload = {
+        email: document.getElementById('mailbox-email').value.trim(),
+        provider,
+        password: document.getElementById('mailbox-password').value,
+    };
+    if (provider === 'custom') {
+        payload.host = document.getElementById('mailbox-host').value.trim();
+        payload.port = parseInt(document.getElementById('mailbox-port').value, 10) || 993;
+    }
+    return payload;
+}
+
+async function testMailbox() {
+    const payload = _mailboxPayload();
+    const resultEl = document.getElementById('mailbox-test-result');
+    resultEl.textContent = 'Testing...';
+    resultEl.style.color = 'var(--text-muted)';
+    const res = await fetch('/api/mailboxes/test', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        resultEl.textContent = 'Connection successful';
+        resultEl.style.color = '#27ae60';
+    } else {
+        resultEl.textContent = 'Failed: ' + (data.error || 'unknown error');
+        resultEl.style.color = '#e74c3c';
+    }
+}
+
+async function saveMailbox() {
+    const payload = _mailboxPayload();
+    if (!payload.email || !payload.password) { alert('Email and password are required'); return; }
+    const res = await fetch('/api/mailboxes', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to add mailbox'); return; }
+    closeAddMailboxModal();
+    loadMailboxes();
+}
+
+async function activateMailbox(mailboxId) {
+    const res = await fetch(`/api/mailboxes/${mailboxId}/activate`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to activate'); return; }
+    loadMailboxes();
+}
+
+async function retestMailbox(mailboxId) {
+    const res = await fetch(`/api/mailboxes/${mailboxId}/retest`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Retest failed'); return; }
+    loadMailboxes();
+}
+
+async function deleteMailbox(mailboxId, email) {
+    if (!confirm(`Remove mailbox "${email}"? Its already-fetched emails stay in the system, just no longer selectable as active from this row.`)) return;
+    const res = await fetch(`/api/mailboxes/${mailboxId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Failed to delete'); return; }
+    loadMailboxes();
+}
+
+registerAction('open-add-mailbox-modal', () => openAddMailboxModal());
+registerAction('close-add-mailbox-modal', () => closeAddMailboxModal());
+registerChangeAction('apply-mailbox-provider', () => applyMailboxProvider());
+registerAction('test-mailbox', () => testMailbox());
+registerAction('save-mailbox', () => saveMailbox());
+registerAction('activate-mailbox', (el) => activateMailbox(parseInt(el.dataset.id)));
+registerAction('retest-mailbox', (el) => retestMailbox(parseInt(el.dataset.id)));
+registerAction('delete-mailbox', (el) => deleteMailbox(parseInt(el.dataset.id), el.dataset.email));
+
 // Initial load
 loadUsers();
+loadMailboxes();
 </script>
 {% endblock %}
