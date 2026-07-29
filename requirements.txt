@@ -33,6 +33,11 @@ filelock==3.29.4
 # window lock, pipeline scan lock. Memurai for local dev, real Redis in prod.
 redis==8.0.1
 
+# Kubernetes API client — extraction sandbox as a managed pool of Jobs on
+# the on-prem deployment target (SANDBOX_BACKEND=kubernetes). Unused on
+# local dev, where SANDBOX_BACKEND defaults to "docker".
+kubernetes==36.0.3
+
 # Email parsing & auth
 dkimpy==1.1.8
 checkdmarc==5.17.4

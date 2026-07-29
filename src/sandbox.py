@@ -30,6 +30,12 @@ YARA_RULES_DIR = _PROJECT_ROOT / "data" / "yara_rules"
 # Docker image name prefix
 IMAGE_PREFIX = "attijari-extract"
 
+# Which sandbox implementation run_tool() dispatches to: "docker" (default,
+# local dev — shells out to the docker CLI, unchanged from before ARCH-1's
+# sibling Kubernetes-orchestration initiative) or "kubernetes" (on-prem
+# deploy target — runs the tool as a real Kubernetes Job via sandbox_k8s.py).
+SANDBOX_BACKEND = os.getenv("SANDBOX_BACKEND", "docker")
+
 # Security constraints for all containers
 CONTAINER_LIMITS = {
     "cpus": "0.5",
@@ -78,6 +84,18 @@ def _image_exists(image: str) -> bool:
 def run_tool(tool_name: str, input_path: str,
              env: dict[str, str] | None = None,
              timeout: int | None = None) -> dict[str, Any]:
+    """Dispatches to the Docker-CLI backend (default, local dev) or the
+    Kubernetes-Jobs backend (SANDBOX_BACKEND=kubernetes, on-prem deploy).
+    Same return contract either way."""
+    if SANDBOX_BACKEND == "kubernetes":
+        from sandbox_k8s import run_tool_k8s
+        return run_tool_k8s(tool_name, input_path, env, timeout)
+    return _run_tool_docker(tool_name, input_path, env, timeout)
+
+
+def _run_tool_docker(tool_name: str, input_path: str,
+                     env: dict[str, str] | None = None,
+                     timeout: int | None = None) -> dict[str, Any]:
     """Run an extraction tool inside a sandboxed Docker container.
 
     Args:
