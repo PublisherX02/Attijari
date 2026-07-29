@@ -141,7 +141,7 @@ class MailboxAccount(Base):
     is_active = Column(Boolean, nullable=False, default=False, index=True)
     protocol = Column(String(10), nullable=False, default="imap")  # imap, pop3 — which bridge polls this mailbox
     smtp_out_host = Column(String(255), nullable=True)   # outbound relay; NULL = not configured, falls back to .env SMTP_*
-    smtp_out_port = Column(Integer, nullable=True, default=465)
+    smtp_out_port = Column(Integer, nullable=True)
     smtp_out_user = Column(String(320), nullable=True)
     smtp_out_password_encrypted = Column(Text, nullable=True)
     added_by = Column(String(255), nullable=True)

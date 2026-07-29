@@ -54,6 +54,7 @@ def test_protocol_can_be_pop3(db_session):
 def test_outbound_smtp_defaults_to_none(db_session):
     row = _add(db_session, "outbound-default@example.com")
     assert row.smtp_out_host is None
+    assert row.smtp_out_port is None
     assert row.smtp_out_password_encrypted is None
 
 
