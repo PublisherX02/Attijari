@@ -50,13 +50,16 @@ if not audit_logger.handlers:
     handler.setFormatter(logging.Formatter('{"ts": "%(asctime)s", "event": %(message)s}'))
     audit_logger.addHandler(handler)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
+from secrets_client import get_database_url
+
+try:
+    DATABASE_URL = get_database_url()
+except RuntimeError as exc:
     raise RuntimeError(
-        "DATABASE_URL is not set. "
+        "Could not read DATABASE_URL from Vault. "
         "The application refuses to start without a database connection string. "
-        "Set it in your .env file (e.g. DATABASE_URL=postgresql://user:pass@host:5432/dbname)."
-    )
+        f"Underlying error: {exc}"
+    ) from exc
 
 # ---------------------------------------------------------------------------
 # Engine & session factory
