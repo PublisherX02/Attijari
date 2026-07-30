@@ -27,7 +27,7 @@ prometheus-client==0.26.0
 APScheduler==3.11.0
 
 # Utilities
-filelock==3.29.4
+filelock==3.32.2
 
 # Shared state store (ARCH-1) — rate limits, TOTP replay cache, detonation
 # window lock, pipeline scan lock. Memurai for local dev, real Redis in prod.
