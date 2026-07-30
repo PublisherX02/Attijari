@@ -2,6 +2,7 @@ from typing import Optional
 import asyncio
 import csv
 import io
+import json
 import time
 from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -810,6 +811,72 @@ async def api_list_reports(limit: int = Query(20, ge=1, le=100), user: Authentic
         }
     finally:
         db.close()
+
+
+@emails_router.get("/api/reports/{report_id}/download")
+async def api_download_report(report_id: int, user: AuthenticatedUser = Depends(require_permission("reports.view"))):
+    """Download a single generated report as a JSON file."""
+    db = SessionLocal()
+    try:
+        report = db.query(Report).filter(Report.id == report_id).first()
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+
+        payload = {
+            "report_type": report.report_type,
+            "period_start": report.period_start.isoformat() if report.period_start else None,
+            "period_end": report.period_end.isoformat() if report.period_end else None,
+            "delivered_via": report.delivered_via,
+            "created_at": report.created_at.isoformat() if report.created_at else None,
+            "data": report.data,
+        }
+        body = json.dumps(payload, indent=2, default=str)
+        period_tag = report.period_start.strftime("%Y%m%d") if report.period_start else str(report.id)
+        filename = f"attijari-report-{report.report_type}-{period_tag}.json"
+        return Response(
+            content=body,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    finally:
+        db.close()
+
+
+@emails_router.post("/api/reports/{report_id}/send")
+async def api_send_report(report_id: int, user: AuthenticatedUser = Depends(require_permission("reports.view"))):
+    """Send a previously generated report through a delivery channel.
+
+    Stub: delivery-channel configuration (which SMTP/Slack/Teams target to
+    resend to) is deferred to a later pass — see CLAUDE.md. Returns 501 with
+    a clear message rather than silently pretending to send something."""
+    db = SessionLocal()
+    try:
+        report = db.query(Report).filter(Report.id == report_id).first()
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+    finally:
+        db.close()
+    raise HTTPException(
+        status_code=501,
+        detail="Sending a report on demand isn't configured yet — coming in a later update.",
+    )
+
+
+@emails_router.post("/api/reports/generate")
+async def api_generate_report(
+    period: str = Query("daily", pattern="^(hourly|daily|weekly)$"),
+    user: AuthenticatedUser = Depends(require_permission("reports.view")),
+):
+    """Generate a report on demand and deliver it via every configured channel
+    (dashboard DB, SMTP, Slack, Teams) — the same generate_and_deliver() the
+    scheduler calls automatically, just triggered immediately from the
+    dashboard's "Generate Report Now" button instead of waiting for the next
+    scheduled run."""
+    from reporting import generate_and_deliver
+
+    loop = asyncio.get_running_loop()
+    report = await loop.run_in_executor(None, generate_and_deliver, period)
+    return {"delivered_via": report.get("delivered_via", []), "period": period}
 
 
 @emails_router.get("/api/health")

@@ -883,63 +883,178 @@ function seeInVm(pendingId, emailId) {
     });
 }
 
+/* =========================================================================
+   Notification center
+   ---------------------------------------------------------------------
+   Every page load runs fresh JS (this is a server-rendered dashboard, not
+   an SPA), so "have I already popped this?" can't live in a plain JS
+   variable — it gets wiped on every click that navigates. Both persisted
+   sets below live in localStorage instead, so a detonation event from
+   days ago pops its banner/desktop-notification/sound treatment exactly
+   ONCE ever on this browser, no matter how many pages get visited after
+   that. The Notification Center list is a separate, capped log so old
+   entries stay browsable without re-alerting.
+   ========================================================================= */
+const NOTIF_POPPED_KEY = 'attijari_notif_popped_v1';
+const NOTIF_LOG_KEY = 'attijari_notif_log_v1';
+const NOTIF_LOG_MAX = 100;
+
+function _loadSet(key) {
+    try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); }
+    catch (_) { return new Set(); }
+}
+function _saveSet(key, set) {
+    try { localStorage.setItem(key, JSON.stringify(Array.from(set))); } catch (_) { /* storage unavailable */ }
+}
+function _loadLog() {
+    try { return JSON.parse(localStorage.getItem(NOTIF_LOG_KEY) || '[]'); }
+    catch (_) { return []; }
+}
+function _saveLog(log) {
+    try { localStorage.setItem(NOTIF_LOG_KEY, JSON.stringify(log.slice(0, NOTIF_LOG_MAX))); } catch (_) { /* storage unavailable */ }
+}
+
+function timeAgo(iso) {
+    if (!iso) return '';
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + 'h ago';
+    const days = Math.floor(hours / 24);
+    return days + 'd ago';
+}
+
+/** Record a notification in the persistent log (dedup by key) and, the
+ * first time this key is ever seen on this browser, trigger the popup
+ * treatment (banner/desktop notification/sound/toast). Always returns
+ * whether the log changed, so callers can decide to re-render. */
+function _recordNotification(key, message, kind, pop) {
+    const popped = _loadSet(NOTIF_POPPED_KEY);
+    const log = _loadLog();
+    const alreadyLogged = log.some(function (n) { return n.key === key; });
+    if (!alreadyLogged) {
+        log.unshift({ key: key, message: message, kind: kind, timestamp: new Date().toISOString(), read: false });
+        _saveLog(log);
+    }
+    if (!popped.has(key)) {
+        popped.add(key);
+        _saveSet(NOTIF_POPPED_KEY, popped);
+        pop(message);
+    }
+    renderNotifCenter();
+    return !alreadyLogged;
+}
+
+function renderNotifCenter() {
+    const badge = document.getElementById('notif-badge');
+    const body = document.getElementById('notif-panel-body');
+    if (!badge || !body) return;
+    const log = _loadLog();
+    const unread = log.filter(function (n) { return !n.read; }).length;
+    if (unread > 0) { badge.style.display = ''; badge.textContent = unread > 99 ? '99+' : String(unread); }
+    else { badge.style.display = 'none'; }
+
+    if (log.length === 0) {
+        body.innerHTML = '<div class="notif-empty">No notifications</div>';
+        return;
+    }
+    const icons = { success: '✅', info: '🔬', warning: '⚠' };
+    body.innerHTML = log.map(function (n) {
+        return `<div class="notif-item ${n.read ? '' : 'unread'}">
+            <span class="notif-item-icon">${icons[n.kind] || '🔔'}</span>
+            <div class="notif-item-body">
+                <div class="notif-item-msg">${esc(n.message)}</div>
+                <div class="notif-item-time">${timeAgo(n.timestamp)}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function toggleNotifCenter() {
+    const panel = document.getElementById('notif-panel');
+    if (!panel) return;
+    const opening = panel.style.display === 'none' || !panel.style.display;
+    panel.style.display = opening ? 'flex' : 'none';
+    if (opening) {
+        const log = _loadLog();
+        log.forEach(function (n) { n.read = true; });
+        _saveLog(log);
+        renderNotifCenter();
+    }
+}
+
+function clearAllNotifs() {
+    _saveLog([]);
+    renderNotifCenter();
+}
+
+document.addEventListener('click', function (event) {
+    const center = document.getElementById('notif-center');
+    const panel = document.getElementById('notif-panel');
+    if (!center || !panel || panel.style.display === 'none') return;
+    if (!center.contains(event.target)) panel.style.display = 'none';
+});
+
+registerAction('toggle-notif-center', () => toggleNotifCenter());
+registerAction('clear-all-notifs', () => clearAllNotifs());
+
 async function refreshDetonationBanner() {
     const banner = document.getElementById('detonation-banner');
     if (!banner) return;
     try {
         const st = await API.get('/api/detonation/status');
         banner.style.display = st.window_active ? 'block' : 'none';
-        notifyManualReady(st.manual_ready, banner);
+        notifyManualReady(st.manual_ready);
         notifyDetonationEvents(st.events);
     } catch (_) { /* not permitted or transient — leave as-is */ }
 }
 
-// Branch-B manual detonations that just became ready → alert on any page
-// (desktop notification + sound + banner). Fires once per detonation id.
-function notifyManualReady(ready, banner) {
-    window.__mdReadySeen = window.__mdReadySeen || {};
+// Branch-B manual detonations that are ready → logged + popped (once ever
+// per detonation id, via _recordNotification's persistent "popped" set).
+function notifyManualReady(ready) {
     (ready || []).forEach(function (row) {
-        if (window.__mdReadySeen[row.id]) return;
-        window.__mdReadySeen[row.id] = true;
+        const key = 'manual-ready:' + row.id;
         const msg = 'Emails analyzed — "' + (row.filename || 'your file') + '" is ready to open.';
-        // 1) in-page banner
-        if (banner) { banner.style.display = 'block'; banner.textContent = '✅ ' + msg; }
-        // 2) desktop notification
-        if ('Notification' in window && Notification.permission === 'granted') {
-            try { new Notification('Attijari — sandbox ready', { body: msg }); } catch (_) {}
-        }
-        // 3) sound cue (WebAudio beep — no asset, no CSP change)
-        try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
-            g.gain.setValueAtTime(0.15, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
-            o.start(); o.stop(ctx.currentTime + 0.6);
-        } catch (_) { /* audio unavailable — banner + notification still fire */ }
+        _recordNotification(key, msg, 'success', function (m) {
+            const banner = document.getElementById('detonation-banner');
+            if (banner) { banner.style.display = 'block'; banner.textContent = '✅ ' + m; }
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try { new Notification('Attijari — sandbox ready', { body: m }); } catch (_) {}
+            }
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+                g.gain.setValueAtTime(0.15, ctx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+                o.start(); o.stop(ctx.currentTime + 0.6);
+            } catch (_) { /* audio unavailable — banner + notification still fire */ }
+        });
     });
 }
 
-// Per-email attachment detonation events (always-on flow) → alert on any
-// page. Fires once per (id, event) pair so a 'detonating' + later
-// 'report_ready' for the same row both get their own notification.
+// Per-email attachment detonation events (always-on flow) — logged +
+// popped once ever per (id, event) pair, so a 'detonating' + later
+// 'report_ready' for the same row still each get their own notification.
 function notifyDetonationEvents(events) {
-    window.__detEventsSeen = window.__detEventsSeen || {};
     (events || []).forEach(function (ev) {
-        const key = ev.id + ':' + ev.event;
-        if (window.__detEventsSeen[key]) return;
-        window.__detEventsSeen[key] = true;
+        const key = 'event:' + ev.id + ':' + ev.event;
         const msg = ev.event === 'detonating'
             ? 'Detonating "' + (ev.filename || 'attachment') + '" for email #' + ev.email_id + '…'
             : 'Sandbox report ready for email #' + ev.email_id + ' ("' + (ev.filename || 'attachment') + '")';
-        if ('Notification' in window && Notification.permission === 'granted') {
-            try { new Notification('Attijari — sandbox', { body: msg }); } catch (_) {}
-        }
-        showToast(msg, ev.event === 'detonating' ? 'info' : 'success');
+        _recordNotification(key, msg, ev.event === 'detonating' ? 'info' : 'success', function (m) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try { new Notification('Attijari — sandbox', { body: m }); } catch (_) {}
+            }
+            showToast(m, ev.event === 'detonating' ? 'info' : 'success');
+        });
     });
 }
 setInterval(refreshDetonationBanner, 30000);
 document.addEventListener('DOMContentLoaded', refreshDetonationBanner);
+document.addEventListener('DOMContentLoaded', renderNotifCenter);
 
 /* =========================================================================
    Blocklist / Whitelist management
@@ -1168,7 +1283,7 @@ async function loadReports() {
     try {
         const data = await API.get('/api/reports?limit=50');
         if (data.reports.length === 0) {
-            container.innerHTML = '<tr><td colspan="5" class="empty-state"><p>No reports generated yet</p></td></tr>';
+            container.innerHTML = '<tr><td colspan="6" class="empty-state"><p>No reports generated yet</p></td></tr>';
             return;
         }
         container.innerHTML = data.reports.map(r => {
@@ -1180,6 +1295,12 @@ async function loadReports() {
                     <td>${parseInt(counts.total) || 0} emails</td>
                     <td>${esc((r.delivered_via || []).join(', ')) || '—'}</td>
                     <td>${formatDate(r.created_at)}</td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn btn-outline btn-sm" data-action="download-report" data-id="${r.id}">Download</button>
+                            <button class="btn btn-outline btn-sm" data-action="send-report" data-id="${r.id}" title="Delivery channel configuration coming later">Send</button>
+                        </div>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -1188,14 +1309,32 @@ async function loadReports() {
     }
 }
 
+function downloadReport(reportId) {
+    window.location.href = `/api/reports/${parseInt(reportId)}/download`;
+}
+
+async function sendReport(reportId) {
+    try {
+        await API.post(`/api/reports/${parseInt(reportId)}/send`);
+        showToast('Report sent', 'success');
+    } catch (err) {
+        // The backend returns 501 with a clear "not configured yet" message
+        // until delivery-channel selection is built — surface that message
+        // as-is instead of a generic "failed" toast.
+        const msg = err.message.replace(/^API \d+:\s*/, '').replace(/^\{"detail":"(.+)"\}$/, '$1');
+        showToast(msg, 'warning');
+    }
+}
+
 async function generateReport() {
     try {
         showToast('Generating report…', 'warning');
-        const report = await API.get('/api/stats');
-        showToast('Report data refreshed', 'success');
+        const result = await API.post('/api/reports/generate?period=daily');
+        const via = (result.delivered_via || []).join(', ') || 'dashboard only';
+        showToast(`Report generated — delivered via: ${via}`, 'success');
         loadReports();
     } catch (err) {
-        showToast(err.message, 'error');
+        showToast(`Report generation failed: ${err.message}`, 'error');
     }
 }
 
@@ -1417,6 +1556,8 @@ registerAction('load-health', () => loadHealth());
 registerAction('open-vm-bubble', () => openVmBubble());
 registerAction('close-vm-bubble', () => closeVmBubble());
 registerAction('generate-report', () => generateReport());
+registerAction('download-report', (el) => downloadReport(el.dataset.id));
+registerAction('send-report', (el) => sendReport(el.dataset.id));
 registerAction('filter-audit-tool', (el) => filterAuditTool(el.dataset.tool));
 registerAction('load-audit-panel', () => loadAuditPanel());
 

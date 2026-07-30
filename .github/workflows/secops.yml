@@ -127,7 +127,12 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio==1.4.0
       - name: Run Pytest
-        run: pytest tests/ --cov=src --cov-report=xml -v
+        # --cov-fail-under=20: measured baseline is ~22% (large legacy surface —
+        # rules.py, routing.py, scheduler.py are barely exercised). This floor
+        # only locks in "don't regress below current," it is not an aspirational
+        # target. Ratchet it upward as real coverage grows; do not lower it to
+        # make a red PR pass.
+        run: pytest tests/ --cov=src --cov-report=xml --cov-fail-under=20 -v
         env:
           # Required for some tests as seen in previous ci.yml
           VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
@@ -149,3 +154,140 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-licenses
+      - name: Check for unreviewed AGPL/GPL dependencies (blocks on new copyleft)
+        # scripts/check_licenses.py — fails on any AGPL/GPL-not-LGPL package not
+        # already on the reviewed KNOWN_ACCEPTED list. Selling to a bank makes
+        # AGPL's network-use clause a real risk, not a theoretical one — see the
+        # script for the two currently-accepted exceptions (pcodedmp: GPLv3,
+        # unavoidable oletools transitive dep; pymupdf: AGPL, NOT YET RESOLVED,
+        # flagged for a real legal/replacement decision before production).
+        run: python scripts/check_licenses.py
+
+  llm-adversarial:
+    name: LLM Adversarial Regression Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio==1.4.0
+      - name: Run adversarial regression suite (blocks — pure logic, no live LLM needed)
+        # Substitutes for a live-model red-teaming tool (garak): CI has no
+        # Ollama/GPU runtime to actually attack. This mocks analyze_email_body's
+        # LLM-output boundary and asserts CLAUDE.md's fail-safe invariants hold
+        # for malformed JSON, wrong-typed fields, low confidence, a simulated
+        # LLM crash, and a prompt-injection attempt against a model that fully
+        # complied with it — every case must escalate, never silently accept.
+        run: pytest tests/test_llm_adversarial_regression.py -v
+
+  api-fuzz:
+    name: API Fuzzing (schemathesis)
+    runs-on: ubuntu-latest
+    needs: [code-health, secret-scan]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: attijari_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install schemathesis==4.24.3
+      - name: Start the dashboard app
+        working-directory: src
+        run: |
+          nohup python -m uvicorn api:app --host 127.0.0.1 --port 8000 > /tmp/uvicorn.log 2>&1 &
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/login || echo 000)
+            if [ "$code" = "200" ]; then echo "app ready after ${i}s"; exit 0; fi
+            sleep 1
+          done
+          echo "app did not become ready" && cat /tmp/uvicorn.log && exit 1
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci-only-jwt-secret-not-used-outside-this-workflow-run
+          VAULT_ENCRYPTION_KEY: RExB-2NL83wRpMGjq-t_OCUxvK7qiEskB9jU4F5fd8c=
+          # REQUIRE_MFA=false is an explicit demo/CI toggle (src/routers/auth.py's
+          # _mfa_required) so this job can log in with just username/password —
+          # never set this in a real deployment.
+          REQUIRE_MFA: 'false'
+          DASHBOARD_USER: admin
+          DASHBOARD_PASS: 'CiOnlySchemathesisPassw0rd!'
+          GMAIL_BRIDGE_ENABLED: '0'
+          POP3_BRIDGE_ENABLED: '0'
+      - name: Log in and capture session cookie
+        run: |
+          curl -s -c /tmp/cookies.txt -X POST http://127.0.0.1:8000/login \
+            -d "username=admin&password=CiOnlySchemathesisPassw0rd!" -o /dev/null -w "login http: %{http_code}\n"
+          TOKEN=$(grep access_token /tmp/cookies.txt | awk '{print $7}')
+          echo "SESSION_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+      - name: Run schemathesis (informational — not yet promoted to blocking)
+        # Verified locally (2026-07-30): 2639+ generated requests against every
+        # operation, checking only not_a_server_error (unhandled 500s / broken
+        # Pydantic validation) — zero real failures found. The "authentication"
+        # and "schema validation mismatch" warnings schemathesis reports are
+        # harness noise (its own heavy concurrency contending with the DB
+        # connection pool under the auth-revocation fail-safe, and generated
+        # payloads not matching stricter-than-documented Pydantic constraints),
+        # not real bugs — but that noise means this isn't clean enough yet to
+        # hard-block a merge. --exclude-path /logout: schemathesis discovers and
+        # fuzzes GET /logout like any other operation, which revokes the shared
+        # session token being reused for every other request in the run.
+        continue-on-error: true
+        run: |
+          pip install --quiet schemathesis==4.24.3
+          PYTHONIOENCODING=utf-8 PYTHONUTF8=1 schemathesis run \
+            -H "Cookie: access_token=${{ env.SESSION_TOKEN }}" \
+            -c not_a_server_error \
+            -w 1 -n 15 --max-response-time 20 \
+            --exclude-path /logout \
+            http://127.0.0.1:8000/openapi.json
