@@ -129,6 +129,7 @@ _gmail_bridge_task = None
 _pop3_bridge_task = None
 _scan_lock = RedisAsyncLock("pipeline_scan", timeout=600)
 _smtp_controller = None
+_refresh_listener_task = None
 
 _SWEEP_DIR = Path(__file__).resolve().parent.parent / "data" / "smtp_pending"
 SWEEP_INTERVAL = int(os.getenv("SWEEP_INTERVAL_SECONDS", "300"))
@@ -194,18 +195,40 @@ async def _pending_sweep():
             print(f"[SWEEP] Error: {e}")
         await asyncio.sleep(SWEEP_INTERVAL)
 
+async def _pipeline_refresh_listener():
+    """Forwards Redis Pub/Sub 'a job finished' signals from RQ worker
+    processes (which have no access to this process's in-memory
+    ws_manager) to connected dashboard WebSocket clients."""
+    await asyncio.sleep(5)
+    from redis_client import get_client
+    from api_core import ws_manager
+    pubsub = get_client().pubsub()
+    pubsub.subscribe("attijari:pipeline:refresh")
+    loop = asyncio.get_running_loop()
+    while True:
+        try:
+            message = await loop.run_in_executor(None, lambda: pubsub.get_message(timeout=5.0))
+            if message and message.get("type") == "message":
+                await ws_manager.broadcast("refresh")
+        except Exception as e:
+            print(f"[PIPELINE-REFRESH] Listener error: {e}")
+            await asyncio.sleep(5)
+
 def _update_gauge_metrics():
     # Placeholder to update metrics at startup
     pass
 
 @app.on_event("startup")
 async def startup():
-    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task
+    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task, _refresh_listener_task
     init_db()
     _update_gauge_metrics()
     _poll_task = asyncio.create_task(_pending_sweep())
     _retention_task = asyncio.create_task(data_retention_and_backup_task())
     print(f"[SWEEP] Pending-directory safety-net sweep started (every {SWEEP_INTERVAL}s)")
+
+    _refresh_listener_task = asyncio.create_task(_pipeline_refresh_listener())
+    print("[PIPELINE-REFRESH] Redis Pub/Sub refresh listener started")
 
     from smtp_receiver import build_controller
     _smtp_controller = build_controller()
@@ -223,7 +246,7 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task
+    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task, _refresh_listener_task
     if _poll_task:
         _poll_task.cancel()
     if _retention_task:
@@ -232,6 +255,8 @@ async def shutdown():
         _gmail_bridge_task.cancel()
     if _pop3_bridge_task:
         _pop3_bridge_task.cancel()
+    if _refresh_listener_task:
+        _refresh_listener_task.cancel()
     if _smtp_controller:
         _smtp_controller.stop()
         print("[SMTP] Inbound receiver stopped")

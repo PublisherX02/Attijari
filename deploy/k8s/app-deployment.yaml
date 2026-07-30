@@ -27,6 +27,8 @@ spec:
           volumeMounts:
             - name: sandbox-workdir
               mountPath: /sandbox-workdir
+            - name: smtp-pending-data
+              mountPath: /app/data/smtp_pending
           resources:
             requests:
               cpu: "250m"
@@ -38,3 +40,6 @@ spec:
         - name: sandbox-workdir
           persistentVolumeClaim:
             claimName: sandbox-workdir
+        - name: smtp-pending-data
+          persistentVolumeClaim:
+            claimName: smtp-pending-data

@@ -108,6 +108,25 @@ def test_sandbox_workdir_pvc_is_rwx():
     assert "ReadWriteMany" in pvc["spec"]["accessModes"]
 
 
+def test_smtp_pending_pvc_is_rwx():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "smtp-pending-pvc.yaml").read_text(encoding="utf-8")))
+    pvc = next(d for d in docs if d["kind"] == "PersistentVolumeClaim")
+    assert pvc["metadata"]["name"] == "smtp-pending-data"
+    assert "ReadWriteMany" in pvc["spec"]["accessModes"]
+
+
+def test_app_and_worker_deployments_mount_smtp_pending_data():
+    for fname in ("app-deployment.yaml", "worker-deployment.yaml"):
+        docs = list(yaml.safe_load_all((_DEPLOY_K8S / fname).read_text(encoding="utf-8")))
+        deploy = next(d for d in docs if d["kind"] == "Deployment")
+        pod_spec = deploy["spec"]["template"]["spec"]
+        mounts = {vm["name"]: vm["mountPath"] for c in pod_spec["containers"] for vm in c.get("volumeMounts", [])}
+        assert mounts.get("smtp-pending-data") == "/app/data/smtp_pending", \
+            f"{fname} must mount smtp-pending-data at /app/data/smtp_pending"
+        volumes = {v["name"]: v for v in pod_spec.get("volumes", [])}
+        assert volumes["smtp-pending-data"]["persistentVolumeClaim"]["claimName"] == "smtp-pending-data"
+
+
 def test_app_deployment_uses_sandbox_service_account_and_mounts_workdir():
     docs = list(yaml.safe_load_all((_DEPLOY_K8S / "app-deployment.yaml").read_text(encoding="utf-8")))
     deploy = next(d for d in docs if d["kind"] == "Deployment")
@@ -128,6 +147,7 @@ def test_kustomization_includes_every_base_manifest():
         "namespace.yaml", "configmap.yaml",
         "postgres-statefulset.yaml", "redis-statefulset.yaml", "ollama-deployment.yaml",
         "sandbox-rbac.yaml", "sandbox-networkpolicy.yaml", "sandbox-limitrange.yaml", "sandbox-workdir-pvc.yaml",
+        "smtp-pending-pvc.yaml",
         "app-deployment.yaml", "worker-deployment.yaml", "app-service.yaml", "app-ingress.yaml",
     }
     assert expected <= resources, f"kustomization.yaml missing: {expected - resources}"
@@ -140,12 +160,19 @@ def test_worker_deployment_runs_rq_worker_with_same_identity_as_app():
     assert pod_spec["serviceAccountName"] == "attijari-sandbox-runner"
     container = pod_spec["containers"][0]
     assert container["command"] == ["rq"]
-    assert container["args"] == ["worker", "attijari-pipeline", "--url", "$(REDIS_URL)"]
+    assert container["args"] == ["worker", "attijari-pipeline", "--url", "$(REDIS_URL)", "--with-scheduler"]
     env_from = container.get("envFrom", [])
     assert any("configMapRef" in e for e in env_from)
     assert any("secretRef" in e for e in env_from)
     mount_paths = {vm["mountPath"] for c in pod_spec["containers"] for vm in c.get("volumeMounts", [])}
     assert "/sandbox-workdir" in mount_paths
+
+
+def test_worker_deployment_runs_single_replica_for_memory_budget():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "worker-deployment.yaml").read_text(encoding="utf-8")))
+    deploy = next(d for d in docs if d["kind"] == "Deployment")
+    assert deploy["spec"]["replicas"] == 1, \
+        "single-VM memory budget: concurrent worker replicas would run overlapping LLM/extraction work"
 
 
 def test_kustomization_includes_worker_deployment():

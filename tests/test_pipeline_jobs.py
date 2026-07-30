@@ -16,6 +16,12 @@ if not os.getenv("VAULT_ENCRYPTION_KEY"):
     os.environ["VAULT_ENCRYPTION_KEY"] = Fernet.generate_key().decode()
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-key-32-bytes-long!!")
 
+# Must be set before pipeline_jobs is first imported anywhere in this test
+# session — QUEUE_NAME is read at module-import time — so tests never touch
+# the real production "attijari-pipeline" queue (a live app/worker sharing
+# the same Redis instance could have genuinely pending jobs there).
+os.environ.setdefault("RQ_QUEUE_NAME", "attijari-pipeline-test")
+
 import redis_client
 
 
@@ -52,6 +58,61 @@ def test_process_email_file_calls_run_pipeline_single_file():
     with patch("pipeline_jobs.run_pipeline") as mock_run:
         pipeline_jobs.process_email_file("/tmp/some-file.eml")
     mock_run.assert_called_once_with(single_file="/tmp/some-file.eml")
+
+
+def test_process_email_file_moves_file_to_processed_on_success(tmp_path):
+    import pipeline_jobs
+    src = tmp_path / "abc123.eml"
+    src.write_bytes(b"raw email content")
+
+    with patch("pipeline_jobs.run_pipeline") as mock_run:
+        pipeline_jobs.process_email_file(str(src))
+
+    mock_run.assert_called_once_with(single_file=str(src))
+    assert not src.exists()
+    dest = tmp_path / "processed" / "abc123.eml"
+    assert dest.exists()
+    assert dest.read_bytes() == b"raw email content"
+
+
+def test_process_email_file_leaves_file_in_place_on_run_pipeline_failure(tmp_path):
+    import pipeline_jobs
+    src = tmp_path / "def456.eml"
+    src.write_bytes(b"raw email content")
+
+    with patch("pipeline_jobs.run_pipeline", side_effect=RuntimeError("boom")):
+        try:
+            pipeline_jobs.process_email_file(str(src))
+        except RuntimeError:
+            pass
+        else:
+            assert False, "expected run_pipeline's RuntimeError to propagate"
+
+    assert src.exists()
+    assert not (tmp_path / "processed" / "def456.eml").exists()
+
+
+def test_process_email_file_publishes_refresh_signal_on_success(tmp_path):
+    import pipeline_jobs
+    src = tmp_path / "refresh789.eml"
+    src.write_bytes(b"raw email content")
+
+    pubsub = redis_client.get_client().pubsub()
+    pubsub.subscribe("attijari:pipeline:refresh")
+    pubsub.get_message(timeout=2)  # discard the subscribe-confirmation message
+
+    with patch("pipeline_jobs.run_pipeline"):
+        pipeline_jobs.process_email_file(str(src))
+
+    message = None
+    for _ in range(10):
+        message = pubsub.get_message(timeout=1)
+        if message and message.get("type") == "message":
+            break
+    pubsub.close()
+
+    assert message is not None, "expected a message on attijari:pipeline:refresh"
+    assert message["data"] == str(src)
 
 
 def test_on_failure_marks_matching_email_escalated(monkeypatch):

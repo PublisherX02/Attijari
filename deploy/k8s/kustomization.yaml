@@ -11,6 +11,7 @@ resources:
   - sandbox-networkpolicy.yaml
   - sandbox-limitrange.yaml
   - sandbox-workdir-pvc.yaml
+  - smtp-pending-pvc.yaml
   - app-deployment.yaml
   - worker-deployment.yaml
   - app-service.yaml

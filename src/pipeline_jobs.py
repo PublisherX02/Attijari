@@ -11,6 +11,7 @@ can never drift into using different keys for the same file.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from rq import Queue, Retry
@@ -20,7 +21,13 @@ from redis_client import get_client
 from main import run_pipeline
 from database import SessionLocal, Email
 
-QUEUE_NAME = "attijari-pipeline"
+# Overridable via RQ_QUEUE_NAME so the test suite can point at a dedicated
+# queue instead of the real production "attijari-pipeline" queue — running
+# tests against the real queue name while the real app/worker is live could
+# wipe genuinely pending email-processing jobs (q.empty() in tests). Read at
+# import time, so any override must be set before pipeline_jobs is first
+# imported in a process (see tests/test_pipeline_jobs.py).
+QUEUE_NAME = os.getenv("RQ_QUEUE_NAME", "attijari-pipeline")
 
 
 def job_id_for_file(file_path: str) -> str:
@@ -59,18 +66,57 @@ def enqueue_pipeline_job(file_path: str) -> bool:
 
 
 def process_email_file(file_path: str) -> None:
-    """RQ job entrypoint — one email, via run_pipeline()'s single_file mode."""
+    """RQ job entrypoint — one email, via run_pipeline()'s single_file mode.
+    On success, moves the file out of the sweep's search path (a `processed/`
+    subdirectory) so the safety-net sweep never re-finds and re-enqueues an
+    already-handled file indefinitely — files are still never deleted
+    (matching this project's existing "never delete smtp_pending files"
+    convention), just relocated. On failure (this function raising), the
+    file is deliberately left in place — on_pipeline_job_failure's contract
+    already guarantees it's never deleted, and leaving it in the original
+    (swept) location means a retried/re-swept attempt can still find it.
+
+    Also publishes on the "attijari:pipeline:refresh" Redis Pub/Sub channel
+    after a successful run, so the app process's WebSocket-connected
+    dashboard clients get a live refresh — this job runs in a separate RQ
+    worker process with no access to the app process's in-memory
+    ws_manager, so Redis (already shared infrastructure between app and
+    worker) is the cross-process signal. See api.py's
+    _pipeline_refresh_listener for the subscriber side."""
     run_pipeline(single_file=file_path)
+
+    src = Path(file_path)
+    processed_dir = src.parent / "processed"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    dest = processed_dir / src.name
+    try:
+        src.rename(dest)
+    except OSError as e:
+        print(f"[PIPELINE-JOB] Could not move {file_path} to processed/ after success (non-fatal): {e}")
+
+    try:
+        get_client().publish("attijari:pipeline:refresh", file_path)
+    except Exception as e:
+        print(f"[PIPELINE-JOB] Could not publish refresh signal for {file_path} (non-fatal): {e}")
 
 
 def on_pipeline_job_failure(job, connection, type, value, traceback) -> None:
-    """Runs after RQ's retries (see enqueue_pipeline_job's Retry policy) are
-    exhausted. Marks the matching DB record escalated if one exists and the
-    DB is reachable; NEVER raises, NEVER deletes the raw file — the file on
-    disk is the last-resort durability guarantee regardless of what happens
-    here. Matches the pipeline's own existing "fail-safe, never fail-open"
-    philosophy: a job that could not complete becomes an escalation for a
-    human, not a silent drop."""
+    """RQ calls this callback on EVERY failed attempt, not just the final
+    one — RQ's exception handler invokes on_failure BEFORE it decides
+    whether Job.retry() has more attempts left (verified against rq==2.10.0
+    source). With enqueue_pipeline_job's Retry(max=3, ...) actually retrying
+    (this requires the worker to run with --with-scheduler; see
+    worker-deployment.yaml), a single underlying failure can therefore fire
+    this callback up to 4 times (three retried attempts plus the final,
+    truly-exhausted one) before the job is done retrying.
+
+    This is intentional, not a bug: marking the matching DB record
+    escalated is idempotent (setting the same status repeatedly is
+    harmless), and firing early is actually SAFER for this project's
+    fail-safe philosophy — a human analyst sees the escalation sooner
+    rather than only after the last retry. NEVER raises, NEVER deletes the
+    raw file — the file on disk is the last-resort durability guarantee
+    regardless of what happens here or how many times it runs."""
     file_path = job.args[0] if job.args else None
     if not file_path:
         return

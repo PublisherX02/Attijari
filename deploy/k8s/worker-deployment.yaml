@@ -2,16 +2,24 @@
 # (src/smtp_receiver.py) and the safety-net sweep. Same image, ServiceAccount
 # (workers call sandbox.run_tool() -> the K8s-Jobs sandbox backend, needing
 # the same RBAC as the app pods), and config/secrets as attijari-app —
-# only the container command differs. replicas is independently tunable
-# from the app Deployment's, giving real backpressure: jobs queue in Redis
-# if all workers are busy, rather than overlapping in-process pipeline runs.
+# only the container command differs.
+#
+# replicas is pinned to 1 deliberately: this POC targets a single,
+# memory-constrained VM (see CLAUDE.md / the detonation-window and
+# _ollama_reachable() memory-guard rationale used elsewhere in this
+# codebase). Two or more worker replicas could each pick up a pipeline job
+# concurrently and run full LLM/extraction work in parallel, reintroducing
+# via worker parallelism exactly the memory-overlap risk the detonation
+# guard exists to prevent. Safely raising this requires first extending
+# that memory-guard coordination to cover multiple worker processes —
+# out of scope for this plan.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: attijari-worker
   namespace: attijari
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: attijari-worker
@@ -25,7 +33,7 @@ spec:
         - name: worker
           image: attijari-app:latest  # same image as attijari-app; built on the bank VM
           command: ["rq"]
-          args: ["worker", "attijari-pipeline", "--url", "$(REDIS_URL)"]
+          args: ["worker", "attijari-pipeline", "--url", "$(REDIS_URL)", "--with-scheduler"]
           envFrom:
             - configMapRef:
                 name: attijari-config
@@ -34,6 +42,8 @@ spec:
           volumeMounts:
             - name: sandbox-workdir
               mountPath: /sandbox-workdir
+            - name: smtp-pending-data
+              mountPath: /app/data/smtp_pending
           resources:
             requests:
               cpu: "500m"
@@ -45,3 +55,6 @@ spec:
         - name: sandbox-workdir
           persistentVolumeClaim:
             claimName: sandbox-workdir
+        - name: smtp-pending-data
+          persistentVolumeClaim:
+            claimName: smtp-pending-data
