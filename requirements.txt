@@ -84,4 +84,4 @@ ollama
 # replacing the default index for every other package in this file.
 --extra-index-url https://download.pytorch.org/whl/cu121
 transformers==5.12.1
-torch==2.5.1+cu121
+torch==2.13.0
