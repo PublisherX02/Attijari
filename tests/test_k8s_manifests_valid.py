@@ -106,3 +106,28 @@ def test_sandbox_workdir_pvc_is_rwx():
     pvc = next(d for d in docs if d["kind"] == "PersistentVolumeClaim")
     assert pvc["metadata"]["name"] == "sandbox-workdir"
     assert "ReadWriteMany" in pvc["spec"]["accessModes"]
+
+
+def test_app_deployment_uses_sandbox_service_account_and_mounts_workdir():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "app-deployment.yaml").read_text(encoding="utf-8")))
+    deploy = next(d for d in docs if d["kind"] == "Deployment")
+    pod_spec = deploy["spec"]["template"]["spec"]
+    assert pod_spec["serviceAccountName"] == "attijari-sandbox-runner"
+    mount_paths = {vm["mountPath"] for c in pod_spec["containers"] for vm in c.get("volumeMounts", [])}
+    assert "/sandbox-workdir" in mount_paths
+    container = pod_spec["containers"][0]
+    env_from = container.get("envFrom", [])
+    assert any("configMapRef" in e for e in env_from), "app must load env from the attijari-config ConfigMap"
+    assert any("secretRef" in e for e in env_from), "app must load env from the attijari-secrets Secret"
+
+
+def test_kustomization_includes_every_base_manifest():
+    kustomization = yaml.safe_load((_DEPLOY_K8S / "kustomization.yaml").read_text(encoding="utf-8"))
+    resources = set(kustomization["resources"])
+    expected = {
+        "namespace.yaml", "configmap.yaml",
+        "postgres-statefulset.yaml", "redis-statefulset.yaml", "ollama-deployment.yaml",
+        "sandbox-rbac.yaml", "sandbox-networkpolicy.yaml", "sandbox-limitrange.yaml", "sandbox-workdir-pvc.yaml",
+        "app-deployment.yaml", "app-service.yaml", "app-ingress.yaml",
+    }
+    assert expected <= resources, f"kustomization.yaml missing: {expected - resources}"
