@@ -812,6 +812,23 @@ async def api_list_reports(limit: int = Query(20, ge=1, le=100), user: Authentic
         db.close()
 
 
+@emails_router.post("/api/reports/generate")
+async def api_generate_report(
+    period: str = Query("daily", pattern="^(hourly|daily|weekly)$"),
+    user: AuthenticatedUser = Depends(require_permission("reports.view")),
+):
+    """Generate a report on demand and deliver it via every configured channel
+    (dashboard DB, SMTP, Slack, Teams) — the same generate_and_deliver() the
+    scheduler calls automatically, just triggered immediately from the
+    dashboard's "Generate Report Now" button instead of waiting for the next
+    scheduled run."""
+    from reporting import generate_and_deliver
+
+    loop = asyncio.get_running_loop()
+    report = await loop.run_in_executor(None, generate_and_deliver, period)
+    return {"delivered_via": report.get("delivered_via", []), "period": period}
+
+
 @emails_router.get("/api/health")
 async def api_health(user: AuthenticatedUser = Depends(require_permission("health.view"))):
     """System health check."""

@@ -1306,11 +1306,12 @@ async function loadReports() {
 async function generateReport() {
     try {
         showToast('Generating report…', 'warning');
-        const report = await API.get('/api/stats');
-        showToast('Report data refreshed', 'success');
+        const result = await API.post('/api/reports/generate?period=daily');
+        const via = (result.delivered_via || []).join(', ') || 'dashboard only';
+        showToast(`Report generated — delivered via: ${via}`, 'success');
         loadReports();
     } catch (err) {
-        showToast(err.message, 'error');
+        showToast(`Report generation failed: ${err.message}`, 'error');
     }
 }
 
