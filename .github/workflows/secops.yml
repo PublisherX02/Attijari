@@ -114,6 +114,24 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      vault:
+        # Secrets manager (2026-07-30): src/secrets_client.py now reads
+        # DATABASE_URL/JWT_SECRET/VAULT_ENCRYPTION_KEY/threat-intel keys/
+        # SMTP creds/webhook URLs/CAPE tokens from a real Vault instance,
+        # never mocked — same "real service, no fakes" convention as
+        # Postgres/Redis above.
+        image: hashicorp/vault:2.0.3
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: ci-root-token
+          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+        ports:
+          - 8200:8200
+        options: >-
+          --cap-add=IPC_LOCK
+          --health-cmd "VAULT_ADDR=http://127.0.0.1:8200 vault status -tls-skip-verify"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -126,6 +144,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio==1.4.0
+      - name: Bootstrap Vault and seed CI secrets
+        env:
+          VAULT_ADDR: http://127.0.0.1:8200
+          VAULT_TOKEN: ci-root-token
+          CI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
+          CI_JWT_SECRET: ci-only-jwt-secret-not-used-outside-this-workflow-run
+          CI_VAULT_ENCRYPTION_KEY: RExB-2NL83wRpMGjq-t_OCUxvK7qiEskB9jU4F5fd8c=
+          CI_VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          CI_THREATFOX_AUTH_KEY: ${{ secrets.THREATFOX_AUTH_KEY }}
+        run: |
+          python scripts/vault_bootstrap.py > vault_creds.txt
+          echo "VAULT_ROLE_ID=$(grep VAULT_ROLE_ID vault_creds.txt | cut -d= -f2)" >> $GITHUB_ENV
+          echo "VAULT_SECRET_ID=$(grep VAULT_SECRET_ID vault_creds.txt | cut -d= -f2)" >> $GITHUB_ENV
+          rm vault_creds.txt
+          python scripts/ci_seed_secrets.py
       - name: Run Pytest
         # --cov-fail-under=20: measured baseline is ~22% (large legacy surface —
         # rules.py, routing.py, scheduler.py are barely exercised). This floor
@@ -134,21 +167,15 @@ jobs:
         # make a red PR pass.
         run: pytest tests/ --cov=src --cov-report=xml --cov-fail-under=20 -v
         env:
-          # Required for some tests as seen in previous ci.yml
-          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
-          THREATFOX_AUTH_KEY: ${{ secrets.THREATFOX_AUTH_KEY }}
           # Live-DB tests (test_jwt_revocation.py, test_detonation_recovery.py, etc.)
-          # need a real Postgres to run against — provided by the service above.
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
+          # need a real Postgres/Redis to run against — provided by the services above.
           REDIS_URL: redis://localhost:6379/0
-          # src/api_core.py raises RuntimeError at import time if neither is set.
-          # Locally, collection succeeds without them (nothing imports api_core.py
-          # at collection time), but any test that exercises auth code paths at
-          # *execution* time would hit this — and neither var was ever present in
-          # this workflow. CI-only throwaway values (sign/encrypt nothing outside
-          # this run); must differ from each other or api_core.py warns.
-          JWT_SECRET: ci-only-jwt-secret-not-used-outside-this-workflow-run
-          VAULT_ENCRYPTION_KEY: RExB-2NL83wRpMGjq-t_OCUxvK7qiEskB9jU4F5fd8c=
+          # Secrets themselves now come from Vault (seeded by the bootstrap step
+          # above) — these three are the connection credentials to reach Vault,
+          # not the secrets themselves.
+          VAULT_ADDR: http://127.0.0.1:8200
+          VAULT_ROLE_ID: ${{ env.VAULT_ROLE_ID }}
+          VAULT_SECRET_ID: ${{ env.VAULT_SECRET_ID }}
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -229,6 +256,21 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      vault:
+        # Secrets manager (2026-07-30): the app booted below reads its
+        # secrets from Vault via src/secrets_client.py, same as the test job.
+        image: hashicorp/vault:2.0.3
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: ci-root-token
+          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+        ports:
+          - 8200:8200
+        options: >-
+          --cap-add=IPC_LOCK
+          --health-cmd "VAULT_ADDR=http://127.0.0.1:8200 vault status -tls-skip-verify"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -241,6 +283,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install schemathesis==4.24.3
+      - name: Bootstrap Vault and seed CI secrets
+        env:
+          VAULT_ADDR: http://127.0.0.1:8200
+          VAULT_TOKEN: ci-root-token
+          CI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
+          CI_JWT_SECRET: ci-only-jwt-secret-not-used-outside-this-workflow-run
+          CI_VAULT_ENCRYPTION_KEY: RExB-2NL83wRpMGjq-t_OCUxvK7qiEskB9jU4F5fd8c=
+        run: |
+          python scripts/vault_bootstrap.py > vault_creds.txt
+          echo "VAULT_ROLE_ID=$(grep VAULT_ROLE_ID vault_creds.txt | cut -d= -f2)" >> $GITHUB_ENV
+          echo "VAULT_SECRET_ID=$(grep VAULT_SECRET_ID vault_creds.txt | cut -d= -f2)" >> $GITHUB_ENV
+          rm vault_creds.txt
+          python scripts/ci_seed_secrets.py
       - name: Start the dashboard app
         working-directory: src
         run: |
@@ -252,10 +307,10 @@ jobs:
           done
           echo "app did not become ready" && cat /tmp/uvicorn.log && exit 1
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
           REDIS_URL: redis://localhost:6379/0
-          JWT_SECRET: ci-only-jwt-secret-not-used-outside-this-workflow-run
-          VAULT_ENCRYPTION_KEY: RExB-2NL83wRpMGjq-t_OCUxvK7qiEskB9jU4F5fd8c=
+          VAULT_ADDR: http://127.0.0.1:8200
+          VAULT_ROLE_ID: ${{ env.VAULT_ROLE_ID }}
+          VAULT_SECRET_ID: ${{ env.VAULT_SECRET_ID }}
           # REQUIRE_MFA=false is an explicit demo/CI toggle (src/routers/auth.py's
           # _mfa_required) so this job can log in with just username/password —
           # never set this in a real deployment.
