@@ -38,6 +38,9 @@ redis==8.0.1
 # local dev, where SANDBOX_BACKEND defaults to "docker".
 kubernetes==36.0.3
 
+# RQ — per-email job queue on Redis/Memurai (replaces the poll-and-batch loop)
+rq==2.10.0
+
 # Email parsing & auth
 dkimpy==1.1.8
 checkdmarc==5.17.4
