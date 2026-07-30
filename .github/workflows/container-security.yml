@@ -1,0 +1,81 @@
+name: Container & Infrastructure Security
+
+# Separate from secops.yml (CI Pipeline) because these checks target the
+# Dockerfiles and Kubernetes manifests specifically, not the Python
+# application code — the SCA/SAST jobs in secops.yml only ever saw
+# requirements.txt and src/, never the container/OS layer or IaC configs.
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master]
+
+jobs:
+  dockerfile-lint:
+    name: Dockerfile Lint (hadolint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run hadolint on every Dockerfile
+        # Informational only for now — NOT independently verified locally
+        # (this dev machine has no Docker daemon and no native hadolint
+        # binary; see the Kubernetes-orchestration Build Log entry for the
+        # same constraint). Confirm this is clean on a real CI run before
+        # promoting to blocking, same discipline used for the other new
+        # gates added this session.
+        continue-on-error: true
+        run: |
+          docker run --rm -i hadolint/hadolint < docker/app.Dockerfile
+          docker run --rm -i hadolint/hadolint < docker/base.Dockerfile
+          for f in docker/*.Dockerfile; do
+            echo "--- $f ---"
+            docker run --rm -i hadolint/hadolint < "$f" || true
+          done
+
+  container-image-scan:
+    name: Container Image Vulnerability Scan (trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the app image
+        run: docker build -f docker/app.Dockerfile -t attijari-app:ci-scan .
+      - name: Scan with Trivy (HIGH/CRITICAL — informational for now)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        # Same caveat as hadolint above: image build + scan couldn't be
+        # dry-run on this dev machine (no Docker daemon). Verify a real CI
+        # run is clean, then drop continue-on-error to make this block.
+        with:
+          image-ref: attijari-app:ci-scan
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          format: table
+
+  iac-scan:
+    name: IaC Misconfiguration Scan (checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install checkov
+        run: pip install checkov
+      - name: Scan Kubernetes manifests and Dockerfiles
+        # Informational for now — verified locally (2026-07-30) that checkov
+        # finds real, pre-existing gaps: across deploy/k8s/ (missing security
+        # contexts and resource limits on the Ollama deployment, missing
+        # NetworkPolicies scoping most pods beyond the sandbox deny-all —
+        # matches the already-tracked "Health and reliability" item in
+        # CLAUDE.md's Production Deployment Backlog) and missing HEALTHCHECK
+        # instructions across every docker/*.Dockerfile. This gate surfaces
+        # that existing debt, it doesn't invent new work. Promote to blocking
+        # once that backlog item is addressed, not before (it would otherwise
+        # block every unrelated PR immediately). No docker-compose-specific
+        # framework exists in this checkov version, so docker-compose.yml
+        # isn't scanned here — hadolint/trivy above cover the image layer.
+        continue-on-error: true
+        run: |
+          checkov -d deploy/k8s --framework kubernetes --compact
+          checkov -d docker --framework dockerfile --compact
