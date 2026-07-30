@@ -101,6 +101,20 @@
                 {% elif role == 'viewer' %}
                 <span class="status-badge" style="background:rgba(149,165,166,0.15);color:#7f8c8d;margin-left:8px;font-size:0.72rem;">viewer</span>
                 {% endif %}
+                <div class="notif-center" id="notif-center" style="margin-left:12px;">
+                    <button class="notif-bell" id="notif-bell-btn" data-action="toggle-notif-center" title="Notifications">
+                        🔔<span class="notif-badge" id="notif-badge" style="display:none;">0</span>
+                    </button>
+                    <div class="notif-panel" id="notif-panel" style="display:none;">
+                        <div class="notif-panel-header">
+                            <strong>Notifications</strong>
+                            <button class="notif-clear-btn" data-action="clear-all-notifs">Clear all</button>
+                        </div>
+                        <div class="notif-panel-body" id="notif-panel-body">
+                            <div class="notif-empty">No notifications</div>
+                        </div>
+                    </div>
+                </div>
                 <a href="/logout" class="btn btn-outline btn-sm" style="margin-left:12px;font-size:0.78rem;padding:4px 12px;">Logout</a>
             </div>
             {% endif %}
