@@ -14,7 +14,7 @@ psycopg2-binary==2.9.12
 SQLAlchemy==2.0.41
 
 # Rate limiting
-slowapi==0.1.9
+slowapi==0.1.10
 
 # Authentication & security
 bcrypt==5.0.0
