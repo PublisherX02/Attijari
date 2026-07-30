@@ -1,0 +1,47 @@
+# RQ worker pods — process pipeline jobs enqueued by the app pods
+# (src/smtp_receiver.py) and the safety-net sweep. Same image, ServiceAccount
+# (workers call sandbox.run_tool() -> the K8s-Jobs sandbox backend, needing
+# the same RBAC as the app pods), and config/secrets as attijari-app —
+# only the container command differs. replicas is independently tunable
+# from the app Deployment's, giving real backpressure: jobs queue in Redis
+# if all workers are busy, rather than overlapping in-process pipeline runs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attijari-worker
+  namespace: attijari
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: attijari-worker
+  template:
+    metadata:
+      labels:
+        app: attijari-worker
+    spec:
+      serviceAccountName: attijari-sandbox-runner
+      containers:
+        - name: worker
+          image: attijari-app:latest  # same image as attijari-app; built on the bank VM
+          command: ["rq"]
+          args: ["worker", "attijari-pipeline", "--url", "$(REDIS_URL)"]
+          envFrom:
+            - configMapRef:
+                name: attijari-config
+            - secretRef:
+                name: attijari-secrets
+          volumeMounts:
+            - name: sandbox-workdir
+              mountPath: /sandbox-workdir
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+      volumes:
+        - name: sandbox-workdir
+          persistentVolumeClaim:
+            claimName: sandbox-workdir

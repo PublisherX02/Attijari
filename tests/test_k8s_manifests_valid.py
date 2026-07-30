@@ -128,6 +128,26 @@ def test_kustomization_includes_every_base_manifest():
         "namespace.yaml", "configmap.yaml",
         "postgres-statefulset.yaml", "redis-statefulset.yaml", "ollama-deployment.yaml",
         "sandbox-rbac.yaml", "sandbox-networkpolicy.yaml", "sandbox-limitrange.yaml", "sandbox-workdir-pvc.yaml",
-        "app-deployment.yaml", "app-service.yaml", "app-ingress.yaml",
+        "app-deployment.yaml", "worker-deployment.yaml", "app-service.yaml", "app-ingress.yaml",
     }
     assert expected <= resources, f"kustomization.yaml missing: {expected - resources}"
+
+
+def test_worker_deployment_runs_rq_worker_with_same_identity_as_app():
+    docs = list(yaml.safe_load_all((_DEPLOY_K8S / "worker-deployment.yaml").read_text(encoding="utf-8")))
+    deploy = next(d for d in docs if d["kind"] == "Deployment")
+    pod_spec = deploy["spec"]["template"]["spec"]
+    assert pod_spec["serviceAccountName"] == "attijari-sandbox-runner"
+    container = pod_spec["containers"][0]
+    assert container["command"] == ["rq"]
+    assert container["args"] == ["worker", "attijari-pipeline", "--url", "$(REDIS_URL)"]
+    env_from = container.get("envFrom", [])
+    assert any("configMapRef" in e for e in env_from)
+    assert any("secretRef" in e for e in env_from)
+    mount_paths = {vm["mountPath"] for c in pod_spec["containers"] for vm in c.get("volumeMounts", [])}
+    assert "/sandbox-workdir" in mount_paths
+
+
+def test_kustomization_includes_worker_deployment():
+    kustomization = yaml.safe_load((_DEPLOY_K8S / "kustomization.yaml").read_text(encoding="utf-8"))
+    assert "worker-deployment.yaml" in kustomization["resources"]
