@@ -15,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
           cache: 'pip'
       - name: Install Linting Tools
         run: pip install black isort flake8
@@ -52,7 +52,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Run pip-audit (blocks on any known vulnerability)
@@ -71,7 +71,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
       - name: Install Bandit & Semgrep
         run: pip install bandit semgrep
       - name: Run Bandit (blocks on high severity)
@@ -119,7 +119,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
           cache: 'pip'
       - name: Install dependencies
         run: |
@@ -136,6 +136,14 @@ jobs:
           # need a real Postgres to run against — provided by the service above.
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
           REDIS_URL: redis://localhost:6379/0
+          # src/api_core.py raises RuntimeError at import time if neither is set.
+          # Locally, collection succeeds without them (nothing imports api_core.py
+          # at collection time), but any test that exercises auth code paths at
+          # *execution* time would hit this — and neither var was ever present in
+          # this workflow. CI-only throwaway values (sign/encrypt nothing outside
+          # this run); must differ from each other or api_core.py warns.
+          JWT_SECRET: ci-only-jwt-secret-not-used-outside-this-workflow-run
+          VAULT_ENCRYPTION_KEY: RExB-2NL83wRpMGjq-t_OCUxvK7qiEskB9jU4F5fd8c=
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
