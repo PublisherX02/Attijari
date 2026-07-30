@@ -44,7 +44,7 @@ def _run(cmd: str, timeout: int = 60) -> bool:
     try:
         # shell=True is intentional: cmd comes from trusted operator config
         # (detonation_config / env), never from user input.
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)  # nosec B602
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)  # nosec B602 # nosemgrep: subprocess-shell-true
         if r.returncode != 0:
             print(f"[DETONATION] cmd failed ({r.returncode}): {cmd}\n  {r.stderr.strip()[:300]}")
         return r.returncode == 0
@@ -110,7 +110,7 @@ def _start_docker() -> None:
     print("[DETONATION] Restarting Docker...")
     # Launch Docker Desktop detached; then wait for the daemon to answer.
     try:
-        subprocess.Popen(cfg.DOCKER_START_CMD, shell=True)  # nosec B602 — trusted config command
+        subprocess.Popen(cfg.DOCKER_START_CMD, shell=True)  # nosec B602 # nosemgrep: subprocess-shell-true — trusted config command
     except Exception as e:
         print(f"[DETONATION] Docker start failed to launch: {e}")
         return

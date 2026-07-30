@@ -657,8 +657,10 @@ async def api_stats(user: AuthenticatedUser = Depends(require_permission("emails
             _account_clause = "AND (account = :active_account OR account IS NULL)"
             _params["active_account"] = _active.email
 
+        # _account_clause is one of two fixed literal strings selected above, never
+        # user input; the actual value (_active.email) is bound via _params.
         avg_conf_row = db.execute(
-            text(
+            text(  # nosemgrep: avoid-sqlalchemy-text
                 "SELECT AVG((llm_result->>'confiance')::float) "
                 "FROM emails "
                 "WHERE created_at >= :cutoff "

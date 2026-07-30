@@ -442,7 +442,8 @@ def _migrate_users_rbac():
         with engine.begin() as conn:
             for col_name, col_def in new_cols.items():
                 if col_name not in existing_cols:
-                    conn.execute(sa_text(f'ALTER TABLE users ADD COLUMN "{col_name}" {col_def}'))
+                    # col_name/col_def come from the new_cols dict literal above, not user input.
+                    conn.execute(sa_text(f'ALTER TABLE users ADD COLUMN "{col_name}" {col_def}'))  # nosemgrep: avoid-sqlalchemy-text
                     print(f"[DB] Added column users.{col_name}")
 
         # Only promote pre-RBAC users on first migration (when role column was just added).
@@ -477,7 +478,8 @@ def _migrate_pending_detonation_manual():
         with engine.begin() as conn:
             for name, ddl in new_cols.items():
                 if name not in existing:
-                    conn.execute(sa_text(f'ALTER TABLE pending_detonation ADD COLUMN "{name}" {ddl}'))
+                    # name/ddl come from the new_cols dict literal above, not user input.
+                    conn.execute(sa_text(f'ALTER TABLE pending_detonation ADD COLUMN "{name}" {ddl}'))  # nosemgrep: avoid-sqlalchemy-text
                     print(f"[DB] Added column pending_detonation.{name}")
     except Exception as e:
         print(f"[DB] pending_detonation manual migration skipped: {e}")
