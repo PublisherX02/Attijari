@@ -58,3 +58,36 @@ def read_secret(path: str) -> dict:
     data = response["data"]["data"]
     _cache[path] = (now, data)
     return data
+
+
+def get_database_url() -> str:
+    return read_secret("database")["url"]
+
+
+def get_jwt_secret() -> str:
+    return read_secret("jwt")["secret"]
+
+
+def get_vault_encryption_key() -> str:
+    return read_secret("vault_encryption_key")["key"]
+
+
+def get_api_key(name: str) -> str:
+    """name is one of: virustotal, threatfox, abuseipdb, otx, dnstwist."""
+    return read_secret("threat_intel").get(name, "")
+
+
+def get_smtp_creds() -> dict:
+    """Returns {"user": ..., "password": ...}."""
+    data = read_secret("smtp")
+    return {"user": data.get("user", ""), "password": data.get("password", "")}
+
+
+def get_webhook_url(name: str) -> str:
+    """name is one of: slack, teams."""
+    return read_secret("webhooks").get(name, "")
+
+
+def get_cape_token(name: str) -> str:
+    """name is one of: api_token, vm_wrapper_token."""
+    return read_secret("cape").get(name, "")

@@ -53,3 +53,35 @@ def test_read_secret_is_cached_within_ttl():
     cached = secrets_client.read_secret("_cache_test")
     assert first["value"] == "first"
     assert cached["value"] == "first"  # still cached, TTL not expired
+
+
+def test_typed_getters_round_trip():
+    import secrets_client
+
+    _seed_secret("database", {"url": "postgresql://u:p@host/db"})
+    _seed_secret("jwt", {"secret": "jwt-signing-key"})
+    _seed_secret("vault_encryption_key", {"key": "fernet-key-value"})
+    _seed_secret(
+        "threat_intel",
+        {"virustotal": "vt-key", "threatfox": "tf-key", "abuseipdb": "ab-key",
+         "otx": "otx-key", "dnstwist": "{}"},
+    )
+    _seed_secret("smtp", {"user": "smtp-user", "password": "smtp-pass"})
+    _seed_secret("webhooks", {"slack": "https://hooks.slack/x", "teams": "https://teams/y"})
+    _seed_secret("cape", {"api_token": "cape-token", "vm_wrapper_token": "wrapper-token"})
+
+    secrets_client._cache.clear()  # force a fresh read for this test
+
+    assert secrets_client.get_database_url() == "postgresql://u:p@host/db"
+    assert secrets_client.get_jwt_secret() == "jwt-signing-key"
+    assert secrets_client.get_vault_encryption_key() == "fernet-key-value"
+    assert secrets_client.get_api_key("virustotal") == "vt-key"
+    assert secrets_client.get_api_key("threatfox") == "tf-key"
+    assert secrets_client.get_api_key("abuseipdb") == "ab-key"
+    assert secrets_client.get_api_key("otx") == "otx-key"
+    assert secrets_client.get_api_key("dnstwist") == "{}"
+    assert secrets_client.get_smtp_creds() == {"user": "smtp-user", "password": "smtp-pass"}
+    assert secrets_client.get_webhook_url("slack") == "https://hooks.slack/x"
+    assert secrets_client.get_webhook_url("teams") == "https://teams/y"
+    assert secrets_client.get_cape_token("api_token") == "cape-token"
+    assert secrets_client.get_cape_token("vm_wrapper_token") == "wrapper-token"
