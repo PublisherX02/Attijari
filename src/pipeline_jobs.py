@@ -95,4 +95,7 @@ def on_pipeline_job_failure(job, connection, type, value, traceback) -> None:
     except Exception as e:
         print(f"[PIPELINE-JOB] Failed to mark email escalated after job failure for {file_path}: {e}")
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            pass

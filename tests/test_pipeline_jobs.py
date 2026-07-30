@@ -90,3 +90,25 @@ def test_on_failure_does_not_raise_when_db_unreachable():
     import pipeline_jobs
     with patch("pipeline_jobs.SessionLocal", side_effect=Exception("db down")):
         pipeline_jobs.on_pipeline_job_failure(MagicMock(args=("/tmp/x.eml",)), None, ValueError, ValueError("boom"), None)  # must not raise
+
+
+def test_on_failure_does_not_raise_when_db_close_raises():
+    # The finally: db.close() block is the last line of defense — if close()
+    # itself raises (e.g. a dropped connection), it must be swallowed too,
+    # not propagate out of a function whose entire contract is "never raise".
+    import pipeline_jobs
+    fake_job = MagicMock()
+    fake_job.args = ("/tmp/deadbeef.eml",)
+
+    fake_email = MagicMock()
+    fake_email.status = "pending"
+    fake_db = MagicMock()
+    fake_db.query.return_value.filter.return_value.first.return_value = fake_email
+    fake_db.close.side_effect = Exception("close failed")
+
+    with patch("pipeline_jobs.SessionLocal", return_value=fake_db):
+        pipeline_jobs.on_pipeline_job_failure(fake_job, None, ValueError, ValueError("boom"), None)  # must not raise
+
+    assert fake_email.status == "escalated"
+    fake_db.commit.assert_called_once()
+    fake_db.close.assert_called_once()
