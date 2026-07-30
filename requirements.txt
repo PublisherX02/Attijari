@@ -23,7 +23,7 @@ pyotp==2.10.0
 cryptography==48.0.1
 
 # Monitoring & scheduling
-prometheus-client==0.22.1
+prometheus-client==0.26.0
 APScheduler==3.11.0
 
 # Utilities
