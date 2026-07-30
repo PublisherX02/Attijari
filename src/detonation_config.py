@@ -20,7 +20,8 @@ import os
 # Base URL of the CAPE apiv2 endpoint, e.g. http://192.168.56.10:8000/apiv2
 CAPE_API_URL = os.getenv("CAPE_API_URL", "http://127.0.0.1:8000/apiv2").rstrip("/")
 # Token issued by CAPE (web UI → API tokens). Sent as `Authorization: Token <t>`.
-CAPE_API_TOKEN = os.getenv("CAPE_API_TOKEN", "")
+from secrets_client import get_cape_token
+CAPE_API_TOKEN = get_cape_token("api_token")
 # Verify TLS if CAPE is served over https (set to "0" for self-signed lab certs).
 CAPE_VERIFY_TLS = os.getenv("CAPE_VERIFY_TLS", "1") != "0"
 
@@ -155,7 +156,7 @@ CAPE_READY_TIMEOUT = int(os.getenv("CAPE_READY_TIMEOUT", "180"))
 # runbook (docs/imania-sandbox-setup.md) has been executed.
 CAPE_VM_WRAPPER_ENABLED = os.getenv("CAPE_VM_WRAPPER_ENABLED", "0") != "0"
 CAPE_VM_WRAPPER_URL = os.getenv("CAPE_VM_WRAPPER_URL", "http://192.168.100.10:8090").rstrip("/")
-CAPE_VM_WRAPPER_TOKEN = os.getenv("CAPE_VM_WRAPPER_TOKEN", "")
+CAPE_VM_WRAPPER_TOKEN = get_cape_token("vm_wrapper_token")
 CAPE_VM_WRAPPER_TIMEOUT = int(os.getenv("CAPE_VM_WRAPPER_TIMEOUT", "20"))
 
 # websockify endpoint on imania fronting cuckoo2's fixed VNC port. The
