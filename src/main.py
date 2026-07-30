@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from pathlib import Path
 from email import policy
 from email.parser import BytesParser
 from email.utils import parseaddr
@@ -82,7 +83,7 @@ def _ollama_reachable(timeout: float = 5.0) -> bool:
         return False
 
 
-def run_pipeline():
+def run_pipeline(single_file: str | None = None):
     load_dotenv()
     logger = get_logger("pipeline")
 
@@ -179,7 +180,13 @@ def run_pipeline():
         # inbound SMTP receiver (src/smtp_receiver.py) already accepted and
         # durably wrote these messages; nothing below this line changes —
         # the per-email loop doesn't know or care where raw_emails came from.
-        raw_emails = ingestion.fetch_pending_smtp(limit=50)
+        # single_file (job-queue initiative, 2026-07-30): when set, this is
+        # one RQ job processing exactly one file instead of a batch poll —
+        # every line below this stays IDENTICAL for one email as for fifty.
+        if single_file:
+            raw_emails = [Path(single_file).read_bytes()]
+        else:
+            raw_emails = ingestion.fetch_pending_smtp(limit=50)
 
         cached = 0
         for i, raw in enumerate(raw_emails, 1):
