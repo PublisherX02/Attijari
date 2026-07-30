@@ -144,18 +144,22 @@ ws_manager = ConnectionManager()
 class NotAuthenticatedException(Exception):
     pass
 
-_jwt_secret = os.getenv("JWT_SECRET") or os.getenv("VAULT_ENCRYPTION_KEY")
+from secrets_client import get_jwt_secret, get_vault_encryption_key
+
+try:
+    _jwt_secret = get_jwt_secret()
+except RuntimeError:
+    _jwt_secret = get_vault_encryption_key()
 if not _jwt_secret:
     raise RuntimeError(
-        "JWT_SECRET is not set. "
-        "The API refuses to start without a secure JWT signing key. "
-        "Set JWT_SECRET in your .env file (must differ from VAULT_ENCRYPTION_KEY)."
+        "JWT_SECRET is not set in Vault (secret/attijari/jwt). "
+        "The API refuses to start without a secure JWT signing key."
     )
-if _jwt_secret == os.getenv("VAULT_ENCRYPTION_KEY"):
+if _jwt_secret == get_vault_encryption_key():
     import warnings
     warnings.warn(
         "JWT_SECRET is the same as VAULT_ENCRYPTION_KEY. "
-        "Set a separate JWT_SECRET in .env for defense-in-depth.",
+        "Set a separate JWT_SECRET value in Vault (secret/attijari/jwt) for defense-in-depth.",
         stacklevel=1,
     )
 JWT_SECRET = _jwt_secret

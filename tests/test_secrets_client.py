@@ -17,9 +17,44 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import hvac
 
 
+def _root_client() -> hvac.Client:
+    return hvac.Client(url=os.environ["VAULT_ADDR"], token=os.environ["VAULT_TOKEN"])
+
+
 def _seed_secret(path: str, secret: dict) -> None:
-    root_client = hvac.Client(url=os.environ["VAULT_ADDR"], token=os.environ["VAULT_TOKEN"])
-    root_client.secrets.kv.v2.create_or_update_secret(path=f"attijari/{path}", secret=secret)
+    _root_client().secrets.kv.v2.create_or_update_secret(path=f"attijari/{path}", secret=secret)
+
+
+def _snapshot(paths: list[str]) -> dict:
+    """Read the current value (or None if absent) at each production path,
+    so tests that write synthetic data into real, shared production paths
+    (database, jwt, etc. — read by the live app code, not just tests) can
+    restore the real value afterward instead of leaving it corrupted for
+    every test that runs later in the same session."""
+    client = _root_client()
+    snapshot = {}
+    for path in paths:
+        try:
+            snapshot[path] = client.secrets.kv.v2.read_secret_version(
+                path=f"attijari/{path}", mount_point="secret"
+            )["data"]["data"]
+        except hvac.exceptions.InvalidPath:
+            snapshot[path] = None
+    return snapshot
+
+
+def _restore(snapshot: dict) -> None:
+    client = _root_client()
+    for path, data in snapshot.items():
+        if data is None:
+            try:
+                client.secrets.kv.v2.delete_metadata_and_all_versions(
+                    path=f"attijari/{path}", mount_point="secret"
+                )
+            except hvac.exceptions.InvalidPath:
+                pass
+        else:
+            client.secrets.kv.v2.create_or_update_secret(path=f"attijari/{path}", secret=data)
 
 
 def test_get_client_returns_working_singleton():
@@ -58,30 +93,36 @@ def test_read_secret_is_cached_within_ttl():
 def test_typed_getters_round_trip():
     import secrets_client
 
-    _seed_secret("database", {"url": "postgresql://u:p@host/db"})
-    _seed_secret("jwt", {"secret": "jwt-signing-key"})
-    _seed_secret("vault_encryption_key", {"key": "fernet-key-value"})
-    _seed_secret(
-        "threat_intel",
-        {"virustotal": "vt-key", "threatfox": "tf-key", "abuseipdb": "ab-key",
-         "otx": "otx-key", "dnstwist": "{}"},
-    )
-    _seed_secret("smtp", {"user": "smtp-user", "password": "smtp-pass"})
-    _seed_secret("webhooks", {"slack": "https://hooks.slack/x", "teams": "https://teams/y"})
-    _seed_secret("cape", {"api_token": "cape-token", "vm_wrapper_token": "wrapper-token"})
+    paths = ["database", "jwt", "vault_encryption_key", "threat_intel", "smtp", "webhooks", "cape"]
+    snapshot = _snapshot(paths)
+    try:
+        _seed_secret("database", {"url": "postgresql://u:p@host/db"})
+        _seed_secret("jwt", {"secret": "jwt-signing-key"})
+        _seed_secret("vault_encryption_key", {"key": "fernet-key-value"})
+        _seed_secret(
+            "threat_intel",
+            {"virustotal": "vt-key", "threatfox": "tf-key", "abuseipdb": "ab-key",
+             "otx": "otx-key", "dnstwist": "{}"},
+        )
+        _seed_secret("smtp", {"user": "smtp-user", "password": "smtp-pass"})
+        _seed_secret("webhooks", {"slack": "https://hooks.slack/x", "teams": "https://teams/y"})
+        _seed_secret("cape", {"api_token": "cape-token", "vm_wrapper_token": "wrapper-token"})
 
-    secrets_client._cache.clear()  # force a fresh read for this test
+        secrets_client._cache.clear()  # force a fresh read for this test
 
-    assert secrets_client.get_database_url() == "postgresql://u:p@host/db"
-    assert secrets_client.get_jwt_secret() == "jwt-signing-key"
-    assert secrets_client.get_vault_encryption_key() == "fernet-key-value"
-    assert secrets_client.get_api_key("virustotal") == "vt-key"
-    assert secrets_client.get_api_key("threatfox") == "tf-key"
-    assert secrets_client.get_api_key("abuseipdb") == "ab-key"
-    assert secrets_client.get_api_key("otx") == "otx-key"
-    assert secrets_client.get_api_key("dnstwist") == "{}"
-    assert secrets_client.get_smtp_creds() == {"user": "smtp-user", "password": "smtp-pass"}
-    assert secrets_client.get_webhook_url("slack") == "https://hooks.slack/x"
-    assert secrets_client.get_webhook_url("teams") == "https://teams/y"
-    assert secrets_client.get_cape_token("api_token") == "cape-token"
-    assert secrets_client.get_cape_token("vm_wrapper_token") == "wrapper-token"
+        assert secrets_client.get_database_url() == "postgresql://u:p@host/db"
+        assert secrets_client.get_jwt_secret() == "jwt-signing-key"
+        assert secrets_client.get_vault_encryption_key() == "fernet-key-value"
+        assert secrets_client.get_api_key("virustotal") == "vt-key"
+        assert secrets_client.get_api_key("threatfox") == "tf-key"
+        assert secrets_client.get_api_key("abuseipdb") == "ab-key"
+        assert secrets_client.get_api_key("otx") == "otx-key"
+        assert secrets_client.get_api_key("dnstwist") == "{}"
+        assert secrets_client.get_smtp_creds() == {"user": "smtp-user", "password": "smtp-pass"}
+        assert secrets_client.get_webhook_url("slack") == "https://hooks.slack/x"
+        assert secrets_client.get_webhook_url("teams") == "https://teams/y"
+        assert secrets_client.get_cape_token("api_token") == "cape-token"
+        assert secrets_client.get_cape_token("vm_wrapper_token") == "wrapper-token"
+    finally:
+        _restore(snapshot)
+        secrets_client._cache.clear()
