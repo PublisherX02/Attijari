@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attijari-app
+  namespace: attijari
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: attijari-app
+  template:
+    metadata:
+      labels:
+        app: attijari-app
+    spec:
+      serviceAccountName: attijari-sandbox-runner
+      containers:
+        - name: app
+          image: attijari-app:latest  # built on the bank VM; not built from this dev machine
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: attijari-config
+            - secretRef:
+                name: attijari-secrets
+          volumeMounts:
+            - name: sandbox-workdir
+              mountPath: /sandbox-workdir
+            - name: smtp-pending-data
+              mountPath: /app/data/smtp_pending
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: sandbox-workdir
+          persistentVolumeClaim:
+            claimName: sandbox-workdir
+        - name: smtp-pending-data
+          persistentVolumeClaim:
+            claimName: smtp-pending-data

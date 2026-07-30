@@ -1,0 +1,16 @@
+# Shared ReadWriteMany volume so the app pod can write an attachment and a
+# separate sandbox Job pod can read it — Kubernetes has no direct
+# equivalent of Docker's single-host bind mount across containers.
+# REQUIRES an RWX-capable StorageClass on the target cluster (commonly
+# NFS-backed on-prem) — confirm this exists on the bank VM before deploying;
+# this manifest does not provision the StorageClass itself.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sandbox-workdir
+  namespace: attijari
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 5Gi

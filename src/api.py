@@ -28,32 +28,17 @@ sys.path.insert(0, str(_SRC_DIR))
 
 load_dotenv()
 
+from redis_async_lock import RedisAsyncLock
+
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from database import init_db
 from metrics import api_requests_total, api_request_duration_seconds
-from api_core import verify_auth, NotAuthenticatedException
-
-
-def _get_real_client_ip(request: Request) -> str:
-    """Extract client IP ignoring X-Forwarded-For unless from trusted proxy."""
-    trusted_proxies = os.getenv("TRUSTED_PROXIES", "127.0.0.1").split(",")
-    trusted_proxies = {p.strip() for p in trusted_proxies if p.strip()}
-    client_ip = request.client.host if request.client else "unknown"
-    if client_ip in trusted_proxies:
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-    return client_ip
-
-
-# Rate limiter — keyed by real client IP (not spoofable X-Forwarded-For)
-limiter = Limiter(key_func=_get_real_client_ip, default_limits=["200/minute"])
+from api_core import verify_auth, NotAuthenticatedException, limiter
 
 from routers.auth import auth_router
 from routers.dashboard import dashboard_router
@@ -63,8 +48,7 @@ from routers.users import users_router
 from routers.mailboxes import mailboxes_router
 from routers.detonation_proxy import detonation_proxy_router, detonation_ws_router
 from tasks.background import data_retention_and_backup_task
-from routers.emails import _run_pipeline_sync
-from api_core import ws_manager
+from pipeline_jobs import enqueue_pipeline_job
 
 app = FastAPI(
     title="Attijari Security Dashboard",
@@ -143,9 +127,12 @@ _poll_task = None
 _retention_task = None
 _gmail_bridge_task = None
 _pop3_bridge_task = None
-_scan_lock = asyncio.Lock()
+_scan_lock = RedisAsyncLock("pipeline_scan", timeout=600)
 _smtp_controller = None
-POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
+_refresh_listener_task = None
+
+_SWEEP_DIR = Path(__file__).resolve().parent.parent / "data" / "smtp_pending"
+SWEEP_INTERVAL = int(os.getenv("SWEEP_INTERVAL_SECONDS", "300"))
 
 # Bridges real Gmail mail into the local SMTP receiver (see
 # src/gmail_smtp_bridge.py) — restores the personal-Gmail demo path that the
@@ -180,23 +167,52 @@ async def _pop3_bridge_poll():
             print(f"[POP3-BRIDGE] Tick error: {e}")
         await asyncio.sleep(POP3_BRIDGE_INTERVAL)
 
-async def _background_poll():
+def _sweep_pending_directory() -> int:
+    """Re-enqueue every .eml file currently on disk. Safety net for the
+    primary enqueue path (smtp_receiver.py's handle_DATA) — catches a Redis
+    blip during that enqueue call, files relayed in before this process was
+    up, or manual file drops. Duplicate enqueues of an already-queued or
+    already-processed file are harmless no-ops (see pipeline_jobs.py)."""
+    if not _SWEEP_DIR.is_dir():
+        return 0
+    count = 0
+    for path in _SWEEP_DIR.glob("*.eml"):
+        enqueue_pipeline_job(str(path))
+        count += 1
+    return count
+
+
+async def _pending_sweep():
     await asyncio.sleep(5)
-    import detonation_state
     while True:
         try:
-            if detonation_state.is_active():
-                # A drained detonation window is running; skip this tick so we
-                # don't reload Ollama/Docker and blow the memory budget.
-                print("[POLL] Detonation active — skipping this poll tick")
-            else:
-                async with _scan_lock:
-                    loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(None, _run_pipeline_sync)
-                    await ws_manager.broadcast("refresh")
+            async with _scan_lock:
+                loop = asyncio.get_running_loop()
+                n = await loop.run_in_executor(None, _sweep_pending_directory)
+                if n:
+                    print(f"[SWEEP] Re-checked {n} pending file(s)")
         except Exception as e:
-            print(f"[POLL] Pipeline error: {e}")
-        await asyncio.sleep(POLL_INTERVAL)
+            print(f"[SWEEP] Error: {e}")
+        await asyncio.sleep(SWEEP_INTERVAL)
+
+async def _pipeline_refresh_listener():
+    """Forwards Redis Pub/Sub 'a job finished' signals from RQ worker
+    processes (which have no access to this process's in-memory
+    ws_manager) to connected dashboard WebSocket clients."""
+    await asyncio.sleep(5)
+    from redis_client import get_client
+    from api_core import ws_manager
+    pubsub = get_client().pubsub()
+    pubsub.subscribe("attijari:pipeline:refresh")
+    loop = asyncio.get_running_loop()
+    while True:
+        try:
+            message = await loop.run_in_executor(None, lambda: pubsub.get_message(timeout=5.0))
+            if message and message.get("type") == "message":
+                await ws_manager.broadcast("refresh")
+        except Exception as e:
+            print(f"[PIPELINE-REFRESH] Listener error: {e}")
+            await asyncio.sleep(5)
 
 def _update_gauge_metrics():
     # Placeholder to update metrics at startup
@@ -204,12 +220,15 @@ def _update_gauge_metrics():
 
 @app.on_event("startup")
 async def startup():
-    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task
+    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task, _refresh_listener_task
     init_db()
     _update_gauge_metrics()
-    _poll_task = asyncio.create_task(_background_poll())
+    _poll_task = asyncio.create_task(_pending_sweep())
     _retention_task = asyncio.create_task(data_retention_and_backup_task())
-    print(f"[POLL] Background pipeline tick started (every {POLL_INTERVAL}s)")
+    print(f"[SWEEP] Pending-directory safety-net sweep started (every {SWEEP_INTERVAL}s)")
+
+    _refresh_listener_task = asyncio.create_task(_pipeline_refresh_listener())
+    print("[PIPELINE-REFRESH] Redis Pub/Sub refresh listener started")
 
     from smtp_receiver import build_controller
     _smtp_controller = build_controller()
@@ -227,7 +246,7 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task
+    global _poll_task, _retention_task, _smtp_controller, _gmail_bridge_task, _pop3_bridge_task, _refresh_listener_task
     if _poll_task:
         _poll_task.cancel()
     if _retention_task:
@@ -236,6 +255,8 @@ async def shutdown():
         _gmail_bridge_task.cancel()
     if _pop3_bridge_task:
         _pop3_bridge_task.cancel()
+    if _refresh_listener_task:
+        _refresh_listener_task.cancel()
     if _smtp_controller:
         _smtp_controller.stop()
         print("[SMTP] Inbound receiver stopped")

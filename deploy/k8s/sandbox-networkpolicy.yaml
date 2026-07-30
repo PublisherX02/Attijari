@@ -1,0 +1,19 @@
+# Deny ALL ingress and egress for every extraction-sandbox Job pod — the
+# Kubernetes equivalent of Docker's --network=none. REQUIRES the target
+# cluster's CNI to enforce NetworkPolicy (Calico, Cilium, etc.). Default
+# kubenet does NOT enforce NetworkPolicies — confirm the bank VM's CNI
+# before relying on this for isolation.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: attijari-sandbox-deny-all
+  namespace: attijari
+spec:
+  podSelector:
+    matchLabels:
+      app: attijari-sandbox
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress: []

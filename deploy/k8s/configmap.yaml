@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: attijari-config
+  namespace: attijari
+data:
+  DASHBOARD_HOST: "0.0.0.0"
+  DASHBOARD_PORT: "8000"
+  POLL_INTERVAL_SECONDS: "60"
+  OLLAMA_BASE_URL: "http://ollama:11434"
+  DATABASE_URL_HOST: "postgres"
+  REDIS_URL: "redis://redis:6379/0"
+  SANDBOX_BACKEND: "kubernetes"
+  SANDBOX_NAMESPACE: "attijari"
+  SANDBOX_WORKDIR_PVC: "sandbox-workdir"
+  TRUSTED_PROXIES: "127.0.0.1"

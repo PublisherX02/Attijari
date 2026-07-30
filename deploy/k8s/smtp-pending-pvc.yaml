@@ -1,0 +1,17 @@
+# Shared ReadWriteMany volume so the app pod (writes .eml files via
+# src/smtp_receiver.py) and worker pods (read them via RQ jobs carrying a
+# file path) see the same filesystem — Kubernetes gives every pod its own
+# container filesystem by default, so a job enqueued by one pod pointing at
+# a path on that pod's local disk is unresolvable from a different pod.
+# REQUIRES an RWX-capable StorageClass on the target cluster (same
+# requirement already documented for sandbox-workdir-pvc.yaml).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: smtp-pending-data
+  namespace: attijari
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 5Gi

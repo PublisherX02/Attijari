@@ -29,6 +29,18 @@ APScheduler==3.11.0
 # Utilities
 filelock==3.29.4
 
+# Shared state store (ARCH-1) — rate limits, TOTP replay cache, detonation
+# window lock, pipeline scan lock. Memurai for local dev, real Redis in prod.
+redis==8.0.1
+
+# Kubernetes API client — extraction sandbox as a managed pool of Jobs on
+# the on-prem deployment target (SANDBOX_BACKEND=kubernetes). Unused on
+# local dev, where SANDBOX_BACKEND defaults to "docker".
+kubernetes==36.0.3
+
+# RQ — per-email job queue on Redis/Memurai (replaces the poll-and-batch loop)
+rq==2.10.0
+
 # Email parsing & auth
 dkimpy==1.1.8
 checkdmarc==5.17.4

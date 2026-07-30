@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: attijari
+spec:
+  template:
+    spec:
+      nodeSelector:
+        nvidia.com/gpu: "true"
+      containers:
+        - name: ollama
+          resources:
+            limits:
+              nvidia.com/gpu: "1"

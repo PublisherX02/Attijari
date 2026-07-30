@@ -1,5 +1,6 @@
 .env
 *.env
+deploy/k8s/secret.yaml
 settings.local.json
 .venv
 tesseract/

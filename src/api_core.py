@@ -6,12 +6,34 @@ from typing import Optional
 from database import SessionLocal
 import jwt
 import bcrypt
+from slowapi import Limiter
 
 _SRC_DIR = Path(__file__).resolve().parent
 _DASHBOARD_DIR = _SRC_DIR / "dashboard"
 _TEMPLATES_DIR = _DASHBOARD_DIR / "templates"
 
 _jinja_templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+
+
+def _get_real_client_ip(request: Request) -> str:
+    """Extract client IP ignoring X-Forwarded-For unless from trusted proxy."""
+    trusted_proxies = os.getenv("TRUSTED_PROXIES", "127.0.0.1").split(",")
+    trusted_proxies = {p.strip() for p in trusted_proxies if p.strip()}
+    client_ip = request.client.host if request.client else "unknown"
+    if client_ip in trusted_proxies:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return client_ip
+
+
+from redis_client import REDIS_URL
+
+# Shared across every router — one Redis-backed limiter, not one per file.
+# limits' RedisStorage fails open by design when Redis is unreachable,
+# matching ARCH-1's decision for this component (see
+# docs/superpowers/specs/2026-07-29-arch1-redis-state-externalization-design.md).
+limiter = Limiter(key_func=_get_real_client_ip, storage_uri=REDIS_URL, default_limits=["200/minute"])
 
 
 def _generate_ws_token(username: str) -> str:

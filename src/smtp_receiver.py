@@ -13,6 +13,8 @@ from pathlib import Path
 
 from aiosmtpd.controller import Controller
 
+from pipeline_jobs import enqueue_pipeline_job
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_DIR = _PROJECT_ROOT / "data" / "smtp_pending"
 
@@ -43,6 +45,7 @@ class PendingMailHandler:
         path = self.pending_dir / f"{sha}.eml"
         if not path.exists():
             path.write_bytes(data)
+        enqueue_pipeline_job(str(path))
         return "250 Message accepted for delivery"
 
 

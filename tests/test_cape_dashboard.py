@@ -319,13 +319,19 @@ def test_try_begin_claims_and_refuses_when_active():
     ds.end()
 
 
-def test_detonation_lock_is_cross_thread_mutex():
-    # An asyncio.Lock here would only synchronize coroutines on one event
-    # loop and silently reopen the poller-vs-endpoint race. Must be a raw
-    # OS mutex.
-    import _thread
+def test_detonation_lock_is_redis_backed():
+    # A local threading.Lock or asyncio.Lock would only synchronize this one
+    # process — the whole point of ARCH-1 is that the window must be held
+    # across processes/workers too. Confirm the window's state actually
+    # lives in Redis (a raw key), not a local Python primitive: acquire via
+    # the public API, then check the key directly with a fresh client.
     import detonation_state as ds
-    assert isinstance(ds._lock, _thread.LockType)
+    import redis_client
+    ds.end()
+    assert ds.try_begin("redis-backed-check") is True
+    assert redis_client.get_client().exists(ds._LOCK_NAME) == 1
+    ds.end()
+    assert redis_client.get_client().exists(ds._LOCK_NAME) == 0
 
 
 def test_try_begin_race_exactly_one_winner():

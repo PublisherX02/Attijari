@@ -20,9 +20,9 @@ jobs:
       - name: Install Linting Tools
         run: pip install black isort flake8
       - name: Check Formatting (Black)
-        run: black --check . || echo "Black formatting issues found"
+        run: black --check . || echo "Black formatting issues found (non-blocking)"
       - name: Check Imports (isort)
-        run: isort --check-only . || echo "isort issues found"
+        run: isort --check-only . || echo "isort issues found (non-blocking)"
       - name: Lint (flake8)
         run: flake8 . --exit-zero --max-line-length=88
 
@@ -40,6 +40,9 @@ jobs:
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
           extra_args: --debug --only-verified
+        # No fallback here on purpose: a verified secret hit fails this
+        # job outright, which blocks merge once branch protection requires
+        # this check (see the branch-protection note in CLAUDE.md).
 
   dependency-scan:
     name: Software Composition Analysis (SCA)
@@ -50,14 +53,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Install pip-audit & safety
-        run: pip install pip-audit safety
-      - name: Run pip-audit
-        run: pip-audit || echo "Vulnerabilities found by pip-audit"
-      - name: Run safety check
-        run: safety check || echo "Vulnerabilities found by safety"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Run pip-audit (blocks on any known vulnerability)
+        # -r audits requirements.txt directly without installing every
+        # package (avoids pulling the +cu121 torch wheel onto a GPU-less
+        # runner twice — the `test` job below installs it anyway). torch's
+        # custom +cu121 build isn't published on PyPI and is reported as
+        # skipped by pip-audit, not a failure — expected, not a gap.
+        run: pip-audit -r requirements.txt
 
   sast:
     name: Static Application Security Testing (SAST)
@@ -70,10 +74,14 @@ jobs:
           python-version: '3.11'
       - name: Install Bandit & Semgrep
         run: pip install bandit semgrep
-      - name: Run Bandit
-        run: bandit -r src -ll -ii -f screen || echo "Bandit issues found"
-      - name: Run Semgrep
-        run: semgrep ci --config=p/ci || echo "Semgrep issues found"
+      - name: Run Bandit (blocks on high severity)
+        run: bandit -r src -lll -ii -f screen
+      - name: Run Bandit (medium severity — informational only)
+        run: bandit -r src -ll -ii -f screen || echo "Medium-severity Bandit findings — review, not blocking"
+      - name: Run Semgrep (blocks on ERROR severity)
+        run: semgrep scan --config=p/security-audit --config=p/owasp-top-ten src --severity=ERROR
+      - name: Run Semgrep (WARNING severity — informational only)
+        run: semgrep scan --config=p/security-audit --config=p/owasp-top-ten src --severity=WARNING || echo "Warning-severity Semgrep findings — review, not blocking"
 
   test:
     name: Pytest & Coverage
@@ -93,6 +101,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        # ARCH-1 and the job-queue migration moved rate limiting, the TOTP
+        # replay cache, the detonation-window lock, the pipeline scan lock,
+        # and RQ itself onto Redis — tests that exercise those hit a real
+        # Redis instance (never mocked), so the runner needs one too.
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -104,7 +125,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov
+          pip install pytest pytest-cov pytest-asyncio==1.4.0
       - name: Run Pytest
         run: pytest tests/ --cov=src --cov-report=xml -v
         env:
@@ -114,6 +135,15 @@ jobs:
           # Live-DB tests (test_jwt_revocation.py, test_detonation_recovery.py, etc.)
           # need a real Postgres to run against — provided by the service above.
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/attijari_test
+          REDIS_URL: redis://localhost:6379/0
+          # src/api_core.py raises RuntimeError at import time if neither is set.
+          # Locally, collection succeeds without them (nothing imports api_core.py
+          # at collection time), but any test that exercises auth code paths at
+          # *execution* time would hit this — and neither var was ever present in
+          # this workflow. CI-only throwaway values (sign/encrypt nothing outside
+          # this run); must differ from each other or api_core.py warns.
+          JWT_SECRET: ci-only-jwt-secret-not-used-outside-this-workflow-run
+          VAULT_ENCRYPTION_KEY: RExB-2NL83wRpMGjq-t_OCUxvK7qiEskB9jU4F5fd8c=
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
