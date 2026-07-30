@@ -22,6 +22,9 @@ PyJWT==2.13.0
 pyotp==2.10.0
 cryptography==48.0.1
 
+# Secrets management (HashiCorp Vault)
+hvac==2.4.0
+
 # Monitoring & scheduling
 prometheus-client==0.22.1
 APScheduler==3.11.0
