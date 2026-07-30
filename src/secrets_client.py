@@ -60,6 +60,19 @@ def read_secret(path: str) -> dict:
     return data
 
 
+def _read_optional_secret(path: str) -> dict:
+    """Like read_secret, but a missing path means "not configured" (empty
+    dict) rather than a hard failure. Only for optional integrations
+    (threat-intel keys, SMTP/webhooks, CAPE tokens) that were always
+    tolerant of an unset env var pre-Vault — NOT for must-have secrets
+    (database, jwt, vault_encryption_key), which still fail closed via
+    read_secret()."""
+    try:
+        return read_secret(path)
+    except RuntimeError:
+        return {}
+
+
 def get_database_url() -> str:
     return read_secret("database")["url"]
 
@@ -74,20 +87,20 @@ def get_vault_encryption_key() -> str:
 
 def get_api_key(name: str) -> str:
     """name is one of: virustotal, threatfox, abuseipdb, otx, dnstwist."""
-    return read_secret("threat_intel").get(name, "")
+    return _read_optional_secret("threat_intel").get(name, "")
 
 
 def get_smtp_creds() -> dict:
     """Returns {"user": ..., "password": ...}."""
-    data = read_secret("smtp")
+    data = _read_optional_secret("smtp")
     return {"user": data.get("user", ""), "password": data.get("password", "")}
 
 
 def get_webhook_url(name: str) -> str:
     """name is one of: slack, teams."""
-    return read_secret("webhooks").get(name, "")
+    return _read_optional_secret("webhooks").get(name, "")
 
 
 def get_cape_token(name: str) -> str:
     """name is one of: api_token, vm_wrapper_token."""
-    return read_secret("cape").get(name, "")
+    return _read_optional_secret("cape").get(name, "")

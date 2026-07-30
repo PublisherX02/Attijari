@@ -24,6 +24,22 @@ from database import SessionLocal, Email, Report, add_audit_entry
 from http_client import get_session
 
 
+def _smtp_fallback_creds() -> tuple[str, str]:
+    from secrets_client import get_smtp_creds
+    creds = get_smtp_creds()
+    return creds["user"], creds["password"]
+
+
+def _slack_webhook_fallback() -> str:
+    from secrets_client import get_webhook_url
+    return get_webhook_url("slack")
+
+
+def _teams_webhook_fallback() -> str:
+    from secrets_client import get_webhook_url
+    return get_webhook_url("teams")
+
+
 # ---------------------------------------------------------------------------
 # Report generation
 # ---------------------------------------------------------------------------
@@ -133,8 +149,7 @@ def send_smtp_report(report: dict, recipients: Optional[list[str]] = None, mailb
     else:
         smtp_host = os.getenv("SMTP_HOST")
         smtp_port = int(os.getenv("SMTP_PORT", "465"))
-        smtp_user = os.getenv("SMTP_USER")
-        smtp_pass = os.getenv("SMTP_PASSWORD")
+        smtp_user, smtp_pass = _smtp_fallback_creds()
 
     if not all([smtp_host, smtp_user, smtp_pass]):
         print("[REPORT] SMTP not configured — skipping email delivery.")
@@ -236,7 +251,7 @@ def _format_html_report(report: dict) -> str:
 
 def send_slack_report(report: dict, webhook_url: Optional[str] = None) -> bool:
     """Send the report to Slack via incoming webhook."""
-    url = webhook_url or os.getenv("SLACK_WEBHOOK_URL")
+    url = webhook_url or _slack_webhook_fallback()
     if not url:
         print("[REPORT] Slack webhook not configured — skipping.")
         return False
@@ -292,7 +307,7 @@ def send_slack_report(report: dict, webhook_url: Optional[str] = None) -> bool:
 
 def send_teams_report(report: dict, webhook_url: Optional[str] = None) -> bool:
     """Send the report to Microsoft Teams via incoming webhook (Adaptive Card)."""
-    url = webhook_url or os.getenv("TEAMS_WEBHOOK_URL")
+    url = webhook_url or _teams_webhook_fallback()
     if not url:
         print("[REPORT] Teams webhook not configured — skipping.")
         return False

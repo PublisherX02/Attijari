@@ -57,6 +57,24 @@ def _restore(snapshot: dict) -> None:
             client.secrets.kv.v2.create_or_update_secret(path=f"attijari/{path}", secret=data)
 
 
+def test_get_webhook_url_gracefully_degrades_when_path_missing():
+    import secrets_client
+    snapshot = _snapshot(["webhooks"])
+    try:
+        client = _root_client()
+        try:
+            client.secrets.kv.v2.delete_metadata_and_all_versions(
+                path="attijari/webhooks", mount_point="secret"
+            )
+        except hvac.exceptions.InvalidPath:
+            pass
+        secrets_client._cache.clear()
+        assert secrets_client.get_webhook_url("slack") == ""
+    finally:
+        _restore(snapshot)
+        secrets_client._cache.clear()
+
+
 def test_get_client_returns_working_singleton():
     import secrets_client
     c1 = secrets_client.get_client()
