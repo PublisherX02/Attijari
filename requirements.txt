@@ -44,7 +44,7 @@ rq==2.10.0
 # Email parsing & auth
 dkimpy==1.1.8
 checkdmarc==5.17.4
-dnspython==2.6.1
+dnspython==2.8.0
 
 # Inbound SMTP server (replaces IMAP polling)
 aiosmtpd==1.4.6
