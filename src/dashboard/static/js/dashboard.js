@@ -1283,7 +1283,7 @@ async function loadReports() {
     try {
         const data = await API.get('/api/reports?limit=50');
         if (data.reports.length === 0) {
-            container.innerHTML = '<tr><td colspan="5" class="empty-state"><p>No reports generated yet</p></td></tr>';
+            container.innerHTML = '<tr><td colspan="6" class="empty-state"><p>No reports generated yet</p></td></tr>';
             return;
         }
         container.innerHTML = data.reports.map(r => {
@@ -1295,11 +1295,34 @@ async function loadReports() {
                     <td>${parseInt(counts.total) || 0} emails</td>
                     <td>${esc((r.delivered_via || []).join(', ')) || '—'}</td>
                     <td>${formatDate(r.created_at)}</td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn btn-outline btn-sm" data-action="download-report" data-id="${r.id}">Download</button>
+                            <button class="btn btn-outline btn-sm" data-action="send-report" data-id="${r.id}" title="Delivery channel configuration coming later">Send</button>
+                        </div>
+                    </td>
                 </tr>
             `;
         }).join('');
     } catch (err) {
         showToast(err.message, 'error');
+    }
+}
+
+function downloadReport(reportId) {
+    window.location.href = `/api/reports/${parseInt(reportId)}/download`;
+}
+
+async function sendReport(reportId) {
+    try {
+        await API.post(`/api/reports/${parseInt(reportId)}/send`);
+        showToast('Report sent', 'success');
+    } catch (err) {
+        // The backend returns 501 with a clear "not configured yet" message
+        // until delivery-channel selection is built — surface that message
+        // as-is instead of a generic "failed" toast.
+        const msg = err.message.replace(/^API \d+:\s*/, '').replace(/^\{"detail":"(.+)"\}$/, '$1');
+        showToast(msg, 'warning');
     }
 }
 
@@ -1533,6 +1556,8 @@ registerAction('load-health', () => loadHealth());
 registerAction('open-vm-bubble', () => openVmBubble());
 registerAction('close-vm-bubble', () => closeVmBubble());
 registerAction('generate-report', () => generateReport());
+registerAction('download-report', (el) => downloadReport(el.dataset.id));
+registerAction('send-report', (el) => sendReport(el.dataset.id));
 registerAction('filter-audit-tool', (el) => filterAuditTool(el.dataset.tool));
 registerAction('load-audit-panel', () => loadAuditPanel());
 
