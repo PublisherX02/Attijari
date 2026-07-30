@@ -20,7 +20,7 @@ slowapi==0.1.9
 bcrypt==5.0.0
 PyJWT==2.13.0
 pyotp==2.10.0
-cryptography==48.0.1
+cryptography==49.0.0
 
 # Monitoring & scheduling
 prometheus-client==0.26.0
