@@ -23,7 +23,8 @@ BASE_URL = "https://otx.alienvault.com/api/v1"
 
 
 def _otx_headers() -> dict:
-    key = os.getenv("OTX_API_KEY")
+    from secrets_client import get_api_key
+    key = get_api_key("otx")
     headers = {"Accept": "application/json"}
     if key:
         headers["X-OTX-API-KEY"] = key

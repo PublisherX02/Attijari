@@ -28,8 +28,9 @@ WATCHED_DOMAINS = [
 
 
 def _load_config() -> dict:
-    """Load dnstwist config from DNSTWIST_API_KEY env var (JSON)."""
-    raw = os.getenv("DNSTWIST_API_KEY", "")
+    """Load dnstwist config from Vault (secret/attijari/threat_intel, key "dnstwist", JSON)."""
+    from secrets_client import get_api_key
+    raw = get_api_key("dnstwist")
     if not raw:
         return {}
     try:

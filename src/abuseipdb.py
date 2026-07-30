@@ -39,6 +39,11 @@ def _is_private_ip(ip: str) -> bool:
     return any(ip.startswith(prefix) for prefix in WHITELISTED_RANGES)
 
 
+def _resolve_key(api_key: str | None) -> str:
+    from secrets_client import get_api_key
+    return api_key or get_api_key("abuseipdb")
+
+
 def check_ip(ip: str, api_key: str | None = None,
              max_age_days: int = 90, retries: int = 2,
              timeout: int = 10) -> dict:
@@ -64,7 +69,7 @@ def check_ip(ip: str, api_key: str | None = None,
         return {"source": "abuseipdb", "ip": ip, "abuse_score": 0,
                 "is_malicious": False, "skipped": "private_ip"}
 
-    key = api_key or os.getenv("ABUSEIPDB_API_KEY")
+    key = _resolve_key(api_key)
     if not key:
         return {"source": "abuseipdb", "ip": ip, "abuse_score": 0,
                 "is_malicious": False, "error": "no_api_key"}
