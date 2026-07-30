@@ -263,21 +263,43 @@ def _local_tesseract(content: bytes) -> dict:
         return {"tool": "tesseract", "status": "error", "error": str(e)}
 
 
+_yara_compiled_cache: dict | None = None
+
+
+def _get_compiled_yara_rulesets() -> dict:
+    """Compile each rule file once and cache for the process lifetime.
+    Per-file (not combined) so one broken rule file doesn't prevent the
+    others from matching — same isolation the old per-scan-compile loop had,
+    just cached instead of recompiled on every single attachment."""
+    global _yara_compiled_cache
+    if _yara_compiled_cache is None:
+        _yara_compiled_cache = {}
+        rule_files = list(YARA_RULES_DIR.glob("*.yar")) + list(YARA_RULES_DIR.glob("*.yara"))
+        for rf in rule_files:
+            try:
+                _yara_compiled_cache[rf.name] = yara.compile(filepath=str(rf))
+            except Exception as e:
+                _yara_compiled_cache[rf.name] = e
+    return _yara_compiled_cache
+
+
 def _local_yara(content: bytes) -> dict:
     if not _HAS_YARA:
         return {"tool": "yara", "status": "unavailable"}
     try:
-        rule_files = list(YARA_RULES_DIR.glob("*.yar")) + list(YARA_RULES_DIR.glob("*.yara"))
-        if not rule_files:
+        rulesets = _get_compiled_yara_rulesets()
+        if not rulesets:
             return {"tool": "yara", "status": "ok", "matches": [], "suspicious": False}
         all_matches = []
-        for rf in rule_files:
+        for rf_name, compiled in rulesets.items():
+            if isinstance(compiled, Exception):
+                all_matches.append({"error": f"{rf_name}: {compiled}"})
+                continue
             try:
-                rules = yara.compile(filepath=str(rf))
-                for m in rules.match(data=content):
-                    all_matches.append({"rule": m.rule, "meta": m.meta, "tags": m.tags, "rule_file": rf.name})
+                for m in compiled.match(data=content):
+                    all_matches.append({"rule": m.rule, "meta": m.meta, "tags": m.tags, "rule_file": rf_name})
             except Exception as e:
-                all_matches.append({"error": f"{rf.name}: {e}"})
+                all_matches.append({"error": f"{rf_name}: {e}"})
         return {"tool": "yara", "status": "ok", "matches": all_matches,
                 "suspicious": any("rule" in m for m in all_matches)}
     except Exception as e:
