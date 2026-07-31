@@ -816,6 +816,24 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             if _flag not in result["flags"]:
                 result["flags"].append(_flag)
 
+    # 7c. Sandboxed-tool timeout fail-safe — a container timeout for a
+    # SANDBOX_REQUIRED_TOOLS tool must escalate (CLAUDE.md: "Crash or
+    # timeout -> escalate, never accept"), same principle as the SEC-H1
+    # loop above. sandbox.py's TimeoutExpired handler doesn't set
+    # fallback=True, so _run_tool()'s escalate-on-required-tool-failure
+    # branch doesn't reliably trigger for a timeout — this loop closes
+    # that gap independently of which call site consumed the tool's result.
+    for _tr in result["tools_run"]:
+        _tr_tool = _tr.get("tool")
+        _tr_err = _tr.get("error", "")
+        if (_tr_tool in SANDBOX_REQUIRED_TOOLS and isinstance(_tr_err, str)
+                and _tr_err.startswith("timeout_killed_after_")):
+            result["suspicious"] = True
+            result["escalate"] = True
+            _flag = f"sandbox_timeout_for_{_tr_tool}: container exceeded time limit — escalating (fail-safe)"
+            if _flag not in result["flags"]:
+                result["flags"].append(_flag)
+
     # 7b. DETONATION CANDIDATE (Stage 3.5) — DEFERRED, not run inline.
     # Detonation is memory-gated and runs later in a drained window (see
     # detonation.py). Here we only MARK a file as a candidate when static
