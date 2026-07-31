@@ -150,7 +150,7 @@ jobs:
           JWT_SECRET: ci-only-jwt-secret-not-used-outside-this-workflow-run
           VAULT_ENCRYPTION_KEY: RExB-2NL83wRpMGjq-t_OCUxvK7qiEskB9jU4F5fd8c=
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
