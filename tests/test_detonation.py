@@ -205,3 +205,36 @@ def test_fetch_task_mitmdump_none_when_api_disabled(monkeypatch):
     )
     monkeypatch.setattr(cape_client.requests, "get", lambda *a, **k: fake)
     assert cape_client.fetch_task_mitmdump(41) is None
+
+
+def test_submit_file_sends_no_options_by_default(monkeypatch, tmp_path):
+    import cape_client
+    monkeypatch.setattr(cape_client, "CAPE_ANTI_EVASION_OPTIONS_ENABLED", False)
+    f = tmp_path / "x.exe"
+    f.write_bytes(b"MZfake")
+    captured = {}
+
+    def fake_post(url, headers=None, files=None, data=None, timeout=None, verify=None):
+        captured["data"] = data
+        return _FakeResponse(json_data={"data": {"task_id": 1}})
+
+    monkeypatch.setattr(cape_client.requests, "post", fake_post)
+    cape_client.submit_file(str(f), "x.exe")
+    assert "options" not in captured["data"]
+
+
+def test_submit_file_sends_options_when_enabled(monkeypatch, tmp_path):
+    import cape_client
+    monkeypatch.setattr(cape_client, "CAPE_ANTI_EVASION_OPTIONS_ENABLED", True)
+    monkeypatch.setattr(cape_client, "CAPE_ANTI_EVASION_OPTIONS", "human=1")
+    f = tmp_path / "x.exe"
+    f.write_bytes(b"MZfake")
+    captured = {}
+
+    def fake_post(url, headers=None, files=None, data=None, timeout=None, verify=None):
+        captured["data"] = data
+        return _FakeResponse(json_data={"data": {"task_id": 1}})
+
+    monkeypatch.setattr(cape_client.requests, "post", fake_post)
+    cape_client.submit_file(str(f), "x.exe")
+    assert captured["data"]["options"] == "human=1"

@@ -23,6 +23,7 @@ from detonation_config import (
     CAPE_MALSCORE_ESCALATE, CAPE_MALSCORE_SUSPICIOUS,
     CAPE_VM_WRAPPER_ENABLED, IMAGE_EXTENSIONS,
     ANTI_ANALYSIS_SIGNATURE_PATTERNS,
+    CAPE_ANTI_EVASION_OPTIONS_ENABLED, CAPE_ANTI_EVASION_OPTIONS,
 )
 
 
@@ -94,6 +95,8 @@ def submit_file(file_path: str, filename: str) -> Optional[int]:
             ext = os.path.splitext(filename or "")[1].lower()
             if ext in IMAGE_EXTENSIONS:
                 data["package"] = "image"
+            if CAPE_ANTI_EVASION_OPTIONS_ENABLED and CAPE_ANTI_EVASION_OPTIONS:
+                data["options"] = CAPE_ANTI_EVASION_OPTIONS
             r = requests.post(
                 f"{CAPE_API_URL}/tasks/create/file/",
                 headers=_headers(), files=files, data=data,

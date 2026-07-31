@@ -85,6 +85,23 @@ ANTI_ANALYSIS_SIGNATURE_PATTERNS = (
 )
 
 # --------------------------------------------------------------------------
+# Evasion hardening: submission-side anti-evasion options
+# --------------------------------------------------------------------------
+# CAPE has debugger/tracing options (bp0-bp3, count, depth) and a
+# human-interaction-emulation toggle per current docs, but the exact
+# option key names must be confirmed against the LIVE CAPE instance before
+# enabling — docs found during the 2026-07-31 evasion-hardening research
+# were inconsistent across versions, and CAPE is not reachable from this
+# dev machine to verify directly. Disabled by default (no extra options
+# sent, unchanged behavior) until verified live, matching this project's
+# established practice of confirming against the real instance rather than
+# guessing (see the 2026-07-27 CAPE-proxy build log entries).
+CAPE_ANTI_EVASION_OPTIONS_ENABLED = os.getenv("CAPE_ANTI_EVASION_OPTIONS_ENABLED", "0") != "0"
+# Raw CAPE "options" submission string (CAPE's own semicolon-separated
+# key=value format), only sent when the toggle above is on.
+CAPE_ANTI_EVASION_OPTIONS = os.getenv("CAPE_ANTI_EVASION_OPTIONS", "")
+
+# --------------------------------------------------------------------------
 # Which file types are worth detonating
 # --------------------------------------------------------------------------
 # CAPE's "image" analysis package (analyzer/windows/modules/packages/image.py,
