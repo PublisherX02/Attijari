@@ -15,7 +15,7 @@ jobs:
     name: Dockerfile Lint (hadolint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run hadolint on every Dockerfile
         # Informational only for now — NOT independently verified locally
         # (this dev machine has no Docker daemon and no native hadolint
@@ -36,7 +36,7 @@ jobs:
     name: Container Image Vulnerability Scan (trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build the app image
         run: docker build -f docker/app.Dockerfile -t attijari-app:ci-scan .
       - name: Scan with Trivy (HIGH/CRITICAL — informational for now)
@@ -55,7 +55,7 @@ jobs:
     name: IaC Misconfiguration Scan (checkov)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
