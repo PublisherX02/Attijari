@@ -53,7 +53,7 @@ EXTRACTION_TIMEOUT = 60  # seconds per attachment
 # magic / yara / tesseract / ioc_finder are intentionally NOT here: they are
 # byte-level type sniffing, pattern matching, OCR, and text regexing — a far
 # smaller parser-exploit surface — and tesseract is host-local by design.
-SANDBOX_REQUIRED_TOOLS = {"oletools", "pdfid", "pymupdf", "markitdown"}
+SANDBOX_REQUIRED_TOOLS = {"oletools", "pdfid", "pymupdf", "markitdown", "onenote"}
 
 # Escape hatch for local dev ONLY: set EXTRACTION_ALLOW_UNSANDBOXED=1 to permit
 # the old behaviour of running the parsers above locally when Docker is down.
@@ -460,6 +460,7 @@ _PDF_MIMES = {"application/pdf"}
 _IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff", "image/webp"}
 _ARCHIVE_MIMES = {"application/zip", "application/x-rar-compressed", "application/x-7z-compressed",
                    "application/gzip", "application/x-tar"}
+_ONENOTE_MIMES = {"application/onenote", "application/msonenote"}
 
 
 # =====================================================================
@@ -742,6 +743,18 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
         except Exception:
             pass  # DDE check is best-effort; other tools still run
 
+    # 2c. OneNote (.one) — no mature open-source parser exists; treat as
+    # requiring isolated analysis we can't provide, matching the
+    # SANDBOX_REQUIRED_TOOLS fail-safe pattern (escalate rather than pass
+    # through unexamined). A major 2024-2025 initial-access vector
+    # (embedded .vbs/.hta/.exe behind a fake "click to view" button).
+    if effective_mime in _ONENOTE_MIMES or filename.lower().endswith(".one"):
+        one_result = _run_tool("onenote", content, stored_path, filename)
+        result["tools_run"].append(one_result)
+        # _run_tool always returns sandbox_required_unavailable=True here
+        # (no "onenote" Docker image is ever built) — the SEC-H1 loop
+        # below picks this up and escalates automatically.
+
     # 3. PDF — pdfid + pymupdf
     if effective_mime in _PDF_MIMES or filename.lower().endswith(".pdf"):
         pid_result = _run_tool("pdfid", content, stored_path, filename)
@@ -784,7 +797,8 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
                 result["flags"].append(flag)
 
     # 5. MarkItDown — text extraction (complementary, NEVER standalone)
-    if effective_mime not in _IMAGE_MIMES and effective_mime not in _ARCHIVE_MIMES:
+    if (effective_mime not in _IMAGE_MIMES and effective_mime not in _ARCHIVE_MIMES
+            and effective_mime not in _ONENOTE_MIMES and not filename.lower().endswith(".one")):
         md_result = _run_tool("markitdown", content, stored_path, filename)
         result["tools_run"].append(md_result)
         if md_result.get("text"):
