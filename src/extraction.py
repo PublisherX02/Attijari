@@ -694,6 +694,38 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
         except Exception:
             pass  # archive check is best-effort
 
+    # 1c. Recursive scan: actually run YARA against archive member content —
+    # the bomb-check above only inspects ratios/nesting/filenames, never the
+    # decompressed bytes themselves. Bounded to the first 20 members and
+    # 10 MB per member (bomb-check above already caps overall risk via the
+    # ratio/nesting checks); uses _local_yara directly (not the sandbox)
+    # since YARA is already in the non-required-sandbox category.
+    if effective_mime in _ARCHIVE_MIMES or filename.lower().endswith((".zip", ".rar", ".7z", ".gz")):
+        try:
+            import zipfile as _zf
+            import io as _io
+            zf_buf = _io.BytesIO(content)
+            if _zf.is_zipfile(zf_buf):
+                zf_buf.seek(0)
+                with _zf.ZipFile(zf_buf, "r") as zf:
+                    for member in zf.infolist()[:20]:
+                        if member.file_size == 0 or member.file_size > 10 * 1024 * 1024:
+                            continue
+                        try:
+                            member_bytes = zf.read(member.filename)
+                        except RuntimeError:
+                            continue  # encrypted member, can't read without password
+                        member_yara = _local_yara(member_bytes)
+                        if member_yara.get("suspicious"):
+                            result["suspicious"] = True
+                            result["escalate"] = True
+                            m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
+                            result["flags"].append(
+                                f"archive_member_yara_match: {member.filename} matched {', '.join(m_matches)}"
+                            )
+        except Exception:
+            pass  # best-effort, consistent with the bomb-check block above
+
     # 2. Office files + RTF — oletools
     if effective_mime in _OFFICE_MIMES or effective_mime in _RTF_MIMES or filename.lower().endswith(
             (".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pptm",
