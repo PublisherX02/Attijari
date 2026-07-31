@@ -126,6 +126,12 @@ except ImportError:
     _HAS_YARA = False
 
 try:
+    import olefile
+    _HAS_OLEFILE = True
+except ImportError:
+    _HAS_OLEFILE = False
+
+try:
     from ioc_finder import ioc_finder
     _HAS_IOC_FINDER = True
 except ImportError:
@@ -494,6 +500,50 @@ def _check_pdf_urls_for_phishing(urls: list[str]) -> list[str]:
     return flags
 
 
+def _detect_encryption(content: bytes, filename: str) -> dict:
+    """Structurally detect whether a ZIP-based or OOXML/OLE attachment is
+    password-protected, replacing the old MIME/extension-only guess.
+
+    RAR/7z are not structurally verified here (no parser library in
+    requirements.txt) — callers should still combine this with the
+    extension/MIME heuristic for those formats, same as before.
+    """
+    fname_lower = filename.lower()
+
+    if fname_lower.endswith((".zip", ".docx", ".xlsx", ".pptx", ".docm",
+                              ".xlsm", ".pptm", ".ppsx", ".ppsm")):
+        try:
+            import zipfile as _zf
+            import io as _io
+            buf = _io.BytesIO(content)
+            if _zf.is_zipfile(buf):
+                buf.seek(0)
+                with _zf.ZipFile(buf, "r") as zf:
+                    for info in zf.infolist():
+                        if info.flag_bits & 0x1:
+                            return {"encrypted": True, "method": "zip_encryption_flag"}
+        except Exception:
+            pass
+
+    if _HAS_OLEFILE and fname_lower.endswith((".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+                                               ".docm", ".xlsm", ".pptm", ".ppsx", ".ppsm")):
+        try:
+            import io as _io
+            buf = _io.BytesIO(content)
+            if olefile.isOleFile(buf):
+                buf.seek(0)
+                ole = olefile.OleFileIO(buf)
+                try:
+                    if ole.exists("EncryptedPackage") or ole.exists("EncryptionInfo"):
+                        return {"encrypted": True, "method": "ooxml_encrypted_package"}
+                finally:
+                    ole.close()
+        except Exception:
+            pass
+
+    return {"encrypted": False, "method": None}
+
+
 def _check_image_stego_metadata(content: bytes, filename: str) -> list[str]:
     """Check image metadata for steganography tool signatures."""
     flags = []
@@ -782,11 +832,14 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             pass
 
     # 8. CRITICAL: encrypted attachment + password in body = auto escalate
+    encryption_check = _detect_encryption(content, filename)
+    if encryption_check["encrypted"]:
+        result["flags"].append(f"attachment_encrypted: {encryption_check['method']}")
     if body_text:
         body_lower = body_text.lower()
         password_hints = ["password", "mot de passe", "mdp", "pwd", "pass:"]
         has_pw = any(hint in body_lower for hint in password_hints)
-        is_encrypted = (effective_mime in _ARCHIVE_MIMES or
+        is_encrypted = (encryption_check["encrypted"] or effective_mime in _ARCHIVE_MIMES or
                         filename.lower().endswith((".zip", ".rar", ".7z", ".enc")))
         if has_pw and is_encrypted:
             result["suspicious"] = True

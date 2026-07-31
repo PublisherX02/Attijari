@@ -14,6 +14,7 @@ import os
 import time
 
 import hvac
+import requests.exceptions
 
 _client: "hvac.Client | None" = None
 _cache: dict[str, tuple[float, dict]] = {}
@@ -61,15 +62,21 @@ def read_secret(path: str) -> dict:
 
 
 def _read_optional_secret(path: str) -> dict:
-    """Like read_secret, but a missing path means "not configured" (empty
-    dict) rather than a hard failure. Only for optional integrations
-    (threat-intel keys, SMTP/webhooks, CAPE tokens) that were always
-    tolerant of an unset env var pre-Vault — NOT for must-have secrets
-    (database, jwt, vault_encryption_key), which still fail closed via
-    read_secret()."""
+    """Like read_secret, but a missing path OR an unreachable/misconfigured
+    Vault server means "not configured" (empty dict) rather than a hard
+    failure. Only for optional integrations (threat-intel keys,
+    SMTP/webhooks, CAPE tokens) that were always tolerant of an unset env
+    var pre-Vault — NOT for must-have secrets (database, jwt,
+    vault_encryption_key), which still fail closed via read_secret().
+
+    Catches requests.exceptions.ConnectionError in addition to RuntimeError:
+    get_client() raises the former when Vault is down/unreachable, which is
+    not a RuntimeError and was previously left uncaught here — that let a
+    Vault outage crash import of any module (e.g. detonation_config.py)
+    that reads an optional secret at module load time."""
     try:
         return read_secret(path)
-    except RuntimeError:
+    except (RuntimeError, requests.exceptions.ConnectionError):
         return {}
 
 
