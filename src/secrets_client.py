@@ -14,7 +14,6 @@ import os
 import time
 
 import hvac
-import requests.exceptions
 
 _client: "hvac.Client | None" = None
 _cache: dict[str, tuple[float, dict]] = {}
@@ -62,21 +61,27 @@ def read_secret(path: str) -> dict:
 
 
 def _read_optional_secret(path: str) -> dict:
-    """Like read_secret, but a missing path OR an unreachable/misconfigured
-    Vault server means "not configured" (empty dict) rather than a hard
+    """Like read_secret, but a missing path OR any failure to reach/auth
+    against Vault means "not configured" (empty dict) rather than a hard
     failure. Only for optional integrations (threat-intel keys,
     SMTP/webhooks, CAPE tokens) that were always tolerant of an unset env
     var pre-Vault — NOT for must-have secrets (database, jwt,
     vault_encryption_key), which still fail closed via read_secret().
 
-    Catches requests.exceptions.ConnectionError in addition to RuntimeError:
-    get_client() raises the former when Vault is down/unreachable, which is
-    not a RuntimeError and was previously left uncaught here — that let a
-    Vault outage crash import of any module (e.g. detonation_config.py)
-    that reads an optional secret at module load time."""
+    Catches Exception broadly, not just RuntimeError: get_client()/hvac can
+    fail in several ways that aren't RuntimeError — connection refused
+    (requests.exceptions.ConnectionError), a hung/unreachable server
+    (requests.exceptions.Timeout), or a stale/revoked AppRole secret_id
+    (hvac.exceptions.InvalidRequest/Forbidden). An earlier version of this
+    function only caught RuntimeError, then was narrowed to also catch
+    ConnectionError specifically — but that still left the AppRole-auth
+    failure mode uncaught, which crashed import of any module (e.g.
+    detonation_config.py) reading an optional secret at module load time.
+    Since every caller here is explicitly optional, any failure to reach a
+    real secret value is equivalent to "not configured"."""
     try:
         return read_secret(path)
-    except (RuntimeError, requests.exceptions.ConnectionError):
+    except Exception:
         return {}
 
 
