@@ -22,6 +22,7 @@ from detonation_config import (
     CAPE_ANALYSIS_TIMEOUT, CAPE_READY_TIMEOUT, CAPE_ENFORCE_TIMEOUT,
     CAPE_MALSCORE_ESCALATE, CAPE_MALSCORE_SUSPICIOUS,
     CAPE_VM_WRAPPER_ENABLED, IMAGE_EXTENSIONS,
+    ANTI_ANALYSIS_SIGNATURE_PATTERNS,
 )
 
 
@@ -184,6 +185,18 @@ def parse_report(report: dict[str, Any], task_id: int) -> dict[str, Any]:
 
     escalate = malscore >= CAPE_MALSCORE_ESCALATE
     suspicious = malscore >= CAPE_MALSCORE_SUSPICIOUS or bool(sig_names)
+
+    # Evasion hardening: a sample that detects the sandbox and goes dormant
+    # can score low on malscore, but CAPE still logs the anti-sandbox/anti-VM
+    # signature when that happens — force escalate regardless of malscore.
+    anti_analysis_hit = any(
+        pattern in name.lower()
+        for name in sig_names
+        for pattern in ANTI_ANALYSIS_SIGNATURE_PATTERNS
+    )
+    if anti_analysis_hit:
+        escalate = True
+        suspicious = True
 
     return {
         "tool": "detonation",

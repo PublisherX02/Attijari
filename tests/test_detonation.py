@@ -66,6 +66,44 @@ def test_parse_report_suspicious_by_signature():
     assert r["escalate"] is False
 
 
+def test_parse_report_forces_escalate_on_antisandbox_signature():
+    from cape_client import parse_report
+    # Low malscore (below CAPE_MALSCORE_ESCALATE) but an anti-sandbox
+    # signature fired — must still escalate. This is the core evasion-
+    # hardening fix: a sample that detects the sandbox and goes dormant
+    # would otherwise score low and never escalate.
+    report = {
+        "info": {"score": 1.2, "category": "file"},
+        "signatures": [{"name": "antisandbox_sleep", "description": "Detects sleep-based sandbox evasion"}],
+    }
+    r = parse_report(report, task_id=55)
+    assert r["escalate"] is True
+    assert r["suspicious"] is True
+
+
+def test_parse_report_does_not_escalate_on_unrelated_low_score_signature():
+    from cape_client import parse_report
+    report = {
+        "info": {"score": 1.0},
+        "signatures": [{"name": "network_http", "description": "Performs an HTTP request"}],
+    }
+    r = parse_report(report, task_id=56)
+    assert r["escalate"] is False
+    assert r["suspicious"] is True  # bool(sig_names) still makes it suspicious — existing behavior
+
+
+def test_parse_report_escalates_on_antivm_description_even_if_name_generic():
+    from cape_client import parse_report
+    # The pattern match is against BOTH name and description text (whichever
+    # ends up in sig_names — parse_report prefers description over name).
+    report = {
+        "info": {"score": 0.8},
+        "signatures": [{"name": "sig_042", "description": "Checks for VM-specific registry keys (antivm)"}],
+    }
+    r = parse_report(report, task_id=57)
+    assert r["escalate"] is True
+
+
 def test_pause_flag_lifecycle():
     import detonation_state as st
     assert st.is_active() is False

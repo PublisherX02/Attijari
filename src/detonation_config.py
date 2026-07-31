@@ -69,6 +69,22 @@ CAPE_MALSCORE_ESCALATE = float(os.getenv("CAPE_MALSCORE_ESCALATE", "6.0"))
 CAPE_MALSCORE_SUSPICIOUS = float(os.getenv("CAPE_MALSCORE_SUSPICIOUS", "3.0"))
 
 # --------------------------------------------------------------------------
+# Evasion hardening: signature-category escalation override
+# --------------------------------------------------------------------------
+# CAPE's malscore can stay low for a sample that detects the sandbox and
+# goes dormant — but CAPE still logs an anti-sandbox/anti-VM/anti-debug
+# signature when that happens. Any signature name/description matching one
+# of these substrings (case-insensitive) forces escalation regardless of
+# malscore, closing that blind spot.
+ANTI_ANALYSIS_SIGNATURE_PATTERNS = (
+    "antisandbox", "anti-sandbox", "anti_sandbox",
+    "antivm", "anti-vm", "anti_vm",
+    "antidebug", "anti-debug", "anti_debug",
+    "antiemulation", "anti-emulation", "anti_emulation",
+    "stalling", "sandbox_evasion", "sandbox evasion", "vmdetect",
+)
+
+# --------------------------------------------------------------------------
 # Which file types are worth detonating
 # --------------------------------------------------------------------------
 # CAPE's "image" analysis package (analyzer/windows/modules/packages/image.py,
