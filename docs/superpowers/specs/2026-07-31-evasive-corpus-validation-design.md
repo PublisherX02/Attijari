@@ -51,7 +51,7 @@ requirements:
 
 ## Architecture
 
-```
+```text
 This dev machine (Windows)
   malwarebazaar_client.py --query_by_tag()--> MalwareBazaar API
                           --download_sample()--> data/evasive_corpus/malwarebazaar/<sha256>.zip
@@ -112,11 +112,13 @@ CAPE VM "moham" (192.168.100.10)
    orchestrator script, not part of the automated pytest suite (same
    reasoning as `epvme_test.py`: depends on live network access and a
    reachable CAPE VM). CLI:
-   ```
+
+   ```bash
    python src/evasive_corpus_test.py --tags onenote,html-smuggling,encrypted-zip,iso,lnk --limit-per-tag 40
    python src/evasive_corpus_test.py --tags onenote --limit-per-tag 10 --no-detonation  # fast, static-only pass
    python src/evasive_corpus_test.py --avast-ctu-crosscheck data/avast_ctu/  # cross-check step
    ```
+
    Reuses `accuracy.run_pipeline_isolated`, `classify_result`,
    `compute_metrics`, `plot_confusion_matrix`, `plot_metrics_bar` as-is —
    no changes to shared scoring code. Writes
