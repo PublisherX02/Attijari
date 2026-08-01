@@ -40,7 +40,7 @@ jobs:
       - name: Build the app image
         run: docker build -f docker/app.Dockerfile -t attijari-app:ci-scan .
       - name: Scan with Trivy (HIGH/CRITICAL — informational for now)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: true
         # Same caveat as hadolint above: image build + scan couldn't be
         # dry-run on this dev machine (no Docker daemon). Verify a real CI
