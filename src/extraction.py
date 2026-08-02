@@ -461,6 +461,23 @@ _IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff
 _ARCHIVE_MIMES = {"application/zip", "application/x-rar-compressed", "application/x-7z-compressed",
                    "application/gzip", "application/x-tar"}
 _ONENOTE_MIMES = {"application/onenote", "application/msonenote"}
+# Disk-image containers: a well-documented delivery vector (Qakbot, IcedID,
+# and others moved to these specifically) because many pipelines -- this one
+# included, until 2026-08-02 -- only ever inspect archive containers
+# (zip/rar/7z) and never look inside a disk image. YARA scanning the raw
+# container bytes sees only ISO9660/UDF filesystem structure, never the
+# payload actually smuggled inside, exactly the blind spot a PureLogsStealer
+# sample exploited in the evasive-corpus gap-analysis run.
+_DISK_IMAGE_MIMES = {"application/x-iso9660-image", "application/x-cd-image", "application/x-raw-disk-image"}
+_DISK_IMAGE_EXTS = (".iso", ".img")
+_SEVENZIP_EXTS = (".7z",)
+# Shared with the archive-bomb and recursive-member-scan blocks below —
+# hoisted to module level so every container format (zip, 7z, iso) checks
+# the same list rather than each format silently drifting its own copy.
+_DANGEROUS_ARCHIVE_MEMBER_EXTS = (".js", ".vbs", ".exe", ".scr", ".bat",
+                                   ".ps1", ".hta", ".cmd", ".com", ".msi",
+                                   ".jar", ".wsf", ".lnk")
+_SCRIPT_EXTS = (".vbs", ".vbe", ".js", ".jse", ".wsf", ".ps1", ".hta")
 
 
 # =====================================================================
@@ -561,6 +578,129 @@ def _check_image_stego_metadata(content: bytes, filename: str) -> list[str]:
     return flags
 
 
+def _detect_script_padding(content: bytes) -> str | None:
+    """Flags a script bloated with a repeated junk cycle to defeat AV
+    scan-size limits and break plain-string signatures (e.g. "powershell"
+    written as "posidesmanwerssidesmanhesidesmanll", with the same nonsense
+    token spliced into every recognizable string).
+
+    Discovered 2026-08-02 in a real PureLogsStealer loader smuggled inside
+    an ISO email attachment: an 8.9MB VBS built from ~145 unique lines
+    repeated tens of thousands of times, real payload logic on <0.1% of the
+    file. A per-sample string signature would only ever catch that exact
+    build (the junk token changes per build); a generic size/uniqueness
+    check catches the technique itself regardless of the specific token.
+    """
+    if len(content) < 500_000:
+        return None  # legitimate scripts this large are rare; below this,
+        # normal minification/data blobs make the ratio unreliable anyway
+    text = None
+    for enc in ("utf-16-le", "utf-8", "latin-1"):
+        try:
+            candidate = content.decode(enc)
+            # A real hit decodes to mostly printable text; garbage decodes
+            # (e.g. utf-16-le on plain ASCII) are dominated by null/control
+            # chars -- skip those rather than measure line-uniqueness on noise.
+            printable_ratio = sum(1 for c in candidate[:2000] if c.isprintable() or c in "\r\n\t") / max(len(candidate[:2000]), 1)
+            if printable_ratio > 0.9:
+                text = candidate
+                break
+        except (UnicodeDecodeError, LookupError):
+            continue
+    if text is None:
+        return None
+    lines = text.splitlines()
+    if len(lines) < 1000:
+        return None
+    unique_ratio = len(set(lines)) / len(lines)
+    if unique_ratio < 0.05:
+        return (f"script_padding_evasion: {len(content)} bytes, {len(lines)} lines, "
+                f"only {unique_ratio:.1%} unique — repeated-junk padding, likely "
+                f"defeating AV scan-size limits and plain-string signatures")
+    return None
+
+
+def _iter_iso_members(content: bytes, limit: int = 20, max_member_bytes: int = 10 * 1024 * 1024):
+    """Yields (name, bytes) for files inside an ISO9660/Joliet disk image.
+
+    Best-effort, matching the zip/7z member iterators: a corrupt or
+    unsupported image yields nothing rather than raising. Joliet is
+    preferred over bare ISO9660 when present since it carries the real long
+    filename (ISO9660 alone truncates to 8.3 + a ';1' version suffix) --
+    attacker-built ISOs generally include Joliet for exactly this reason.
+    Plain UDF-only images (no ISO9660/Joliet tree at all) aren't covered yet;
+    genisoimage/mkisofs-built images (the common case) always carry one.
+    """
+    import io as _io
+    try:
+        import pycdlib
+    except ImportError:
+        return
+    iso = pycdlib.PyCdlib()
+    try:
+        iso.open_fp(_io.BytesIO(content))
+    except Exception:
+        return
+    try:
+        use_joliet = iso.has_joliet()
+        walk_kwargs = {"joliet_path": "/"} if use_joliet else {"iso_path": "/"}
+        yielded = 0
+        for dirpath, _dirlist, filelist in iso.walk(**walk_kwargs):
+            for fname in filelist:
+                if yielded >= limit:
+                    return
+                full_path = f"{dirpath.rstrip('/')}/{fname}"
+                try:
+                    out = _io.BytesIO()
+                    if use_joliet:
+                        iso.get_file_from_iso_fp(out, joliet_path=full_path)
+                    else:
+                        iso.get_file_from_iso_fp(out, iso_path=full_path)
+                    data = out.getvalue()
+                except Exception:
+                    continue
+                if 0 < len(data) <= max_member_bytes:
+                    # ISO9660 (non-Joliet) names carry a ";1" version suffix
+                    display_name = fname.rsplit(";", 1)[0] if not use_joliet else fname
+                    yield display_name, data
+                    yielded += 1
+    except Exception:
+        return
+    finally:
+        try:
+            iso.close()
+        except Exception:
+            pass
+
+
+def _iter_7z_members(content: bytes, limit: int = 20, max_member_bytes: int = 10 * 1024 * 1024):
+    """Yields (name, bytes) for files inside a real 7z archive.
+
+    zipfile.is_zipfile() is always False for genuine 7z containers (it's a
+    different format entirely), so the existing zip-based archive handling
+    silently never opens one even though .7z/application/x-7z-compressed
+    was already listed as an archive type -- recognized by extension, never
+    actually inspected. This closes that gap.
+    """
+    import io as _io
+    try:
+        import py7zr
+    except ImportError:
+        return
+    try:
+        with py7zr.SevenZipFile(_io.BytesIO(content), mode="r") as z:
+            names = [n for n in z.getnames()][:limit]
+            if not names:
+                return
+            extracted = z.read(targets=names)
+            for name, stream in (extracted or {}).items():
+                data = stream.read()
+                if 0 < len(data) <= max_member_bytes:
+                    yield name, data
+    except Exception:
+        return
+
+
 # =====================================================================
 # Main extraction orchestrator
 # =====================================================================
@@ -628,6 +768,15 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
         matches = [m.get("rule", "?") for m in yara_result.get("matches", []) if "rule" in m]
         result["flags"].append(f"yara_match: {', '.join(matches)}")
 
+    # 1a2. Script padding evasion — a direct script attachment, not one
+    # buried inside an archive/ISO (that case is handled in block 1d below).
+    if filename.lower().endswith(_SCRIPT_EXTS):
+        padding_flag = _detect_script_padding(content)
+        if padding_flag:
+            result["suspicious"] = True
+            result["escalate"] = True
+            result["flags"].append(padding_flag)
+
     # 1b. Archive bomb detection — nested ZIPs and high compression ratios
     # ZIP bombs overwhelm extraction with decompression work. The test corpus
     # zip bomb is too small to hit the 60s timeout, so detect structurally.
@@ -669,12 +818,9 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
                                 pass
 
                     # Check for dangerous file extensions inside the archive
-                    _DANGEROUS_EXTS = (".js", ".vbs", ".exe", ".scr", ".bat",
-                                       ".ps1", ".hta", ".cmd", ".com", ".msi",
-                                       ".jar", ".wsf", ".lnk")
                     dangerous_files = [
                         m.filename for m in zf.infolist()
-                        if any(m.filename.lower().endswith(ext) for ext in _DANGEROUS_EXTS)
+                        if any(m.filename.lower().endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS)
                     ]
 
                     if nesting_depth >= 1 or ratio > 50:
@@ -725,6 +871,51 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
                             )
         except Exception:
             pass  # best-effort, consistent with the bomb-check block above
+
+    # 1d. Disk images (ISO/IMG) and real 7z archives — same dangerous-
+    # extension + recursive-YARA treatment as zip members above. Neither
+    # format is zipfile-compatible, so blocks 1b/1c above silently never
+    # opened them despite .7z already being listed in _ARCHIVE_MIMES (2026-
+    # 08-02: confirmed via the evasive-corpus gap-analysis run, where a
+    # PureLogsStealer sample shipped as an ISO email attachment scored
+    # malscore=0.0 with zero processes launched -- the payload was never
+    # inspected by anything, static or dynamic, because nothing in the
+    # pipeline ever looked inside the disk image).
+    is_disk_image = (effective_mime in _DISK_IMAGE_MIMES
+                      or filename.lower().endswith(_DISK_IMAGE_EXTS))
+    is_real_7z = (effective_mime == "application/x-7z-compressed"
+                  or filename.lower().endswith(_SEVENZIP_EXTS))
+    if is_disk_image or is_real_7z:
+        member_iter = _iter_iso_members(content) if is_disk_image else _iter_7z_members(content)
+        try:
+            dangerous_members = []
+            for member_name, member_bytes in member_iter:
+                if any(member_name.lower().endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS):
+                    dangerous_members.append(member_name)
+                member_yara = _local_yara(member_bytes)
+                if member_yara.get("suspicious"):
+                    result["suspicious"] = True
+                    result["escalate"] = True
+                    m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
+                    result["flags"].append(
+                        f"archive_member_yara_match: {member_name} matched {', '.join(m_matches)}"
+                    )
+                if member_name.lower().endswith(_SCRIPT_EXTS):
+                    padding_flag = _detect_script_padding(member_bytes)
+                    if padding_flag:
+                        result["suspicious"] = True
+                        result["escalate"] = True
+                        result["flags"].append(f"{member_name}: {padding_flag}")
+            if dangerous_members:
+                result["suspicious"] = True
+                result["escalate"] = True
+                kind = "disk image" if is_disk_image else "7z archive"
+                names = ", ".join(dangerous_members[:5])
+                result["flags"].append(
+                    f"archive_dangerous_content: executable file(s) inside {kind}: {names}"
+                )
+        except Exception:
+            pass  # best-effort, consistent with the zip blocks above
 
     # 2. Office files + RTF — oletools
     if effective_mime in _OFFICE_MIMES or effective_mime in _RTF_MIMES or filename.lower().endswith(
@@ -830,7 +1021,8 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
 
     # 5. MarkItDown — text extraction (complementary, NEVER standalone)
     if (effective_mime not in _IMAGE_MIMES and effective_mime not in _ARCHIVE_MIMES
-            and effective_mime not in _ONENOTE_MIMES and not filename.lower().endswith(".one")):
+            and effective_mime not in _ONENOTE_MIMES and effective_mime not in _DISK_IMAGE_MIMES
+            and not filename.lower().endswith((".one",) + _DISK_IMAGE_EXTS)):
         md_result = _run_tool("markitdown", content, stored_path, filename)
         result["tools_run"].append(md_result)
         if md_result.get("text"):
