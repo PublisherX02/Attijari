@@ -53,7 +53,22 @@ EXTRACTION_TIMEOUT = 60  # seconds per attachment
 # magic / yara / tesseract / ioc_finder are intentionally NOT here: they are
 # byte-level type sniffing, pattern matching, OCR, and text regexing — a far
 # smaller parser-exploit surface — and tesseract is host-local by design.
-SANDBOX_REQUIRED_TOOLS = {"oletools", "pdfid", "pymupdf", "markitdown", "onenote"}
+#
+# "archive" (ZIP/7z/ISO member extraction + LNK command parsing) was added
+# 2026-08-02, one session after the ISO/7z member-extraction code itself was
+# added -- it had been running as unconditional inline logic in this same
+# process with none of the isolation this comment otherwise reasons about.
+# Two distinct risks justify sandboxing it, not just one: (a) py7zr's
+# decompression codecs (bcj-cffi, pyppmd, pyzstd) are C-extension code
+# parsing attacker-controlled compressed streams -- the same parser-exploit
+# risk class as oletools/pdfid, not the "byte-level sniffing" class magic/
+# yara are in; (b) independent of memory-safety, ANY unbounded decompression
+# of attacker-controlled bytes running in the shared pipeline process (not a
+# resource-capped, killable container) is a real DoS against every other
+# pending email, not just the one attachment -- CLAUDE.md's own "hard CPU/
+# memory/time limits" requirement for attacker-controlled file handling
+# applies here regardless of language memory-safety.
+SANDBOX_REQUIRED_TOOLS = {"oletools", "pdfid", "pymupdf", "markitdown", "onenote", "archive"}
 
 # Escape hatch for local dev ONLY: set EXTRACTION_ALLOW_UNSANDBOXED=1 to permit
 # the old behaviour of running the parsers above locally when Docker is down.
@@ -372,7 +387,7 @@ def _sandbox_required_failsafe(tool_name: str, why: str) -> dict:
 
 
 def _run_tool(tool_name: str, content: bytes, stored_path: str,
-              filename: str = "file.bin") -> dict:
+              filename: str = "file.bin", effective_mime: str = "") -> dict:
     """Run a tool via sandbox if available, else local fallback.
 
     For SANDBOX_REQUIRED_TOOLS, "no sandbox" means escalate, never local —
@@ -388,6 +403,9 @@ def _run_tool(tool_name: str, content: bytes, stored_path: str,
         if tool_name == "markitdown":
             _, ext = os.path.splitext(filename)
             env["FILE_EXT"] = ext or ".bin"
+        if tool_name == "archive":
+            env["ORIGINAL_NAME"] = filename
+            env["EFFECTIVE_MIME"] = effective_mime
 
         result = _sandbox_run(tool_name, stored_path, env=env)
 
@@ -414,6 +432,8 @@ def _run_tool(tool_name: str, content: bytes, stored_path: str,
         return _local_pymupdf(content)
     elif tool_name == "yara":
         return _local_yara(content)
+    elif tool_name == "archive":
+        return _local_archive_scan(content, filename, effective_mime)
     elif tool_name == "ioc_finder":
         # ioc_finder gets text, not bytes — handled specially in orchestrator
         return {"tool": "ioc_finder", "status": "unavailable", "note": "use _run_ioc_text"}
@@ -759,6 +779,193 @@ def _scan_lnk_bytes(name: str, content: bytes, result: dict) -> None:
         result["flags"].append(f"lnk_command_yara_match ({name}): {', '.join(matches)}")
 
 
+# Formats we deliberately do NOT parse -- no vetted extraction library
+# exists (RAR needs a system unrar/bsdtar binary this project hasn't
+# added and verified yet; VHD/VHDX/CAB need loop-mount-style privileges
+# that would conflict with the sandbox's --cap-drop=ALL). Matching the
+# OneNote precedent: rather than silently passing these through
+# unexamined, _local_archive_scan() always escalates them below.
+_UNSUPPORTED_ARCHIVE_EXTS = (".rar", ".vhd", ".vhdx", ".cab")
+
+
+def _local_archive_scan(content: bytes, filename: str, effective_mime: str = "") -> dict:
+    """Decompresses and scans a ZIP/7z/ISO container's members (bomb-check,
+    dangerous-extension check, recursive YARA, LNK command extraction), or
+    a standalone .lnk attachment's command line. This is the same logic
+    docker/scripts/archive_scan.py runs inside the sandbox container --
+    kept here too as the EXTRACTION_ALLOW_UNSANDBOXED local-fallback path
+    and as the single source of truth for what "archive scanning" means.
+
+    Until 2026-08-02 this logic ran unconditionally in the main pipeline
+    process with no CPU/memory/timeout limits at all -- a decompression
+    bomb or a bug in py7zr/pycdlib's C-extension codec dependencies could
+    exhaust or crash the shared process handling every other pending
+    email, not just this one attachment. Routed through the sandbox now,
+    matching oletools/pdfid/pymupdf's isolation (see SANDBOX_REQUIRED_TOOLS).
+
+    Sets inspected=False whenever the container could not actually be
+    opened/iterated (parse exception, or a format we don't support at
+    all) -- the caller must treat inspected=False as suspicious, since
+    "found nothing" and "couldn't look" must never share a representation.
+    """
+    result = {
+        "tool": "archive", "status": "ok", "format": "unknown",
+        "inspected": False, "suspicious": False, "escalate": False, "flags": [],
+    }
+    fname_lower = filename.lower()
+
+    if fname_lower.endswith(_UNSUPPORTED_ARCHIVE_EXTS):
+        ext = next(e for e in _UNSUPPORTED_ARCHIVE_EXTS if fname_lower.endswith(e))
+        result["format"] = ext.lstrip(".")
+        result["suspicious"] = True
+        result["escalate"] = True
+        result["flags"].append(
+            f"no_parser_available_for_format: {ext} attachments have no vetted "
+            f"extraction library in this pipeline -- always escalated by design"
+        )
+        return result
+
+    if fname_lower.endswith(".lnk"):
+        result["format"] = "lnk"
+        _scan_lnk_bytes(filename, content, result)
+        result["inspected"] = True
+        return result
+
+    try:
+        import zipfile as _zf
+        import io as _io
+        zf_buf = _io.BytesIO(content)
+        if _zf.is_zipfile(zf_buf):
+            result["format"] = "zip"
+            zf_buf.seek(0)
+            with _zf.ZipFile(zf_buf, "r") as zf:
+                total_compressed = sum(i.compress_size for i in zf.infolist() if i.compress_size > 0)
+                total_decompressed = sum(i.file_size for i in zf.infolist())
+                ratio = total_decompressed / total_compressed if total_compressed > 0 else 0
+
+                # Nesting check -- bounded reads (10MB/member) so a bomb
+                # can't be decompressed in full just to detect that it's a
+                # bomb, the exact unbounded-read gap fixed 2026-08-02.
+                nesting_depth = 0
+                for member in zf.infolist():
+                    if 0 < member.file_size <= 10 * 1024 * 1024:
+                        try:
+                            inner = zf.read(member.filename)
+                            inner_buf = _io.BytesIO(inner)
+                            if _zf.is_zipfile(inner_buf):
+                                nesting_depth += 1
+                                inner_buf.seek(0)
+                                with _zf.ZipFile(inner_buf, "r") as zf2:
+                                    for m2 in zf2.infolist():
+                                        if 0 < m2.file_size <= 10 * 1024 * 1024:
+                                            try:
+                                                inner2 = zf2.read(m2.filename)
+                                                if _zf.is_zipfile(_io.BytesIO(inner2)):
+                                                    nesting_depth += 1
+                                                    break
+                                            except Exception:
+                                                pass
+                                break
+                        except Exception:
+                            pass
+
+                dangerous_files = [
+                    m.filename for m in zf.infolist()
+                    if any(m.filename.lower().endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS)
+                ]
+
+                if nesting_depth >= 1 or ratio > 50:
+                    result["suspicious"] = True
+                    result["escalate"] = True
+                    result["flags"].append(
+                        f"archive_bomb_suspected: nesting_depth={nesting_depth} "
+                        f"compression_ratio={ratio:.0f}x — possible zip bomb"
+                    )
+                if dangerous_files:
+                    result["suspicious"] = True
+                    result["escalate"] = True
+                    names = ", ".join(dangerous_files[:5])
+                    result["flags"].append(
+                        f"archive_dangerous_content: executable file(s) inside archive: {names}"
+                    )
+
+                for member in zf.infolist()[:20]:
+                    if member.file_size == 0 or member.file_size > 10 * 1024 * 1024:
+                        continue
+                    try:
+                        member_bytes = zf.read(member.filename)
+                    except RuntimeError:
+                        continue  # encrypted member, can't read without password
+                    member_yara = _local_yara(member_bytes)
+                    if member_yara.get("suspicious"):
+                        result["suspicious"] = True
+                        result["escalate"] = True
+                        m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
+                        result["flags"].append(
+                            f"archive_member_yara_match: {member.filename} matched {', '.join(m_matches)}"
+                        )
+                    if member.filename.lower().endswith(".lnk"):
+                        _scan_lnk_bytes(member.filename, member_bytes, result)
+            result["inspected"] = True
+            return result
+    except Exception as e:
+        result["flags"].append(f"archive_parse_error: {e}")
+        result["suspicious"] = True
+        result["escalate"] = True
+        return result
+
+    is_disk_image = (effective_mime in _DISK_IMAGE_MIMES or fname_lower.endswith(_DISK_IMAGE_EXTS))
+    is_real_7z = (effective_mime == "application/x-7z-compressed" or fname_lower.endswith(_SEVENZIP_EXTS))
+    if is_disk_image or is_real_7z:
+        result["format"] = "iso" if is_disk_image else "7z"
+        try:
+            member_iter = _iter_iso_members(content) if is_disk_image else _iter_7z_members(content)
+            dangerous_members = []
+            for member_name, member_bytes in member_iter:
+                if any(member_name.lower().endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS):
+                    dangerous_members.append(member_name)
+                member_yara = _local_yara(member_bytes)
+                if member_yara.get("suspicious"):
+                    result["suspicious"] = True
+                    result["escalate"] = True
+                    m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
+                    result["flags"].append(
+                        f"archive_member_yara_match: {member_name} matched {', '.join(m_matches)}"
+                    )
+                if member_name.lower().endswith(_SCRIPT_EXTS):
+                    padding_flag = _detect_script_padding(member_bytes)
+                    if padding_flag:
+                        result["suspicious"] = True
+                        result["escalate"] = True
+                        result["flags"].append(f"{member_name}: {padding_flag}")
+                if member_name.lower().endswith(".lnk"):
+                    _scan_lnk_bytes(member_name, member_bytes, result)
+            if dangerous_members:
+                result["suspicious"] = True
+                result["escalate"] = True
+                kind = "disk image" if is_disk_image else "7z archive"
+                names = ", ".join(dangerous_members[:5])
+                result["flags"].append(
+                    f"archive_dangerous_content: executable file(s) inside {kind}: {names}"
+                )
+            result["inspected"] = True
+            return result
+        except Exception as e:
+            result["flags"].append(f"archive_parse_error: {e}")
+            result["suspicious"] = True
+            result["escalate"] = True
+            return result
+
+    # Matched the broad archive/disk-image gate in extract_attachment() but
+    # isn't actually openable by anything above (e.g. a corrupt file, or a
+    # format whose MIME/extension slipped through the gate without a real
+    # handler) -- fail-safe rather than silently reporting "clean".
+    result["flags"].append("archive_format_unrecognized_or_unsupported")
+    result["suspicious"] = True
+    result["escalate"] = True
+    return result
+
+
 # =====================================================================
 # Main extraction orchestrator
 # =====================================================================
@@ -835,157 +1042,39 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             result["escalate"] = True
             result["flags"].append(padding_flag)
 
-    # 1a3. LNK shortcut — the file itself is never the payload, the command
-    # line it launches is. Run that extracted text through the same YARA
-    # ruleset used on everything else (catches e.g. a plain
-    # "powershell ... iex(...)" target via the existing suspicious_powershell
-    # rule with no new rule needed).
-    if filename.lower().endswith(".lnk"):
-        _scan_lnk_bytes(filename, content, result)
-
-    # 1b. Archive bomb detection — nested ZIPs and high compression ratios
-    # ZIP bombs overwhelm extraction with decompression work. The test corpus
-    # zip bomb is too small to hit the 60s timeout, so detect structurally.
-    if effective_mime in _ARCHIVE_MIMES or filename.lower().endswith((".zip", ".rar", ".7z", ".gz")):
-        try:
-            import zipfile as _zf
-            import io as _io
-            zf_buf = _io.BytesIO(content)
-            if _zf.is_zipfile(zf_buf):
-                zf_buf.seek(0)
-                with _zf.ZipFile(zf_buf, "r") as zf:
-                    # Check compression ratio (decompressed / compressed)
-                    total_compressed = sum(i.compress_size for i in zf.infolist() if i.compress_size > 0)
-                    total_decompressed = sum(i.file_size for i in zf.infolist())
-                    ratio = total_decompressed / total_compressed if total_compressed > 0 else 0
-
-                    # Check nesting: any member is itself a ZIP?
-                    nesting_depth = 0
-                    for member in zf.infolist():
-                        if member.file_size > 0:
-                            try:
-                                inner = zf.read(member.filename)
-                                inner_buf = _io.BytesIO(inner)
-                                if _zf.is_zipfile(inner_buf):
-                                    nesting_depth += 1
-                                    # Check second level
-                                    inner_buf.seek(0)
-                                    with _zf.ZipFile(inner_buf, "r") as zf2:
-                                        for m2 in zf2.infolist():
-                                            try:
-                                                inner2 = zf2.read(m2.filename)
-                                                if _zf.is_zipfile(_io.BytesIO(inner2)):
-                                                    nesting_depth += 1
-                                                    break
-                                            except Exception:
-                                                pass
-                                    break  # found nested ZIP, stop scanning
-                            except Exception:
-                                pass
-
-                    # Check for dangerous file extensions inside the archive
-                    dangerous_files = [
-                        m.filename for m in zf.infolist()
-                        if any(m.filename.lower().endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS)
-                    ]
-
-                    if nesting_depth >= 1 or ratio > 50:
-                        result["suspicious"] = True
-                        result["escalate"] = True
-                        result["flags"].append(
-                            f"archive_bomb_suspected: nesting_depth={nesting_depth} "
-                            f"compression_ratio={ratio:.0f}x — possible zip bomb"
-                        )
-                    if dangerous_files:
-                        result["suspicious"] = True
-                        result["escalate"] = True
-                        names = ", ".join(dangerous_files[:5])
-                        result["flags"].append(
-                            f"archive_dangerous_content: executable file(s) inside archive: {names}"
-                        )
-        except Exception:
-            pass  # archive check is best-effort
-
-    # 1c. Recursive scan: actually run YARA against archive member content —
-    # the bomb-check above only inspects ratios/nesting/filenames, never the
-    # decompressed bytes themselves. Bounded to the first 20 members and
-    # 10 MB per member (bomb-check above already caps overall risk via the
-    # ratio/nesting checks); uses _local_yara directly (not the sandbox)
-    # since YARA is already in the non-required-sandbox category.
-    if effective_mime in _ARCHIVE_MIMES or filename.lower().endswith((".zip", ".rar", ".7z", ".gz")):
-        try:
-            import zipfile as _zf
-            import io as _io
-            zf_buf = _io.BytesIO(content)
-            if _zf.is_zipfile(zf_buf):
-                zf_buf.seek(0)
-                with _zf.ZipFile(zf_buf, "r") as zf:
-                    for member in zf.infolist()[:20]:
-                        if member.file_size == 0 or member.file_size > 10 * 1024 * 1024:
-                            continue
-                        try:
-                            member_bytes = zf.read(member.filename)
-                        except RuntimeError:
-                            continue  # encrypted member, can't read without password
-                        member_yara = _local_yara(member_bytes)
-                        if member_yara.get("suspicious"):
-                            result["suspicious"] = True
-                            result["escalate"] = True
-                            m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
-                            result["flags"].append(
-                                f"archive_member_yara_match: {member.filename} matched {', '.join(m_matches)}"
-                            )
-                        if member.filename.lower().endswith(".lnk"):
-                            _scan_lnk_bytes(member.filename, member_bytes, result)
-        except Exception:
-            pass  # best-effort, consistent with the bomb-check block above
-
-    # 1d. Disk images (ISO/IMG) and real 7z archives — same dangerous-
-    # extension + recursive-YARA treatment as zip members above. Neither
-    # format is zipfile-compatible, so blocks 1b/1c above silently never
-    # opened them despite .7z already being listed in _ARCHIVE_MIMES (2026-
-    # 08-02: confirmed via the evasive-corpus gap-analysis run, where a
-    # PureLogsStealer sample shipped as an ISO email attachment scored
-    # malscore=0.0 with zero processes launched -- the payload was never
-    # inspected by anything, static or dynamic, because nothing in the
-    # pipeline ever looked inside the disk image).
-    is_disk_image = (effective_mime in _DISK_IMAGE_MIMES
-                      or filename.lower().endswith(_DISK_IMAGE_EXTS))
-    is_real_7z = (effective_mime == "application/x-7z-compressed"
-                  or filename.lower().endswith(_SEVENZIP_EXTS))
-    if is_disk_image or is_real_7z:
-        member_iter = _iter_iso_members(content) if is_disk_image else _iter_7z_members(content)
-        try:
-            dangerous_members = []
-            for member_name, member_bytes in member_iter:
-                if any(member_name.lower().endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS):
-                    dangerous_members.append(member_name)
-                member_yara = _local_yara(member_bytes)
-                if member_yara.get("suspicious"):
-                    result["suspicious"] = True
-                    result["escalate"] = True
-                    m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
-                    result["flags"].append(
-                        f"archive_member_yara_match: {member_name} matched {', '.join(m_matches)}"
-                    )
-                if member_name.lower().endswith(_SCRIPT_EXTS):
-                    padding_flag = _detect_script_padding(member_bytes)
-                    if padding_flag:
-                        result["suspicious"] = True
-                        result["escalate"] = True
-                        result["flags"].append(f"{member_name}: {padding_flag}")
-                if member_name.lower().endswith(".lnk"):
-                    _scan_lnk_bytes(member_name, member_bytes, result)
-            if dangerous_members:
-                result["suspicious"] = True
-                result["escalate"] = True
-                kind = "disk image" if is_disk_image else "7z archive"
-                names = ", ".join(dangerous_members[:5])
-                result["flags"].append(
-                    f"archive_dangerous_content: executable file(s) inside {kind}: {names}"
-                )
-        except Exception:
-            pass  # best-effort, consistent with the zip blocks above
+    # 1b/1c/1d. Archives (ZIP/7z), disk images (ISO/IMG), and standalone LNK
+    # shortcuts — all routed through the "archive" sandboxed tool (see
+    # _local_archive_scan / docker/scripts/archive_scan.py). Until 2026-08-02
+    # this ran as unconditional inline decompression in this same process;
+    # moved behind SANDBOX_REQUIRED_TOOLS so a decompression bomb or a bug in
+    # py7zr/pycdlib's C-extension codecs can't take down the shared pipeline
+    # process the way it could before (see the SANDBOX_REQUIRED_TOOLS comment
+    # near the top of this file). .rar/.vhd/.vhdx/.cab are included in the
+    # gate so they reach _local_archive_scan's explicit "no parser available"
+    # escalation instead of silently passing through unexamined -- they were
+    # never actually opened before either, just recognized by extension.
+    if (effective_mime in _ARCHIVE_MIMES or effective_mime in _DISK_IMAGE_MIMES
+            or filename.lower().endswith((".zip", ".rar", ".7z", ".gz",
+                                           ".iso", ".img", ".vhd", ".vhdx", ".cab", ".lnk"))):
+        archive_result = _run_tool("archive", content, stored_path, filename, effective_mime)
+        result["tools_run"].append(archive_result)
+        if archive_result.get("suspicious"):
+            result["suspicious"] = True
+        if archive_result.get("escalate"):
+            result["escalate"] = True
+        for _fl in archive_result.get("flags", []):
+            if _fl not in result["flags"]:
+                result["flags"].append(_fl)
+        # A tool that ran (not sandbox-unavailable/timeout, both handled by
+        # the generic SEC-H1 loops below) but reports inspected=False means
+        # it opened the gate but couldn't actually look inside — fail-safe.
+        if (archive_result.get("status") == "ok" and not archive_result.get("inspected")
+                and not archive_result.get("sandbox_required_unavailable")):
+            result["suspicious"] = True
+            result["escalate"] = True
+            _flag = "archive_not_inspected: archive tool ran but could not confirm it opened the container"
+            if _flag not in result["flags"]:
+                result["flags"].append(_flag)
 
     # 2. Office files + RTF — oletools
     if effective_mime in _OFFICE_MIMES or effective_mime in _RTF_MIMES or filename.lower().endswith(
@@ -1139,6 +1228,25 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             result["suspicious"] = True
             result["escalate"] = True
             _flag = f"sandbox_timeout_for_{_tr_tool}: container exceeded time limit — escalating (fail-safe)"
+            if _flag not in result["flags"]:
+                result["flags"].append(_flag)
+
+    # 7d. Sandboxed-tool hard-crash fail-safe — a container that OOM-kills,
+    # segfaults, or otherwise exits non-zero for a SANDBOX_REQUIRED_TOOLS
+    # tool returns a raw {"status": "error", ...} dict from sandbox.py that
+    # matches neither 7a (no sandbox_required_unavailable flag — the
+    # container DID run, it just crashed) nor 7c (no timeout_killed_after_
+    # prefix). Without this, a maliciously crash-inducing file (e.g. an
+    # archive-directory-structure DoS that OOMs the container before it can
+    # write any JSON) would silently carry no suspicious/escalate signal at
+    # all — exactly the "found nothing vs. couldn't look" conflation
+    # CLAUDE.md's "any extraction failure = escalate, never accept" rule
+    # exists to prevent. Generic across all required tools, not just archive.
+    for _tr in result["tools_run"]:
+        if _tr.get("tool") in SANDBOX_REQUIRED_TOOLS and _tr.get("status") == "error":
+            result["suspicious"] = True
+            result["escalate"] = True
+            _flag = f"sandbox_error_for_{_tr.get('tool')}: container reported an error — escalating (fail-safe)"
             if _flag not in result["flags"]:
                 result["flags"].append(_flag)
 

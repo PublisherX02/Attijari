@@ -98,7 +98,7 @@ def _build_job(tool_name: str, image: str, sub_path: str, job_id: str,
         client.V1Volume(name="workdir", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
             claim_name=WORKDIR_PVC)),
     ]
-    if tool_name == "yara" and YARA_RULES_DIR.exists():
+    if tool_name in ("yara", "archive") and YARA_RULES_DIR.exists():
         # subPath is required here: without it this would mount the PVC's
         # entire root at /rules, including every other concurrent job's
         # per-job input subdirectory — a real cross-job data leak. Rules
