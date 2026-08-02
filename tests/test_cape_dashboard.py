@@ -417,7 +417,7 @@ def test_run_window_starts_thread_and_writes_audit(monkeypatch):
     monkeypatch.setattr(database, "add_audit_entry",
                         lambda db, **kw: audits.append(kw))
     monkeypatch.setattr(detonation, "process_detonation_queue",
-                        lambda: (ran.set(), {"status": "ok"})[1])
+                        lambda idle_timeout_seconds=None: (ran.set(), {"status": "ok"})[1])
     out = api_detonation_run_window(user=SimpleNamespace(username="op"))
     assert out == {"status": "started"}
     assert ran.wait(5), "process_detonation_queue never ran in the thread"
