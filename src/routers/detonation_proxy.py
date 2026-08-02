@@ -488,9 +488,11 @@ def api_detonation_run_window(
     finally:
         db.close()
 
+    import detonation_config as cfg
     from detonation import process_detonation_queue
     threading.Thread(
         target=process_detonation_queue,
+        kwargs={"idle_timeout_seconds": cfg.DETONATION_MANUAL_IDLE_TIMEOUT_SECONDS},
         daemon=True,
         name="manual-detonation-window",
     ).start()

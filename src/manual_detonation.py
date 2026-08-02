@@ -75,7 +75,9 @@ def _window_active() -> bool:
 def _start_window() -> None:
     from detonation import process_detonation_queue
     threading.Thread(
-        target=process_detonation_queue, daemon=True,
+        target=process_detonation_queue,
+        kwargs={"idle_timeout_seconds": cfg.DETONATION_MANUAL_IDLE_TIMEOUT_SECONDS},
+        daemon=True,
         name="manual-detonation-window",
     ).start()
 

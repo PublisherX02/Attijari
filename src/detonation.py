@@ -293,12 +293,23 @@ def _apply_result_to_email(db, row, result: dict[str, Any]) -> None:
         pass
 
 
-def process_detonation_queue() -> dict[str, Any]:
+def process_detonation_queue(idle_timeout_seconds: int | None = None) -> dict[str, Any]:
     """Drain the queue in one memory-freed window. Safe no-op if nothing queued.
+
+    idle_timeout_seconds overrides cfg.DETONATION_IDLE_TIMEOUT_SECONDS (default
+    300s / 5min) for how long the window stays open after the queue empties.
+    The default is right for the automatic scheduler path — keep the VM hot
+    across a burst of attachments arriving close together. It's wrong for an
+    operator-triggered single-file detonation: the operator watches the
+    result, sees CAPE finish, and the pipeline should resume promptly rather
+    than sitting paused for up to 5 more minutes "in case more work arrives."
+    Manual trigger paths (manual_detonation.py, api_detonation_run_window)
+    pass a short override.
 
     Returns a summary dict. Guaranteed to restore the pipeline via the watchdog
     pattern (try/finally) regardless of how any single detonation fails.
     """
+    idle_timeout = idle_timeout_seconds if idle_timeout_seconds is not None else cfg.DETONATION_IDLE_TIMEOUT_SECONDS
     from database import (
         SessionLocal, get_queued_detonations, count_queued_detonations,
         recover_stale_running_detonations,
@@ -355,7 +366,7 @@ def process_detonation_queue() -> dict[str, Any]:
 
                 if row is None:
                     idle_for = time.time() - last_activity
-                    if idle_for > cfg.DETONATION_IDLE_TIMEOUT_SECONDS:
+                    if idle_for > idle_timeout:
                         print(f"[DETONATION] Queue empty for {idle_for:.0f}s — closing window")
                         break
                     db.close()

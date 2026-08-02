@@ -137,11 +137,20 @@ def _task_status(task_id: int) -> Optional[str]:
 
 
 def wait_for_report(task_id: int) -> bool:
-    """Block until the task reaches a terminal state. True if reported OK."""
+    """Block until the task reaches a terminal state. True if reported OK.
+
+    "completed" means the sandbox run finished, NOT that a report exists —
+    report generation is a separate, sometimes slow (occasionally stuck)
+    step on the CAPE side. Only "reported" means report.json is actually
+    ready; treating "completed" as terminal here caused fetch_report() to
+    be called before the report existed, producing spurious
+    cape_report_unavailable errors on samples that were still fine, just
+    not done processing yet.
+    """
     deadline = time.time() + CAPE_TOTAL_TIMEOUT
     while time.time() < deadline:
         status = _task_status(task_id)
-        if status in ("reported", "completed"):
+        if status == "reported":
             return True
         if status in ("failed_analysis", "failed_processing", "failed"):
             return False

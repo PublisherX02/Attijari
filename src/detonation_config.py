@@ -56,6 +56,12 @@ DETONATION_BATCH_SIZE = int(os.getenv("DETONATION_BATCH_SIZE", "5"))
 # the VM resume-from-savestate cost per attachment.
 DETONATION_IDLE_TIMEOUT_SECONDS = int(os.getenv("DETONATION_IDLE_TIMEOUT_SECONDS", "300"))
 
+# Same idea, but for an operator-triggered single-file window (manual upload
+# 'now' branch, confirm, or "run window now"): the operator is watching and
+# expects the pipeline to resume as soon as their file is done, not sit
+# paused for the full batch-oriented idle grace period above.
+DETONATION_MANUAL_IDLE_TIMEOUT_SECONDS = int(os.getenv("DETONATION_MANUAL_IDLE_TIMEOUT_SECONDS", "10"))
+
 # How long to sleep between empty-queue checks while waiting out the idle
 # timeout. Short enough that a newly-arrived attachment starts promptly.
 DETONATION_IDLE_POLL_SECONDS = int(os.getenv("DETONATION_IDLE_POLL_SECONDS", "2"))
