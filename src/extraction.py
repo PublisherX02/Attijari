@@ -701,6 +701,64 @@ def _iter_7z_members(content: bytes, limit: int = 20, max_member_bytes: int = 10
         return
 
 
+def _extract_lnk_command(content: bytes) -> str | None:
+    """Extracts a shortcut's target, working directory, and command-line
+    arguments as one text blob for signature scanning.
+
+    A malicious LNK's real payload is almost never the .lnk binary itself
+    (a few hundred bytes of shell-item structures) -- it's the command line
+    it launches, and that was previously invisible to every check in this
+    pipeline (YARA only ever saw the raw structural bytes). Confirmed
+    against 16 real samples from the 2026-08-01 evasive-corpus gap-analysis
+    run: every one launched a LOLBin (cmd.exe, powershell, mshta) via a
+    different obfuscation trick -- environment variables split so "mshta"
+    is reconstructed from "msh"+"ta" and the literal string never appears
+    in the file, curl-download-and-execute chains, direct PowerShell
+    download cradles -- none of which a raw-byte scan of the LNK itself
+    could ever see.
+    """
+    try:
+        from LnkParse3.lnk_file import LnkFile
+    except ImportError:
+        return None
+    try:
+        lnk = LnkFile(indata=content)
+        parsed = lnk.get_json(get_all=True)
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    parts = []
+    data_section = parsed.get("data") or {}
+    for key in ("command_line_arguments", "working_directory", "relative_path", "icon_location"):
+        val = data_section.get(key)
+        if val:
+            parts.append(str(val))
+    target = parsed.get("target") or {}
+    for item in target.get("items", []) if isinstance(target, dict) else []:
+        name = item.get("primary_name")
+        if name:
+            parts.append(str(name))
+    return "\n".join(parts) if parts else None
+
+
+def _scan_lnk_bytes(name: str, content: bytes, result: dict) -> None:
+    """Extracts a shortcut's command line and runs it through YARA,
+    updating result in place. Shared by the top-level attachment check and
+    both archive-member scan loops (zip, and ISO/7z) below, so an LNK gets
+    the same treatment no matter where it's found."""
+    lnk_text = _extract_lnk_command(content)
+    if not lnk_text:
+        return
+    result["flags"].append(f"lnk_command ({name}): {lnk_text[:500]}")
+    lnk_yara = _local_yara(lnk_text.encode("utf-8", errors="replace"))
+    if lnk_yara.get("suspicious"):
+        result["suspicious"] = True
+        result["escalate"] = True
+        matches = [m.get("rule", "?") for m in lnk_yara.get("matches", []) if "rule" in m]
+        result["flags"].append(f"lnk_command_yara_match ({name}): {', '.join(matches)}")
+
+
 # =====================================================================
 # Main extraction orchestrator
 # =====================================================================
@@ -776,6 +834,14 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             result["suspicious"] = True
             result["escalate"] = True
             result["flags"].append(padding_flag)
+
+    # 1a3. LNK shortcut — the file itself is never the payload, the command
+    # line it launches is. Run that extracted text through the same YARA
+    # ruleset used on everything else (catches e.g. a plain
+    # "powershell ... iex(...)" target via the existing suspicious_powershell
+    # rule with no new rule needed).
+    if filename.lower().endswith(".lnk"):
+        _scan_lnk_bytes(filename, content, result)
 
     # 1b. Archive bomb detection — nested ZIPs and high compression ratios
     # ZIP bombs overwhelm extraction with decompression work. The test corpus
@@ -869,6 +935,8 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
                             result["flags"].append(
                                 f"archive_member_yara_match: {member.filename} matched {', '.join(m_matches)}"
                             )
+                        if member.filename.lower().endswith(".lnk"):
+                            _scan_lnk_bytes(member.filename, member_bytes, result)
         except Exception:
             pass  # best-effort, consistent with the bomb-check block above
 
@@ -906,6 +974,8 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
                         result["suspicious"] = True
                         result["escalate"] = True
                         result["flags"].append(f"{member_name}: {padding_flag}")
+                if member_name.lower().endswith(".lnk"):
+                    _scan_lnk_bytes(member_name, member_bytes, result)
             if dangerous_members:
                 result["suspicious"] = True
                 result["escalate"] = True
