@@ -25,6 +25,7 @@ rule suspicious_vba_macro {
         $shell1 = "Shell(" ascii nocase
         $shell2 = "WScript.Shell" ascii nocase
         $shell3 = "CreateObject" ascii nocase
+        $shell4 = "Shell#(" ascii nocase
         $download = "XMLHTTP" ascii nocase
         $env = "Environ(" ascii nocase
     condition:
@@ -211,17 +212,77 @@ rule lnk_autoit_payload_download {
 
 rule vbs_xmlhttp_execute_backdoor {
     meta:
-        description = "Detects a standalone script that beacons via XMLHTTP/WinHttp and dynamically Executes the response body -- a classic fetch-and-execute backdoor. suspicious_vba_macro requires an AutoOpen/Document_Open-style entry point and misses this, since a standalone .vbs/.wsf backdoor just runs top-to-bottom with no macro entry point at all. Confirmed in a real sample, 2026-08-01 evasive-corpus gap-analysis run."
+        description = "Detects a standalone script that beacons via XMLHTTP/WinHttp and dynamically Executes the response body -- a classic fetch-and-execute backdoor. suspicious_vba_macro requires an AutoOpen/Document_Open-style entry point and misses this, since a standalone .vbs/.wsf backdoor just runs top-to-bottom with no macro entry point at all. Confirmed in a real sample, 2026-08-01 evasive-corpus gap-analysis run. Broadened 2026-08-02 after two more real variants were found: one used POST instead of the originally-assumed GET, and another split '.Open'/'.Send' across concatenated string fragments (e.g. '.Open post' as an array element, 'oXMLHTTP.S' + 'end') specifically to defeat the old literal '.Open \"GET\"' + '.Send' requirements -- the mandatory $open/$send strings are now an OR alongside $responsetext, since Execute()-with-concatenation plus an XMLHTTP/WinHttp object is already the specific, rare signal; the exact HTTP-verb/method-call text is exactly what attackers reliably obfuscate."
         severity = "critical"
     strings:
         $xmlhttp = "XMLHTTP" ascii nocase
         $winhttp = "WinHttp" ascii nocase
-        $open_get = ".Open \"GET\"" ascii nocase
-        $send = ".Send" ascii
         $execute = /Execute\s*("")?\s*\+/ nocase
+        $open = /\.Open\s*"?\s*(GET|POST)\s*"?/ nocase
+        $send = ".Send" ascii nocase
         $responsetext = "responseText" ascii nocase
     condition:
-        ($xmlhttp or $winhttp) and $open_get and $send and ($execute or $responsetext)
+        ($xmlhttp or $winhttp) and $execute and ($open or $send or $responsetext)
+}
+
+rule lnk_mshta_remote_url {
+    meta:
+        description = "Detects an LNK shortcut whose command line launches mshta.exe directly against a remote http(s) URL -- no obfuscation trick needed to flag this one, since mshta legitimately opens local .hta files and essentially never a bare remote URL as its argument. The other lnk_* rules each target a specific obfuscation technique (split-var reconstruction, curl chains, AutoIt, batch write) and miss the simplest case: a plain, unobfuscated 'mshta.exe <url>'. Confirmed in a real sample, 2026-08-02 follow-up gap-analysis."
+        severity = "critical"
+    strings:
+        $mshta = "mshta" ascii nocase
+        $url = /https?:\/\// ascii nocase
+    condition:
+        $mshta and $url
+}
+
+rule rundll32_renamed_temp_export {
+    meta:
+        description = "Detects a command line invoking rundll32.exe against a file sitting in a Temp directory that lacks a .dll extension -- rundll32 requires a real DLL export table, so pointing it at a renamed payload (.dat/.tmp/.bin/etc.) staged in %TEMP% is a LOLBin-abuse pattern with no legitimate use. Confirmed in a real LNK sample (rundll32.exe ...\\Temp\\htpd.dat, bogus), 2026-08-02 follow-up gap-analysis."
+        severity = "high"
+    strings:
+        $rundll32 = "rundll32" ascii nocase
+        $temp_dir = /\\Temp\\/ ascii nocase
+        $non_dll_export = /\\[A-Za-z0-9_\-\.]+\.(dat|tmp|bin|txt|log|db)\s*,/ ascii nocase
+    condition:
+        $rundll32 and $temp_dir and $non_dll_export
+}
+
+rule rtf_autolink_remote_object {
+    meta:
+        description = "Detects an RTF document with an auto-updating linked OLE object (\\objautlink\\objupdate) whose data references an external resource via \\hlsrc -- fetches and embeds remote content automatically when the document is opened, a remote-template-injection-style technique distinct from the directly-embedded (\\objemb) exploits rtf_embedded_ole_object/rtf_malformed_header_equation_exploit already cover. Confirmed in a real sample, 2026-08-02 follow-up gap-analysis."
+        severity = "high"
+    strings:
+        $objautlink = "\\objautlink" ascii nocase
+        $objupdate = "\\objupdate" ascii nocase
+        $hlsrc = "\\hlsrc" ascii nocase
+        $objdata = "\\objdata" ascii nocase
+    condition:
+        $objautlink and $objupdate and ($hlsrc or $objdata)
+}
+
+rule rtf_truncated_header_ole_embed {
+    meta:
+        description = "Detects an RTF document whose header omits the standard '{\\rtf1' version/control sequence entirely (e.g. '{\\rt{...' instead of '{\\rtf1...') while still embedding an OLE object -- RTF's lenient parser renders it regardless, defeating rtf_embedded_ole_object's exact '{\\rtf' check at offset 0. Distinct from rtf_malformed_header_equation_exploit, which targets junk *inside* the rtf1 control word for Equation Editor exploits specifically (requires the literal 'Equation.3' class name); this covers the broader case of a missing header entirely paired with an arbitrary/garbled \\objclass name. Confirmed in a real sample, 2026-08-02 follow-up gap-analysis."
+        severity = "critical"
+    strings:
+        $rtf_trunc = /\{\\rt[^f]/ ascii
+        $objemb = "\\objemb" ascii nocase
+        $objclass = "\\objclass" ascii nocase
+        $objdata = "\\objdata" ascii nocase
+    condition:
+        $rtf_trunc at 0 and $objemb and $objclass and $objdata
+}
+
+rule ps_backtick_obfuscated_member_invoke {
+    meta:
+        description = "Detects PowerShell using backtick characters inserted inside a quoted method/property name invoked via '::\"...\"' or '.\"...\"' dynamic member access (e.g. '::\"lOAD`WiThPart`iAlN`AmE\"' for LoadWithPartialName), combined with '-f' format-string reconstruction of short quoted literal fragments -- a known Invoke-Obfuscation-style technique with no legitimate use (real code never needs backticks inside a quoted member name). Confirmed in a real heavily-obfuscated AES-decrypting PowerShell loader (Reflection.Assembly load, Rijndael decrypt, gzip-decompress second stage), 2026-08-02 follow-up gap-analysis -- every cmdlet/class/method name in that sample was reconstructed this way specifically to defeat literal-string signatures."
+        severity = "critical"
+    strings:
+        $backtick_member = /[:.]{1,2}"[A-Za-z0-9]+`[A-Za-z0-9`]{2,}"/ ascii wide
+        $format_reconstruct = /-f\s*'[^']{0,30}'\s*,\s*'[^']{0,30}'/ ascii wide nocase
+    condition:
+        $backtick_member and $format_reconstruct
 }
 
 rule js_numeric_padding_tail {
