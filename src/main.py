@@ -83,7 +83,7 @@ def _ollama_reachable(timeout: float = 5.0) -> bool:
         return False
 
 
-def run_pipeline(single_file: str | None = None):
+def run_pipeline(single_file: str | None = None) -> bool:
     load_dotenv()
     logger = get_logger("pipeline")
 
@@ -92,7 +92,7 @@ def run_pipeline(single_file: str | None = None):
         import detonation_state
         if detonation_state.is_active():
             logger.info("[PIPELINE] Detonation active — skipping this pipeline run")
-            return
+            return False
     except ImportError:
         pass
 
@@ -103,7 +103,7 @@ def run_pipeline(single_file: str | None = None):
     # picked up on the next poll once Ollama is back.
     if not _ollama_reachable():
         logger.warning("[PIPELINE] Ollama unreachable — deferring this run; mail stays on IMAP server")
-        return
+        return False
 
     logger.info("=" * 50)
     logger.info("[START] Email Ingestion & Analysis Pipeline")
@@ -129,7 +129,7 @@ def run_pipeline(single_file: str | None = None):
         import detonation_state
         if detonation_state.is_active():
             print("[DETONATION] A detonation window is active — pipeline paused, skipping this run")
-            return
+            return False
         from detonation import is_available as _cape_up
         if _cape_up():
             print("[DETONATION] CAPE API reachable (VM currently running)")
@@ -919,6 +919,7 @@ def run_pipeline(single_file: str | None = None):
 
     elapsed = time.time() - t_start
     logger.info(f"=== Pipeline Finished in {elapsed:.1f}s ===")
+    return True
 
 
 if __name__ == "__main__":

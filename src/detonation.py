@@ -397,6 +397,11 @@ def process_detonation_queue() -> dict[str, Any]:
     finally:
         _restore()
         state.end()
+        try:
+            from redis_client import get_client
+            get_client().publish("attijari:pipeline:refresh", "detonation_window_ended")
+        except Exception as e:
+            print(f"[DETONATION] Failed to publish refresh signal: {e}")
         print(f"[DETONATION] === Detonation window closed: {summary} ===")
 
 
