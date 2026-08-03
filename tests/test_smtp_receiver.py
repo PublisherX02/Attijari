@@ -4,10 +4,12 @@ from email.message import EmailMessage
 from pathlib import Path
 
 import pytest
+from limits.storage import MemoryStorage
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.smtp_receiver import PendingMailHandler
+from src.smtp_rate_limit import SmtpRateLimiter
 
 
 class _FakeSession:
@@ -18,6 +20,44 @@ class _FakeEnvelope:
     def __init__(self):
         self.rcpt_tos = []
         self.content = b""
+        self.mail_from = None
+        self.mail_options = []
+
+
+@pytest.mark.asyncio
+async def test_handle_mail_accepts_sender_under_limit(tmp_path):
+    handler = PendingMailHandler(
+        pending_dir=tmp_path,
+        accepted_domains=set(),
+        max_size=1000,
+        rate_limiter=SmtpRateLimiter(storage=MemoryStorage()),
+    )
+    envelope = _FakeEnvelope()
+    status = await handler.handle_MAIL(
+        None, _FakeSession(), envelope, "sender@example.com", []
+    )
+    assert status == "250 OK"
+    assert envelope.mail_from == "sender@example.com"
+
+
+@pytest.mark.asyncio
+async def test_handle_mail_rejects_sender_over_limit(tmp_path):
+    limiter = SmtpRateLimiter(storage=MemoryStorage())
+    handler = PendingMailHandler(
+        pending_dir=tmp_path, accepted_domains=set(), max_size=1000, rate_limiter=limiter
+    )
+    envelope = _FakeEnvelope()
+    for _ in range(20):
+        status = await handler.handle_MAIL(
+            None, _FakeSession(), envelope, "flooder@example.com", []
+        )
+        assert status == "250 OK"
+        envelope.mail_from = None  # reset, mirroring a fresh transaction per message
+    status = await handler.handle_MAIL(
+        None, _FakeSession(), envelope, "flooder@example.com", []
+    )
+    assert status.startswith("450")
+    assert envelope.mail_from is None
 
 
 @pytest.mark.asyncio

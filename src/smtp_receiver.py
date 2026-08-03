@@ -14,6 +14,7 @@ from pathlib import Path
 from aiosmtpd.controller import Controller
 
 from pipeline_jobs import enqueue_pipeline_job
+from smtp_rate_limit import SmtpRateLimiter
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_DIR = _PROJECT_ROOT / "data" / "smtp_pending"
@@ -22,10 +23,24 @@ PENDING_DIR = _PROJECT_ROOT / "data" / "smtp_pending"
 class PendingMailHandler:
     """aiosmtpd message handler: validate fast, persist, return."""
 
-    def __init__(self, pending_dir: Path, accepted_domains: set[str], max_size: int):
+    def __init__(
+        self,
+        pending_dir: Path,
+        accepted_domains: set[str],
+        max_size: int,
+        rate_limiter: SmtpRateLimiter | None = None,
+    ):
         self.pending_dir = pending_dir
         self.accepted_domains = accepted_domains
         self.max_size = max_size
+        self.rate_limiter = rate_limiter if rate_limiter is not None else SmtpRateLimiter()
+
+    async def handle_MAIL(self, server, session, envelope, address, mail_options):
+        if not self.rate_limiter.allow(address):
+            return "450 4.7.1 rate limit exceeded, try again later"
+        envelope.mail_from = address
+        envelope.mail_options.extend(mail_options)
+        return "250 OK"
 
     async def handle_RCPT(self, server, session, envelope, address, rcpt_options):
         if self.accepted_domains:
