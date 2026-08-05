@@ -89,4 +89,5 @@ ollama
 --extra-index-url https://download.pytorch.org/whl/cu132
 transformers==5.12.1
 torch==2.13.0+cu132
+accelerate==1.14.0  # required by transformers pipeline(..., device_map="auto") in analysis.py
 

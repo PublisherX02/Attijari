@@ -8,6 +8,7 @@ try:
     doc = fitz.open("/work/input")
     text_parts = []
     links = []
+    page_count = doc.page_count
     for page in doc:
         text_parts.append(page.get_text())
         for link in page.get_links():
@@ -20,7 +21,7 @@ try:
     json.dump({
         "tool": "pymupdf",
         "status": "ok",
-        "page_count": doc.page_count if hasattr(doc, 'page_count') else len(text_parts),
+        "page_count": page_count,
         "text": full_text[:10000],
         "links": links[:100],
         "text_length": len(full_text),

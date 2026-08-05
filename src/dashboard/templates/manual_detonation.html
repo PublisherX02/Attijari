@@ -14,6 +14,24 @@
 </div>
 
 <div class="card" style="margin-top:16px;">
+  <h3 style="margin-bottom:4px;">🗂️ Detonation Queue</h3>
+  <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px;">
+    Everything pending or in-flight, sandbox one file at a time. Priority rows jump ahead of
+    normal ones; "Detonate first" never interrupts a file that's already running.
+  </p>
+  <table class="data-table" id="dq-table">
+    <thead>
+      <tr>
+        <th>File</th><th>Source</th><th>Reason</th><th>Status</th><th>Queued</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="dq-tbody">
+      <tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Nothing pending.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top:16px;">
   <table class="data-table" id="md-table">
     <thead>
       <tr>

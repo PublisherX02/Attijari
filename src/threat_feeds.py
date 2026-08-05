@@ -71,13 +71,26 @@ class ThreatFeeds:
         if self._loaded:
             return self._stats
 
-        # HIGH-03 Fix: Check file age
+        # HIGH-03 Fix: Check file age -- and actually refresh when stale, not
+        # just warn. This used to only print a warning telling the operator
+        # to run `--update` by hand; the only thing that ever called
+        # update_feeds() automatically was scheduler.py's daily cron job,
+        # which only runs under the legacy `python main.py --daemon` mode --
+        # dead since the 2026-07-30 SMTP/job-queue redesign moved the app to
+        # `--serve`. Confirmed live: feeds were 823+ hours (34+ days) stale
+        # with zero automation actually refreshing them. Refreshing here
+        # means every entrypoint that calls get_feeds() (the app, the
+        # worker, scheduler.py, test harnesses) self-heals regardless of
+        # which one happens to be running -- no separate scheduling
+        # mechanism to keep in sync across entrypoints.
         now = time.time()
+        stale = False
         for path, name in [(_OPENPHISH_PATH, "OpenPhish"), (_URLHAUS_PATH, "URLhaus")]:
-            if path.exists():
-                age_hours = (now - path.stat().st_mtime) / 3600
-                if age_hours > 24:
-                    print(f"[FEEDS] WARNING: {name} feed is {age_hours:.1f} hours old. Run with --update to refresh.")
+            if not path.exists() or (now - path.stat().st_mtime) / 3600 > 24:
+                stale = True
+        if stale:
+            print("[FEEDS] Feed file(s) stale (>24h old) -- refreshing before load...")
+            update_feeds()
 
         t0 = time.time()
         op_stats = self._load_openphish()
@@ -211,16 +224,25 @@ class ThreatFeeds:
         return matches
 
 
-# Module-level singleton — loaded once, reused across pipeline
+# Module-level singleton — reused across pipeline, re-checked periodically
+# (not just loaded once forever) so a long-running process's feed data
+# doesn't silently go stale for its entire lifetime. The actual network
+# refresh only happens inside load() when the on-disk file is genuinely
+# >24h old -- this just controls how often that check itself runs.
 _feeds: ThreatFeeds | None = None
+_feeds_last_checked: float = 0.0
+_FEEDS_RECHECK_INTERVAL_SECONDS = 3600
 
 
 def get_feeds() -> ThreatFeeds:
-    """Get the singleton ThreatFeeds instance (loads on first call)."""
-    global _feeds
-    if _feeds is None:
+    """Get the singleton ThreatFeeds instance (loads on first call, and
+    re-checked hourly thereafter)."""
+    global _feeds, _feeds_last_checked
+    now = time.time()
+    if _feeds is None or (now - _feeds_last_checked) > _FEEDS_RECHECK_INTERVAL_SECONDS:
         _feeds = ThreatFeeds()
         stats = _feeds.load()
+        _feeds_last_checked = now
         print(f"[FEEDS] Loaded: {stats['total_urls']} URLs, "
               f"{stats['total_domains']} domains, {stats['total_ips']} IPs "
               f"({stats['load_time_s']}s)")

@@ -26,6 +26,7 @@ _UNSUPPORTED_ARCHIVE_EXTS = (".rar", ".vhd", ".vhdx", ".cab")
 _DISK_IMAGE_MIMES = {"application/x-iso9660-image", "application/x-cd-image", "application/x-raw-disk-image"}
 _DISK_IMAGE_EXTS = (".iso", ".img")
 _SEVENZIP_EXTS = (".7z",)
+_MAX_NESTED_ARCHIVE_DEPTH = 3
 
 
 def _local_yara(content: bytes) -> dict:
@@ -169,6 +170,82 @@ def _scan_lnk_bytes(name: str, content: bytes, result: dict) -> None:
         result["flags"].append(f"lnk_command_yara_match ({name}): {', '.join(matches)}")
 
 
+def _scan_container_member(member_name: str, member_bytes: bytes, result: dict, depth: int = 0) -> None:
+    """Applies every per-member check (YARA, dangerous extension, script
+    padding, LNK command extraction) to one archive/disk-image member, and
+    recurses into it if it is itself a nested archive/disk image -- up to
+    _MAX_NESTED_ARCHIVE_DEPTH. Mutates `result` in place. Mirrors
+    src/extraction.py's function of the same name exactly."""
+    name_lower = member_name.lower()
+
+    member_yara = _local_yara(member_bytes)
+    if member_yara.get("suspicious"):
+        result["suspicious"] = True
+        result["escalate"] = True
+        m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
+        result["flags"].append(
+            f"archive_member_yara_match: {member_name} matched {', '.join(m_matches)}"
+        )
+
+    if any(name_lower.endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS):
+        result["suspicious"] = True
+        result["escalate"] = True
+        result["flags"].append(
+            f"archive_dangerous_content: executable file inside archive: {member_name}"
+        )
+
+    if name_lower.endswith(_SCRIPT_EXTS):
+        padding_flag = _detect_script_padding(member_bytes)
+        if padding_flag:
+            result["suspicious"] = True
+            result["escalate"] = True
+            result["flags"].append(f"{member_name}: {padding_flag}")
+
+    if name_lower.endswith(".lnk"):
+        _scan_lnk_bytes(member_name, member_bytes, result)
+
+    if depth >= _MAX_NESTED_ARCHIVE_DEPTH:
+        if name_lower.endswith(_DISK_IMAGE_EXTS + _SEVENZIP_EXTS + (".zip",)):
+            result["suspicious"] = True
+            result["escalate"] = True
+            result["flags"].append(
+                f"nested_archive_depth_exceeded: {member_name} not inspected "
+                f"past depth {_MAX_NESTED_ARCHIVE_DEPTH}"
+            )
+        return
+
+    try:
+        if zipfile.is_zipfile(io.BytesIO(member_bytes)):
+            with zipfile.ZipFile(io.BytesIO(member_bytes), "r") as inner_zf:
+                for inner_member in inner_zf.infolist()[:20]:
+                    if inner_member.file_size == 0 or inner_member.file_size > 10 * 1024 * 1024:
+                        continue
+                    try:
+                        inner_bytes = inner_zf.read(inner_member.filename)
+                    except RuntimeError:
+                        continue
+                    _scan_container_member(inner_member.filename, inner_bytes, result, depth + 1)
+            return
+    except Exception:
+        pass
+
+    if name_lower.endswith(_DISK_IMAGE_EXTS):
+        try:
+            for inner_name, inner_bytes in _iter_iso_members(member_bytes):
+                _scan_container_member(inner_name, inner_bytes, result, depth + 1)
+        except Exception:
+            pass
+        return
+
+    if name_lower.endswith(_SEVENZIP_EXTS):
+        try:
+            for inner_name, inner_bytes in _iter_7z_members(member_bytes):
+                _scan_container_member(inner_name, inner_bytes, result, depth + 1)
+        except Exception:
+            pass
+        return
+
+
 def scan(content: bytes, filename: str, effective_mime: str) -> dict:
     result = {
         "tool": "archive", "status": "ok", "format": "unknown",
@@ -226,24 +303,12 @@ def scan(content: bytes, filename: str, effective_mime: str) -> dict:
                         except Exception:
                             pass
 
-                dangerous_files = [
-                    m.filename for m in zf.infolist()
-                    if any(m.filename.lower().endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS)
-                ]
-
                 if nesting_depth >= 1 or ratio > 50:
                     result["suspicious"] = True
                     result["escalate"] = True
                     result["flags"].append(
                         f"archive_bomb_suspected: nesting_depth={nesting_depth} "
                         f"compression_ratio={ratio:.0f}x — possible zip bomb"
-                    )
-                if dangerous_files:
-                    result["suspicious"] = True
-                    result["escalate"] = True
-                    names = ", ".join(dangerous_files[:5])
-                    result["flags"].append(
-                        f"archive_dangerous_content: executable file(s) inside archive: {names}"
                     )
 
                 for member in zf.infolist()[:20]:
@@ -253,16 +318,7 @@ def scan(content: bytes, filename: str, effective_mime: str) -> dict:
                         member_bytes = zf.read(member.filename)
                     except RuntimeError:
                         continue
-                    member_yara = _local_yara(member_bytes)
-                    if member_yara.get("suspicious"):
-                        result["suspicious"] = True
-                        result["escalate"] = True
-                        m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
-                        result["flags"].append(
-                            f"archive_member_yara_match: {member.filename} matched {', '.join(m_matches)}"
-                        )
-                    if member.filename.lower().endswith(".lnk"):
-                        _scan_lnk_bytes(member.filename, member_bytes, result)
+                    _scan_container_member(member.filename, member_bytes, result, depth=1)
             result["inspected"] = True
             return result
     except Exception as e:
@@ -277,34 +333,8 @@ def scan(content: bytes, filename: str, effective_mime: str) -> dict:
         result["format"] = "iso" if is_disk_image else "7z"
         try:
             member_iter = _iter_iso_members(content) if is_disk_image else _iter_7z_members(content)
-            dangerous_members = []
             for member_name, member_bytes in member_iter:
-                if any(member_name.lower().endswith(ext) for ext in _DANGEROUS_ARCHIVE_MEMBER_EXTS):
-                    dangerous_members.append(member_name)
-                member_yara = _local_yara(member_bytes)
-                if member_yara.get("suspicious"):
-                    result["suspicious"] = True
-                    result["escalate"] = True
-                    m_matches = [m.get("rule", "?") for m in member_yara.get("matches", []) if "rule" in m]
-                    result["flags"].append(
-                        f"archive_member_yara_match: {member_name} matched {', '.join(m_matches)}"
-                    )
-                if member_name.lower().endswith(_SCRIPT_EXTS):
-                    padding_flag = _detect_script_padding(member_bytes)
-                    if padding_flag:
-                        result["suspicious"] = True
-                        result["escalate"] = True
-                        result["flags"].append(f"{member_name}: {padding_flag}")
-                if member_name.lower().endswith(".lnk"):
-                    _scan_lnk_bytes(member_name, member_bytes, result)
-            if dangerous_members:
-                result["suspicious"] = True
-                result["escalate"] = True
-                kind = "disk image" if is_disk_image else "7z archive"
-                names = ", ".join(dangerous_members[:5])
-                result["flags"].append(
-                    f"archive_dangerous_content: executable file(s) inside {kind}: {names}"
-                )
+                _scan_container_member(member_name, member_bytes, result, depth=1)
             result["inspected"] = True
             return result
         except Exception as e:

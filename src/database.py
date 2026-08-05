@@ -993,6 +993,59 @@ def count_queued_detonations(db: Session) -> int:
     return db.query(PendingDetonation).filter(PendingDetonation.status == "queued").count()
 
 
+def _serialize_queue_row(r: "PendingDetonation") -> dict:
+    return {
+        "id": r.id,
+        "email_id": r.email_id,
+        "filename": r.filename,
+        "sha256": r.sha256,
+        "reason": r.reason,
+        "status": r.status,
+        "priority": r.priority,
+        "created_by": r.created_by,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+def get_detonation_queue_overview(db: Session, limit: int = 50) -> dict:
+    """Everything the operator-facing Detonation Queue panel needs in one
+    query: the in-flight row(s), the actual priority-ordered queue, and the
+    manual (Branch-B) rows that haven't reached the queue yet — deferred
+    (waiting for the email backlog to clear) or ready (awaiting operator
+    confirmation). priority is a boolean jump-the-queue flag, not a rank —
+    see PendingDetonation.priority; ordering here matches
+    get_queued_detonations exactly (priority desc, created_at asc)."""
+    rows = (
+        db.query(PendingDetonation)
+        .filter(PendingDetonation.status.in_(["running", "queued", "deferred", "ready"]))
+        .order_by(PendingDetonation.priority.desc(), PendingDetonation.created_at.asc())
+        .limit(limit)
+        .all()
+    )
+    return {
+        "running": [_serialize_queue_row(r) for r in rows if r.status == "running"],
+        "queued": [_serialize_queue_row(r) for r in rows if r.status == "queued"],
+        "manual_deferred": [_serialize_queue_row(r) for r in rows if r.status == "deferred"],
+        "manual_ready": [_serialize_queue_row(r) for r in rows if r.status == "ready"],
+    }
+
+
+def set_detonation_priority(db: Session, pending_id: int) -> Optional["PendingDetonation"]:
+    """Flip a queued row to priority=True so it's picked up right after the
+    current in-flight item finishes (see process_detonation_queue's
+    re-query-before-each-pick loop). Returns None if not found; the row
+    itself otherwise (caller decides what to do with a non-'queued' status —
+    kept dumb/pure here, same convention as get_pending_detonation)."""
+    row = db.query(PendingDetonation).filter(PendingDetonation.id == pending_id).first()
+    if not row:
+        return None
+    if row.status == "queued":
+        row.priority = True
+        db.commit()
+        db.refresh(row)
+    return row
+
+
 def list_manual_detonations(db: Session, limit: int = 100) -> list["PendingDetonation"]:
     """Manual (non-email) detonations, newest first, for the manual-detonation page."""
     return (
@@ -1020,14 +1073,16 @@ def get_pending_detonation(db: Session, pending_id: int) -> Optional["PendingDet
 
 
 def get_recent_detonation_events(db: Session, limit: int = 50) -> list[dict]:
-    """Per-email detonation lifecycle events for dashboard notifications.
+    """Detonation lifecycle events for dashboard notifications, covering both
+    per-email (always-on auto-detonate) and manual (operator-uploaded, no
+    email_id) rows — manual detonations are precisely the ones the operator
+    triggered and is watching, so they must notify too, not just email rows.
     'running' rows are surfaced as 'detonating'; 'done'/'error' rows (which
     already have a report, good or bad) as 'report_ready'. 'queued' rows
     produce no event yet — nothing has started for them."""
     rows = (
         db.query(PendingDetonation)
-        .filter(PendingDetonation.status.in_(["running", "done", "error"]),
-                PendingDetonation.email_id.isnot(None))
+        .filter(PendingDetonation.status.in_(["running", "done", "error"]))
         .order_by(PendingDetonation.updated_at.desc())
         .limit(limit)
         .all()

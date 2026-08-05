@@ -21,8 +21,26 @@ _CACHE_TTL_SECONDS = 300
 
 
 def get_client() -> hvac.Client:
+    """Returns a cached, authenticated Vault client -- re-logging in
+    whenever the cached token is no longer valid.
+
+    The bootstrap AppRole issues tokens with a 15-minute TTL
+    (scripts/vault_bootstrap.py's token_ttl="15m"). Caching the client
+    forever after its first login (the original behavior here) meant every
+    long-running process (the FastAPI app, the RQ worker -- both meant to
+    run for hours) silently lost Vault access 15 minutes after startup:
+    optional secrets (threat-intel/SMTP/webhook/CAPE keys) quietly
+    degraded to "not configured" via _read_optional_secret's broad except,
+    and any must-have read attempted mid-process (e.g.
+    database._migrate_encrypt_totp_secrets(), which calls
+    get_vault_encryption_key() fresh on every pipeline run, not just at
+    startup) failed outright with "permission denied"/"invalid token" --
+    confirmed live, not theoretical. is_authenticated() calls Vault's own
+    token-lookup-self endpoint, so an expired/revoked token is detected
+    and transparently replaced before any caller sees a failure.
+    """
     global _client
-    if _client is None:
+    if _client is None or not _client.is_authenticated():
         vault_addr = os.getenv("VAULT_ADDR")
         role_id = os.getenv("VAULT_ROLE_ID")
         secret_id = os.getenv("VAULT_SECRET_ID")

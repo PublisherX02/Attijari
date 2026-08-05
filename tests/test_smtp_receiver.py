@@ -2,6 +2,7 @@ import smtplib
 import sys
 from email.message import EmailMessage
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from limits.storage import MemoryStorage
@@ -117,29 +118,87 @@ async def test_handle_data_rejects_oversized_message(tmp_path):
 
 
 def test_end_to_end_delivery_via_real_controller(tmp_path):
-    """Integration test: real Controller on an ephemeral port, real smtplib client."""
+    """Integration test: real Controller on an ephemeral port, real smtplib client.
+
+    enqueue_pipeline_job is patched out here: it always targets the real,
+    global "attijari-pipeline" Redis queue regardless of this test's
+    isolated tmp_path pending_dir, so an unpatched call here would enqueue
+    a real job (pointing at a file this test's tmp_path fixture deletes
+    afterward) into the actual production queue a live worker consumes —
+    confirmed live 2026-08-03 (real DB rows and a real processing delay
+    resulted from exactly this before the patch was added). Enqueue
+    behavior itself is already covered by test_smtp_receiver_enqueues.py's
+    mocked tests.
+    """
     from src.smtp_receiver import PendingMailHandler
     from aiosmtpd.controller import Controller
 
-    # aiosmtpd's Controller uses a real "wake up the server" connect() to
-    # its configured port to confirm readiness; on Windows this fails with
-    # port=0 (ephemeral), so a fixed test-only port is used instead.
-    port = 20025
-    handler = PendingMailHandler(pending_dir=tmp_path, accepted_domains=set(), max_size=1_000_000)
-    controller = Controller(handler, hostname="127.0.0.1", port=port)
-    controller.start()
-    try:
-        msg = EmailMessage()
-        msg["From"] = "attacker@example.com"
-        msg["To"] = "analyst@attijaribank.com"
-        msg["Subject"] = "test delivery"
-        msg.set_content("hello from the integration test")
+    with patch("src.smtp_receiver.enqueue_pipeline_job"):
+        # aiosmtpd's Controller uses a real "wake up the server" connect() to
+        # its configured port to confirm readiness; on Windows this fails with
+        # port=0 (ephemeral), so a fixed test-only port is used instead.
+        port = 20025
+        handler = PendingMailHandler(pending_dir=tmp_path, accepted_domains=set(), max_size=1_000_000)
+        controller = Controller(handler, hostname="127.0.0.1", port=port)
+        controller.start()
+        try:
+            msg = EmailMessage()
+            msg["From"] = "attacker@example.com"
+            msg["To"] = "analyst@attijaribank.com"
+            msg["Subject"] = "test delivery"
+            msg.set_content("hello from the integration test")
 
-        with smtplib.SMTP("127.0.0.1", port, timeout=5) as client:
-            client.send_message(msg)
-    finally:
-        controller.stop()
+            with smtplib.SMTP("127.0.0.1", port, timeout=5) as client:
+                client.send_message(msg)
+        finally:
+            controller.stop()
 
     files = list(tmp_path.glob("*.eml"))
     assert len(files) == 1
     assert b"hello from the integration test" in files[0].read_bytes()
+
+
+def test_end_to_end_rate_limit_rejects_flood_via_real_controller(tmp_path):
+    """Integration test: a real controller genuinely returns 450 over SMTP wire once the sender's quota is spent.
+
+    enqueue_pipeline_job is patched out — see the comment on
+    test_end_to_end_delivery_via_real_controller above for why: it always
+    targets the real production Redis queue regardless of this test's
+    isolated tmp_path, which previously let 20 real "flooder@example.com"
+    jobs land in the live database.
+    """
+    from aiosmtpd.controller import Controller
+
+    port = 20026
+    handler = PendingMailHandler(
+        pending_dir=tmp_path,
+        accepted_domains=set(),
+        max_size=1_000_000,
+        rate_limiter=SmtpRateLimiter(storage=MemoryStorage()),
+    )
+    controller = Controller(handler, hostname="127.0.0.1", port=port)
+    controller.start()
+    try:
+        with patch("src.smtp_receiver.enqueue_pipeline_job"):
+            with smtplib.SMTP("127.0.0.1", port, timeout=5) as client:
+                for i in range(20):
+                    msg = EmailMessage()
+                    msg["From"] = "flooder@example.com"
+                    msg["To"] = "analyst@attijaribank.com"
+                    msg["Subject"] = f"flood {i}"
+                    msg.set_content(f"flood body {i}")
+                    client.send_message(msg)
+
+                msg = EmailMessage()
+                msg["From"] = "flooder@example.com"
+                msg["To"] = "analyst@attijaribank.com"
+                msg["Subject"] = "flood 21"
+                msg.set_content("flood body 21")
+                with pytest.raises(smtplib.SMTPSenderRefused) as exc_info:
+                    client.send_message(msg)
+                assert exc_info.value.smtp_code == 450
+    finally:
+        controller.stop()
+
+    files = list(tmp_path.glob("*.eml"))
+    assert len(files) == 20

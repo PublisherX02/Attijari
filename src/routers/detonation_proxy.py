@@ -16,6 +16,10 @@ same-origin so the strict CSP stays intact:
   - WS   /ws/vnc/{task_id} — relay to websockify on imania, open only
     during an active detonation window.
   - POST /api/detonation/{pending_id}/retry — re-queue a failed detonation.
+  - GET  /api/detonation/queue — pending/in-flight/manual-not-yet-queued rows
+    for the operator-facing Detonation Queue panel.
+  - POST /api/detonation/queue/{pending_id}/priority — operator jumps a
+    queued row to the front (priority=True).
   - GET  /api/detonation/vm-info — machines/primary-VM/recent-tasks snapshot
     for the Health page's VM bubble (backed by cape_client's apiv2 wrappers).
   - GET  /api/detonation/tasks/{task_id}/mitmdump — download a task's
@@ -423,6 +427,52 @@ def api_detonation_retry(
             details={"pending_id": row.id, "sha256": row.sha256},
         )
         return {"success": True, "id": row.id, "status": "queued"}
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Detonation Queue panel — pending list + operator-set priority
+# ---------------------------------------------------------------------------
+
+@detonation_proxy_router.get("/api/detonation/queue")
+def api_detonation_queue(
+    user: AuthenticatedUser = Depends(require_permission("emails.view")),
+):
+    """Everything queued or about to be for the operator-facing Detonation
+    Queue panel: the in-flight row, the priority-ordered queue, and manual
+    (Branch-B) rows not queued yet. See database.get_detonation_queue_overview."""
+    from database import SessionLocal, get_detonation_queue_overview
+    db = SessionLocal()
+    try:
+        return get_detonation_queue_overview(db)
+    finally:
+        db.close()
+
+
+@detonation_proxy_router.post("/api/detonation/queue/{pending_id}/priority")
+def api_detonation_set_priority(
+    pending_id: int,
+    user: AuthenticatedUser = Depends(require_permission("emails.scan")),
+):
+    """Operator jumps a queued row to the front — it's picked up right after
+    whatever's currently detonating finishes (never interrupts an in-flight
+    run). Same permission as the Insist button, since both are operator
+    overrides of the automatic detonation order."""
+    from database import SessionLocal, set_detonation_priority, add_audit_entry
+    db = SessionLocal()
+    try:
+        row = set_detonation_priority(db, pending_id)
+        if row is None:
+            raise HTTPException(404, "Queue entry not found")
+        if row.status != "queued" or not row.priority:
+            raise HTTPException(409, f"Cannot prioritize entry in status '{row.status}'")
+        add_audit_entry(
+            db, action="detonation_priority_set", actor=user.username,
+            email_id=row.email_id,
+            details={"pending_id": row.id, "sha256": row.sha256, "filename": row.filename},
+        )
+        return {"success": True, "id": row.id, "priority": True}
     finally:
         db.close()
 

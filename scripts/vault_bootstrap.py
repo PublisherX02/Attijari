@@ -11,8 +11,10 @@ dev-mode root token) set in the environment:
 """
 from __future__ import annotations
 
+import argparse
 import os
 import sys
+from pathlib import Path
 
 import hvac
 
@@ -59,7 +61,33 @@ def bootstrap(vault_addr: str, root_token: str) -> dict:
     return {"role_id": role_id, "secret_id": secret_id}
 
 
+def _update_env_file(env_path: Path, role_id: str, secret_id: str) -> None:
+    lines = env_path.read_text(encoding="utf-8").splitlines(keepends=True) if env_path.exists() else []
+    seen_role = seen_secret = False
+    for i, line in enumerate(lines):
+        if line.startswith("VAULT_ROLE_ID="):
+            lines[i] = f"VAULT_ROLE_ID={role_id}\n"
+            seen_role = True
+        elif line.startswith("VAULT_SECRET_ID="):
+            lines[i] = f"VAULT_SECRET_ID={secret_id}\n"
+            seen_secret = True
+    if not seen_role:
+        lines.append(f"VAULT_ROLE_ID={role_id}\n")
+    if not seen_secret:
+        lines.append(f"VAULT_SECRET_ID={secret_id}\n")
+    env_path.write_text("".join(lines), encoding="utf-8")
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--write-env",
+        action="store_true",
+        help="Write VAULT_ROLE_ID/VAULT_SECRET_ID directly into the project's .env "
+        "instead of printing them for manual copy-paste.",
+    )
+    args = parser.parse_args()
+
     vault_addr = os.environ.get("VAULT_ADDR")
     root_token = os.environ.get("VAULT_TOKEN")
     if not vault_addr or not root_token:
@@ -67,6 +95,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     creds = bootstrap(vault_addr, root_token)
-    print(f"VAULT_ROLE_ID={creds['role_id']}")
-    print(f"VAULT_SECRET_ID={creds['secret_id']}")
-    print("Copy the two lines above into your .env (or the bank VM's secret provisioning step).")
+    if args.write_env:
+        env_path = Path(__file__).parent.parent / ".env"
+        _update_env_file(env_path, creds["role_id"], creds["secret_id"])
+        print(f"Wrote VAULT_ROLE_ID/VAULT_SECRET_ID into {env_path}")
+    else:
+        print(f"VAULT_ROLE_ID={creds['role_id']}")
+        print(f"VAULT_SECRET_ID={creds['secret_id']}")
+        print("Copy the two lines above into your .env (or the bank VM's secret provisioning step).")

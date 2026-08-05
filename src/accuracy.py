@@ -3584,6 +3584,42 @@ def build_benign_cases() -> list[dict]:
         ),
     })
 
+    # --- Legitimate .appinstaller manifest (Microsoft App Installer format) ---
+    # This is the exact structural pattern windows_appinstaller_remote_uri
+    # matches on — every real .appinstaller file has a remote Uri by design,
+    # not just malicious ones (BatLoader/BazarLoader abuse of the format).
+    cases.append({
+        "name": "legit_appinstaller_manifest",
+        "description": "Legitimate vendor .appinstaller manifest referencing its own package feed",
+        "expected": "benign",
+        "eml": _make_eml(
+            from_addr="it-support@attijaribank.com.tn",
+            to_addr="test@test.com",
+            subject="Internal tool installer — VPN Client v4.2",
+            body=(
+                "Bonjour,\n\n"
+                "Voici le fichier d'installation du client VPN interne mis a jour.\n"
+                "Double-cliquez sur le fichier .appinstaller joint pour l'installer "
+                "via App Installer (fonctionnalite Windows standard).\n\n"
+                "Support IT"
+            ),
+            attachments=[(
+                "VPNClient.appinstaller",
+                (
+                    '<?xml version="1.0" encoding="utf-8"?>\n'
+                    '<AppInstaller Uri="https://updates.attijaribank.com.tn/vpn/VPNClient.appinstaller" '
+                    'Version="4.2.0.0" xmlns="http://schemas.microsoft.com/appx/appinstaller/2018">\n'
+                    '  <MainPackage Name="AttijariVpnClient" Version="4.2.0.0" '
+                    'Publisher="CN=AttijariBank" '
+                    'Uri="https://updates.attijaribank.com.tn/vpn/VPNClient.msix" '
+                    'ProcessorArchitecture="x64" />\n'
+                    '</AppInstaller>\n'
+                ).encode("utf-8"),
+                "application/xml",
+            )],
+        ),
+    })
+
     return cases
 
 

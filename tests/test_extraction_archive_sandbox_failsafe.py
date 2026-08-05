@@ -148,3 +148,66 @@ def test_zip_bomb_nesting_check_never_reads_oversized_members(monkeypatch):
     result = extraction._local_archive_scan(data, "test.zip")
     assert result["inspected"] is True
     assert result["status"] == "ok"
+
+
+def _fake_yara(rule_names):
+    return {"tool": "yara", "status": "ok", "suspicious": bool(rule_names),
+            "matches": [{"rule": r} for r in rule_names]}
+
+
+def test_yara_three_plus_distinct_rules_skips_sandboxed_tools(monkeypatch, tmp_path):
+    # 3+ distinct YARA rule matches on the attachment's own bytes is already
+    # overwhelming static evidence (escalate is forced by the YARA match
+    # itself regardless of count) -- the sandboxed extraction tools add cost
+    # and sandbox exposure for zero decision-relevant benefit at that point.
+    _no_sandbox(monkeypatch)
+    monkeypatch.setattr(extraction, "_local_yara",
+                         lambda content: _fake_yara(["rule_a", "rule_b", "rule_c"]))
+    f = tmp_path / "invoice.docx"
+    f.write_bytes(b"fake docx bytes")
+    att = {"stored_path": str(f), "original_name": "invoice.docx",
+           "declared_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+           "real_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+           "sha256": "e" * 64}
+    res = extraction.extract_attachment(att)
+    assert res["escalate"] is True
+    assert not any(t.get("tool") in extraction.SANDBOX_REQUIRED_TOOLS for t in res["tools_run"])
+    assert any("yara_high_confidence_skip_sandbox" in fl for fl in res["flags"])
+
+
+def test_yara_two_distinct_rules_still_runs_sandboxed_tools(monkeypatch, tmp_path):
+    # Below the 3-rule threshold: still escalates (any YARA match already
+    # forces that), but sandboxed extraction must still run as normal --
+    # no regression from the skip-sandbox logic above.
+    _no_sandbox(monkeypatch)
+    monkeypatch.setattr(extraction, "_local_yara",
+                         lambda content: _fake_yara(["rule_a", "rule_b"]))
+    f = tmp_path / "invoice.docx"
+    f.write_bytes(b"fake docx bytes")
+    att = {"stored_path": str(f), "original_name": "invoice.docx",
+           "declared_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+           "real_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+           "sha256": "f" * 64}
+    res = extraction.extract_attachment(att)
+    assert res["escalate"] is True
+    assert any(t.get("tool") in extraction.SANDBOX_REQUIRED_TOOLS for t in res["tools_run"])
+    assert not any("yara_high_confidence_skip_sandbox" in fl for fl in res["flags"])
+
+
+def test_yara_rule_count_deduplicates_repeated_rule_names(monkeypatch, tmp_path):
+    # _local_yara aggregates matches across multiple compiled rulesets, so
+    # the same rule name can appear more than once in "matches" -- the skip
+    # threshold must count DISTINCT rule names, not raw match entries, or
+    # a file matching one rule twice would be miscounted toward 3+.
+    _no_sandbox(monkeypatch)
+    monkeypatch.setattr(extraction, "_local_yara",
+                         lambda content: _fake_yara(["rule_a", "rule_a", "rule_b"]))
+    f = tmp_path / "invoice.docx"
+    f.write_bytes(b"fake docx bytes")
+    att = {"stored_path": str(f), "original_name": "invoice.docx",
+           "declared_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+           "real_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+           "sha256": "1" * 64}
+    res = extraction.extract_attachment(att)
+    assert any(t.get("tool") in extraction.SANDBOX_REQUIRED_TOOLS for t in res["tools_run"])
+    assert not any("yara_high_confidence_skip_sandbox" in fl for fl in res["flags"])

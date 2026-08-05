@@ -105,4 +105,58 @@
 
   loadTable();
   setInterval(loadTable, 8000);
+
+  // --- Detonation Queue panel (running + queued + manual not-yet-queued) ---
+  const dqTbody = document.getElementById("dq-tbody");
+
+  function dqRowHtml(r, statusLabel, showPriorityAction) {
+    const source = r.email_id ? `Email #${esc(String(r.email_id))}` : "Manual upload";
+    const canPrioritize = showPriorityAction && !r.priority && window.userCan && userCan("emails.scan");
+    const action = canPrioritize
+      ? `<button class="btn btn-sm btn-outline" data-priority="${r.id}">⏫ Detonate first</button>`
+      : (r.priority ? '<span class="badge escalated">Priority</span>' : "");
+    return `<tr>
+      <td>${esc(r.filename || "(unnamed)")}</td>
+      <td>${source}</td>
+      <td>${esc(r.reason || "—")}</td>
+      <td>${statusLabel}</td>
+      <td>${esc(r.created_at || "")}</td>
+      <td>${action}</td>
+    </tr>`;
+  }
+
+  async function loadQueue() {
+    if (!dqTbody) return;
+    let data;
+    try { data = await (await fetch("/api/detonation/queue")).json(); }
+    catch (e) { return; }
+
+    const rows = [
+      ...(data.running || []).map((r) => dqRowHtml(r, '<span class="badge escalated">Detonating</span>', false)),
+      ...(data.queued || []).map((r) => dqRowHtml(r, '<span class="badge pending">Queued</span>', true)),
+      ...(data.manual_deferred || []).map((r) => dqRowHtml(r, '<span class="badge recu">Deferred (after backlog)</span>', false)),
+      ...(data.manual_ready || []).map((r) => dqRowHtml(r, '<span class="badge accepted">Ready — see table below</span>', false)),
+    ];
+    dqTbody.innerHTML = rows.length
+      ? rows.join("")
+      : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Nothing pending.</td></tr>';
+  }
+
+  if (dqTbody) {
+    dqTbody.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("[data-priority]");
+      if (!btn) return;
+      btn.disabled = true;
+      try {
+        const r = await (await fetch(`/api/detonation/queue/${btn.dataset.priority}/priority`, { method: "POST" })).json();
+        if (!r.success) toast(r.error || r.detail || "Could not set priority", "error");
+        else toast("Moved to the front of the queue.");
+      } catch (e) {
+        toast("Error: " + e, "error");
+      }
+      loadQueue();
+    });
+    loadQueue();
+    setInterval(loadQueue, 8000);
+  }
 })();

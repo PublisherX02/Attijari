@@ -56,7 +56,13 @@ rule suspicious_exe_in_document {
         $pe = "This program cannot be run in DOS mode"
         $elf = { 7F 45 4C 46 }
     condition:
-        any of them
+        // $mz/$elf are only real signal at offset 0 (genuine DOS/PE and ELF
+        // magic bytes always start the file) -- matching "MZ" anywhere in a
+        // blob false-positives on ordinary text containing that 2-byte
+        // sequence, e.g. "DMZ" (a very common security term, caught by the
+        // 2026-08-03 benign-corpus CI gate). $pe is a long, specific string
+        // with negligible false-positive risk, so it stays unanchored.
+        $mz at 0 or $elf at 0 or $pe
 }
 
 rule suspicious_encoded_payload {
@@ -457,17 +463,27 @@ rule html_clickfix_clipboard_injection {
 
 rule windows_appinstaller_remote_uri {
     meta:
-        description = "Detects XML .appinstaller files configured to fetch applications from external URLs, a frequent vector for loaders like BatLoader and BazarLoader."
+        description = "Detects XML .appinstaller files configured to fetch applications from a remote URI with no recognized package extension, a frequent vector for loaders like BatLoader and BazarLoader. Every legitimate .appinstaller manifest also has a remote Uri by design, so a bare 'has a remote Uri' check false-positives on real vendor manifests (confirmed 2026-08-03 by the benign-corpus CI gate) -- the real signal is a remote Uri that does NOT point at a real package file."
         severity = "high"
         mitre_technique = "T1218.014"
     strings:
         $schema1 = "<AppInstaller" ascii nocase
         $schema2 = "xmlns=\"http://schemas.microsoft.com/appx/appinstaller" ascii nocase
-        
+
         $remote_uri1 = "Uri=\"http://" ascii nocase
         $remote_uri2 = "Uri=\"https://" ascii nocase
+
+        // Legitimate manifests always reference a real package file
+        // (.msix/.msixbundle/.appx/.appxbundle) or another .appinstaller
+        // manifest. Malicious abuse of this format points the Uri at an
+        // arbitrary payload with none of these extensions.
+        $legit_pkg_ext1 = ".msix\"" ascii nocase
+        $legit_pkg_ext2 = ".msixbundle\"" ascii nocase
+        $legit_pkg_ext3 = ".appx\"" ascii nocase
+        $legit_pkg_ext4 = ".appxbundle\"" ascii nocase
+        $legit_pkg_ext5 = ".appinstaller\"" ascii nocase
     condition:
-        ($schema1 or $schema2) and (any of ($remote_uri*))
+        ($schema1 or $schema2) and (any of ($remote_uri*)) and not (any of ($legit_pkg_ext*))
 }
 
 rule archive_with_suspicious_script {
