@@ -7,7 +7,7 @@ requests==2.34.2
 python-multipart==0.0.32
 Jinja2==3.1.6
 urllib3==2.7.0
-websockets==17.0            # WS client for the dashboard->websockify VNC relay
+websockets==17.0.1            # WS client for the dashboard->websockify VNC relay
 
 # Database
 psycopg2-binary==2.9.12
