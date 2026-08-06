@@ -84,5 +84,5 @@ ollama
 # torch; --extra-index-url pulls the +cu132 build without replacing the
 # default index for every other package in this file.
 --extra-index-url https://download.pytorch.org/whl/cu132
-transformers==5.12.1
+transformers==5.14.1
 torch==2.13.0+cu132
