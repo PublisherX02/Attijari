@@ -10,6 +10,11 @@ load_dotenv()
 BASE_URL = "https://threatfox-api.abuse.ch/api/v1/"
 
 
+def _resolve_key(api_key: str | None) -> str:
+    from secrets_client import get_api_key
+    return api_key or get_api_key("threatfox")
+
+
 def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str | None = None, retries: int = 2, timeout: int = 10) -> dict:
     """
     Query ThreatFox Community API using correct headers and payloads.
@@ -27,7 +32,7 @@ def check_threatfox(indicator: str, indicator_type: str = "hash", api_key: str |
     if not indicator:
         return {"source": "threatfox", "indicator": indicator, "indicator_type": indicator_type, "found": False, "error": "empty indicator"}
 
-    key = api_key or os.getenv("THREATFOX_AUTH_KEY")
+    key = _resolve_key(api_key)
     headers = {"User-Agent": "attijari-ai/1.0"}
     if key:
         headers["Auth-Key"] = key

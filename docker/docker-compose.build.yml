@@ -52,3 +52,9 @@ services:
       context: .
       dockerfile: markitdown.Dockerfile
     image: attijari-extract-markitdown
+
+  archive:
+    build:
+      context: .
+      dockerfile: archive.Dockerfile
+    image: attijari-extract-archive

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CAPE cuckoo2 — live detonation view</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #ddd; font-family: sans-serif; }
+  #bar { padding: 8px 12px; background: #1a1a1a; border-bottom: 1px solid #333; }
+  #screen { width: 100%; height: calc(100% - 40px); }
+  #status { color: #999; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <strong>CAPE cuckoo2 — live view</strong>
+  &nbsp;<span id="status">connecting...</span>
+</div>
+<div id="screen"></div>
+<script type="module">
+  import RFB from './novnc/core/rfb.js';
+
+  const statusEl = document.getElementById('status');
+  const screenEl = document.getElementById('screen');
+  const url = 'ws://192.168.100.10:6080';
+
+  // CAPE only boots the cuckoo2 guest for the duration of one active
+  // detonation and shuts it down between tasks -- the VNC port is only
+  // live for a fraction of the ~1-2 min cycle. A failed/dropped connection
+  // usually just means "between tasks," not a real error, so keep retrying
+  // instead of leaving the user staring at a dead page.
+  let attempt = 0;
+
+  function connect() {
+    attempt += 1;
+    statusEl.textContent = `connecting (attempt ${attempt})...`;
+    screenEl.innerHTML = '';
+    const rfb = new RFB(screenEl, url);
+    rfb.viewOnly = true;
+    rfb.scaleViewport = true;
+
+    rfb.addEventListener('connect', () => {
+      statusEl.textContent = 'connected';
+      attempt = 0;
+    });
+    rfb.addEventListener('disconnect', (e) => {
+      const clean = e.detail && e.detail.clean;
+      statusEl.textContent = clean
+        ? 'disconnected — retrying in 3s...'
+        : 'no guest active right now (between detonations) — retrying in 3s...';
+      setTimeout(connect, 3000);
+    });
+  }
+
+  connect();
+</script>
+</body>
+</html>

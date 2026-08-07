@@ -1,7 +1,7 @@
 """attachments.py — safety classification for attachments shown on the email
 detail page.
 
-Fail-safe (CLAUDE.md rule 1): anything not affirmatively confirmed clean by
+Fail-safe (rule 1): anything not affirmatively confirmed clean by
 CAPE is treated as not-safe. Thin, hermetically-testable logic — see
 manual_detonation.py for the same convention; routers/detonation_proxy.py
 wraps these functions in HTTP.
@@ -16,10 +16,20 @@ STATUS_PENDING = "pending"
 STATUS_UNVERIFIED = "unverified"
 
 
-def attachment_safety_status(db, sha256: str) -> str:
+def attachment_safety_status(db, sha256: str, extraction_escalate: bool | None = None, occurred_at=None) -> str:
     """Classify a file by its sha256, using the most recent detonation
     outcome for that exact content across ALL emails — the same bytes carry
-    the same verdict wherever they show up."""
+    the same verdict wherever they show up.
+
+    extraction_escalate/occurred_at (this specific Attachment row's own
+    static-analysis verdict and timestamp) guard against a stale
+    PendingDetonation row masking a fresh escalation: a deterministic
+    extraction flag (YARA match, sandbox fail-safe) on THIS occurrence must
+    never be silently cleared by an older CAPE 'safe' outcome for the same
+    bytes — only a detonation that happened AFTER this occurrence (an
+    analyst deliberately re-submitting, e.g. via Insist) counts as a real,
+    human-confirmed override. Mirrors rule 2 in CLAUDE.md: deterministic
+    findings aren't overridable by a weaker/older signal."""
     from database import PendingDetonation
 
     latest = (
@@ -33,6 +43,8 @@ def attachment_safety_status(db, sha256: str) -> str:
     if latest.status in ("queued", "running"):
         return STATUS_PENDING
     if latest.status == "done":
+        if extraction_escalate and (occurred_at is None or latest.created_at < occurred_at):
+            return STATUS_UNVERIFIED
         import detonation_config as cfg
         malscore = (latest.result or {}).get("malscore")
         if malscore is not None and malscore < cfg.CAPE_MALSCORE_SUSPICIOUS:
@@ -58,7 +70,10 @@ def resolve_attachment(db, email_id: int, attachment_id: int) -> dict:
     )
     if not row:
         return {"found": False}
-    return {"found": True, "status": attachment_safety_status(db, row.sha256), "attachment": row}
+    status = attachment_safety_status(
+        db, row.sha256, extraction_escalate=row.extraction_escalate, occurred_at=row.created_at,
+    )
+    return {"found": True, "status": status, "attachment": row}
 
 
 def _window_active() -> bool:
@@ -67,9 +82,17 @@ def _window_active() -> bool:
 
 
 def _start_window() -> None:
+    """Analyst is watching this run live (email-detail 'Insist' button) —
+    close the window on the short manual idle timeout, same as
+    manual_detonation.py's _start_window, not the 5-minute
+    automatic-scheduler default (which would leave the sandbox panel
+    'stuck' for up to 5 more minutes after CAPE actually finishes)."""
     from detonation import process_detonation_queue
+    import detonation_config as cfg
     threading.Thread(
-        target=process_detonation_queue, daemon=True,
+        target=process_detonation_queue,
+        kwargs={"idle_timeout_seconds": cfg.DETONATION_MANUAL_IDLE_TIMEOUT_SECONDS},
+        daemon=True,
         name="attachment-insist-window",
     ).start()
 

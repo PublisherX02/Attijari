@@ -9,6 +9,7 @@ import time
 from email import policy
 from email.parser import BytesParser
 from datetime import datetime, timedelta, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 
 try:
@@ -44,6 +45,45 @@ def _safe_path(base: Path, filename: str) -> Path:
 
 class TimeoutError(Exception):
     pass
+
+
+class _HTMLTextExtractor(HTMLParser):
+    """Strips tags/scripts/styles from an HTML body, keeping only visible
+    text -- stdlib-only, no new dependency, since this only needs to be
+    "good enough for an LLM prompt fallback", not a faithful renderer."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self._parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style"):
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style") and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data):
+        if self._skip_depth == 0 and data.strip():
+            self._parts.append(data.strip())
+
+
+def html_to_text(body_html: str) -> str:
+    """Best-effort visible-text extraction from an HTML email body -- used
+    as a fallback when body_text is None/empty (an HTML-only email, no
+    text/plain alternative -- the common case for real phishing kits, which
+    rarely bother with one). Malformed HTML is skipped rather than raised,
+    matching this project's established defensive-parsing convention."""
+    if not body_html:
+        return ""
+    try:
+        parser = _HTMLTextExtractor()
+        parser.feed(body_html)
+        return " ".join(parser._parts)
+    except Exception:
+        return ""
 
 def _check_elapsed(start: float, limit: float, step: str):
     elapsed = time.time() - start
@@ -343,12 +383,25 @@ class EmailIngestion:
     def _extract_attachment(self, part) -> dict | None:
         t0 = time.time()
         try:
-            content = part.get_content()
-            if isinstance(content, str):
-                content = content.encode()
-
-            filename = part.get_filename() or "unnamed"
             declared_type = part.get_content_type() or "unknown"
+
+            # message/rfc822 (an email attached to/forwarded inside another
+            # email) and other message/* parts return a nested EmailMessage
+            # object from get_content(), not bytes/str -- hashing that
+            # object directly crashed with "object supporting the buffer
+            # API required", silently losing the real filename (forced to
+            # "parse_failed") while still escalating the outer email by
+            # accident, not by design. Serialize the nested message's own
+            # raw bytes instead so it is stored/hashed/named like any other
+            # attachment, and extraction.py can then flag it deliberately.
+            if declared_type.startswith("message/"):
+                content = part.as_bytes()
+                filename = part.get_filename() or "nested_email.eml"
+            else:
+                content = part.get_content()
+                if isinstance(content, str):
+                    content = content.encode()
+                filename = part.get_filename() or "unnamed"
 
             if len(content) > MAX_ATTACHMENT_SIZE:
                 print(f"[ATTACHMENT] WARNING oversized attachment skipped: {filename} ({len(content)} bytes)")
@@ -357,7 +410,7 @@ class EmailIngestion:
             sha = hashlib.sha256(content).hexdigest()
             internal_id = sha #internal identifier
 
-            # magic-byte type verification — declared type lies (CLAUDE.md rule 7)
+            # magic-byte type verification — declared type lies (rule 7)
             real_type = None
             type_mismatch = False
             if _HAS_MAGIC:

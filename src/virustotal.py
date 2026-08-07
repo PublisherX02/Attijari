@@ -1,6 +1,6 @@
 """virustotal.py — VirusTotal hash reputation checker
 
-CRITICAL COMPLIANCE RULE (from CLAUDE.md):
+CRITICAL COMPLIANCE RULE:
   - Hash lookups: YES — sending a SHA-256 reveals nothing about content
   - File uploads: ABSOLUTELY NOT — uploading exposes confidential data
   - This is a compliance incident, not a bug
@@ -24,6 +24,11 @@ BASE_URL = "https://www.virustotal.com/api/v3/files"
 DETECTION_THRESHOLD = 3
 
 
+def _resolve_key(api_key: str | None) -> str:
+    from secrets_client import get_api_key
+    return api_key or get_api_key("virustotal")
+
+
 def check_hash(sha256: str, api_key: str | None = None,
                retries: int = 2, timeout: int = 15) -> dict:
     """Query VirusTotal for a file hash reputation.
@@ -45,7 +50,7 @@ def check_hash(sha256: str, api_key: str | None = None,
     if cached:
         return cached
 
-    key = api_key or os.getenv("VIRUSTOTAL_API_KEY")
+    key = _resolve_key(api_key)
     if not key:
         return {"source": "virustotal", "sha256": sha256,
                 "detected": False, "error": "no_api_key"}

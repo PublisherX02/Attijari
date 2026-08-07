@@ -7,7 +7,7 @@ Verifies cryptographic email signatures using:
 These are LOCAL checks against DNS — no email content is sent externally.
 Only the signing domain is queried via DNS.
 
-CLAUDE.md rule: LLM can NEVER emit "accepter" if SPF/DKIM fails.
+Rule: LLM can NEVER emit "accepter" if SPF/DKIM fails.
 """
 from __future__ import annotations
 

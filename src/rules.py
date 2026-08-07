@@ -2,17 +2,82 @@ from email.utils import parseaddr
 import os
 import re
 import time
+import unicodedata
 from urllib.parse import urlparse
 
 from threat_feeds import get_feeds, WHITELISTED_DOMAINS
 from url_utils import normalize_url
 
 
+def _normalize_for_phrase_match(text: str) -> str:
+    """Strip diacritics and normalize typographic quotes so the ASCII-only
+    French phrase lists below (e.g. "compte a ete suspendu") match real
+    accented French text ("compte a été suspendu") -- without this, every
+    French phrase rule in this file only ever matched pre-stripped/
+    transliterated text, never properly-encoded real French. Found while
+    investigating why a real "vous avez gagné une réduction" reward-lure
+    test email matched none of the existing phrase-based rules: "gagné"
+    (U+00E9) never equals "gagne", and typed curly apostrophes (U+2019,
+    "d’achat") never equal straight ones ('), no matter how complete the
+    phrase list is. Safe to apply to raw body_html too -- HTML tag/
+    attribute syntax is plain ASCII, so normalization only affects the
+    natural-language content being phrase-matched, not markup structure."""
+    text = text.replace("’", "'").replace("‘", "'")
+    text = text.replace("“", '"').replace("”", '"')
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
 from pathlib import Path
 
-BLOCKED_EXTENSIONS = {".exe", ".js", ".vbs", ".scr", ".bat", ".ps1", ".jar", ".msi", ".cmd", ".com"}
+# Interpreter/script extensions that execute arbitrary code on open, not just
+# Windows-native ones -- .py/.pyw/.sh/.rb/.pl/.php were missing here despite
+# being the same risk class as .js/.vbs/.ps1, and .vbe/.jse/.wsf/.hta were
+# already escalated by extraction.py's _SCRIPT_EXTS but never blocked at the
+# earlier rules-engine stage, so the two layers disagreed on the same files.
+BLOCKED_EXTENSIONS = {
+    ".exe", ".js", ".vbs", ".scr", ".bat", ".ps1", ".jar", ".msi", ".cmd", ".com",
+    ".vbe", ".jse", ".wsf", ".hta",
+    ".py", ".pyw", ".sh", ".rb", ".pl", ".php",
+}
 
-# CLAUDE.md rule 8: Encrypted attachment + password in body = automatic escalate/reject
+# Default-deny for attachment types: every extension the extraction stage
+# actually has a real, verified handling story for (documents via oletools,
+# PDFs via pdfid/pymupdf, images via tesseract OCR, archives/disk images via
+# the archive tool, OneNote/nested-email via their always-escalate paths).
+# Anything OUTSIDE this set AND outside BLOCKED_EXTENSIONS is a format this
+# pipeline has never been taught anything about -- rather than silently
+# falling through to MarkItDown's generic text extraction (which produces
+# confident-looking "clean" output for a format it was never actually
+# vetted against), unrecognized types are treated as suspicious by design,
+# matching CLAUDE.md rule 1 ("fail-safe, never fail-open"). This is a
+# deliberate posture shift from "blocklist known-bad" to "allowlist
+# known-handled, deny everything else" -- an unusual-but-legitimate
+# business file type (e.g. .msg, .pub, .accdb) will get proposed_reject
+# under this rule, which is the intended tradeoff: proposed_reject still
+# requires human confirmation before anything is actually blocked, so a
+# false positive here costs an analyst a look, not a lost email.
+RECOGNIZED_ATTACHMENT_EXTENSIONS = {
+    # Office documents (oletools) + RTF + PDF
+    ".doc", ".docx", ".docm", ".xls", ".xlsx", ".xlsm",
+    ".ppt", ".pptx", ".pptm", ".ppsx", ".ppsm", ".rtf", ".pdf",
+    # OneNote (always-escalate, no parser -- still a "known" format)
+    ".one",
+    # Images (tesseract OCR)
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".webp",
+    # Archives / disk images (archive tool; .rar/.vhd/.vhdx/.cab hit their
+    # own "no parser available" escalation inside it, but the FORMAT itself
+    # is recognized and deliberately handled, not unknown)
+    ".zip", ".7z", ".gz", ".iso", ".img", ".rar", ".vhd", ".vhdx", ".cab", ".lnk",
+    # Nested email (always-escalate, no deep scan -- still a known format)
+    ".eml",
+    # Plain text/data -- low-risk, generic MarkItDown text extraction is a
+    # legitimate handling story for these specifically (unlike arbitrary
+    # unknown binary formats)
+    ".txt", ".csv",
+}
+
+# Rule 8: Encrypted attachment + password in body = automatic escalate/reject
 # These patterns detect passwords mentioned in the email body
 _PASSWORD_PATTERNS = re.compile(
     r'(?i)'
@@ -102,7 +167,7 @@ BLOCKED_HASH = set()
 
 
 # ---------------------------------------------------------------------------
-# Shared infrastructure IPs — CLAUDE.md: "never auto-block shared
+# Shared infrastructure IPs — "never auto-block shared
 # infrastructure IPs (Gmail, Outlook relays). A whitelist override always wins."
 # These are well-known mail relay CIDR prefixes that should never be blocklisted.
 # ---------------------------------------------------------------------------
@@ -130,7 +195,7 @@ def is_shared_infrastructure_ip(ip: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Shared email domains — CLAUDE.md: "never auto-block shared infrastructure."
+# Shared email domains — "never auto-block shared infrastructure."
 # These are multi-tenant providers where blocking the domain would block ALL
 # users, not just the malicious sender. Block the sender address only.
 # ---------------------------------------------------------------------------
@@ -201,7 +266,7 @@ def add_to_blocklist(sender: str):
 
 def cascade_blocklist(sender_email: str, sender_domain: str | None,
                       ips: list[str] | None, hashes: list[str] | None):
-    """CLAUDE.md cascading blocklist: on confirmed malicious, block all associated indicators.
+    """Cascading blocklist: on confirmed malicious, block all associated indicators.
 
     Blocks:
       - sender email address
@@ -266,6 +331,251 @@ def cascade_blocklist(sender_email: str, sender_domain: str | None,
         print(f"[CASCADE] Total: {added_count} indicator(s) added to blocklist")
     else:
         print(f"[CASCADE] No new indicators added (already blocked or whitelisted)")
+
+
+# ---------------------------------------------------------------------------
+# Masked hyperlink detection ("hidden URL" phishing) — a link whose visible
+# text names one domain but whose actual href points somewhere else
+# entirely, e.g. <a href="http://evil.tld/x">https://paypal.com/login</a>.
+# Nothing in this pipeline compared displayed link text to its real
+# destination before this: URL extraction elsewhere in this file treats
+# HTML source as flat text via regex, so it happens to catch both the
+# displayed and the real URL as separate entries in body_urls, but never
+# links "claims to be X" to "actually goes to Y" — the single most classic
+# phishing link-masking technique.
+# ---------------------------------------------------------------------------
+from html.parser import HTMLParser as _HTMLParser
+
+# Domain-like token embedded in arbitrary text — requires a label plus a
+# 2+ letter TLD so ordinary abbreviations ("e.g.", "U.S.") never match
+# (their final component is a single letter).
+_TEXT_DOMAIN_RE = re.compile(
+    r'(?:https?://)?(?:www\.)?'
+    r'([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.[a-z]{2,63}(?:\.[a-z]{2,63})?)',
+    re.IGNORECASE,
+)
+
+# <meta http-equiv="refresh" content="0;url=...">: a fully JS-free HTML
+# redirect. http-equiv/content can appear in either attribute order, so the
+# tag itself is matched first (order-independent), then the target url= is
+# searched for separately within that matched tag substring — interleaving
+# both into one regex made the url= capture order-dependent (it would only
+# succeed when http-equiv happened to come first), which two independent
+# regexes avoid.
+_META_REFRESH_RE = re.compile(
+    r'<meta\b[^>]*http-equiv\s*=\s*["\']?refresh["\']?[^>]*>',
+    re.IGNORECASE,
+)
+_META_REFRESH_URL_RE = re.compile(r'url\s*=\s*["\']?([^"\'>\s;]+)', re.IGNORECASE)
+
+# Known email-security URL-rewriting proxies legitimately show the
+# original destination as link text while routing the actual href through
+# their own scanning domain — that mismatch is the proxy working as
+# designed, not deception, so these are excluded from flagging.
+_SAFE_LINK_PROXY_DOMAINS = {
+    "safelinks.protection.outlook.com", "urldefense.proofpoint.com",
+    "protect-eu.mimecast.com", "protect-us.mimecast.com", "protect2.fireeye.com",
+    "clicktime.symantec.com",
+}
+
+# Brand impersonation in the From display name -- one of the single most
+# common real-world phishing tactics ("PayPal Support <random@gmail.com>",
+# "Microsoft Security <attacker@evil.tld>") and distinct from
+# internal_domain_spoof (Rule 13), which only checks claims of THIS bank's
+# own internal domain. Deliberately excludes brands whose legitimate
+# ecosystem is too broad/ambiguous to pin to a fixed domain set without
+# real false-positive risk (e.g. generic terms). Each brand keyword is
+# matched on WORD BOUNDARIES against the display name only (never the
+# address), so it can't be tripped by a brand name coincidentally
+# substring-matching inside an unrelated word.
+_BRAND_DOMAINS = {
+    "paypal": {"paypal.com"},
+    "microsoft": {"microsoft.com", "outlook.com", "live.com", "office.com", "office365.com"},
+    "apple": {"apple.com", "icloud.com"},
+    "amazon": {"amazon.com", "amazon.fr", "amazon.co.uk", "amazon.de"},
+    "netflix": {"netflix.com"},
+    "dhl": {"dhl.com", "dhl.fr"},
+    "fedex": {"fedex.com"},
+    "ups": {"ups.com"},
+    "meta": {"meta.com", "facebookmail.com", "facebook.com"},
+    "facebook": {"facebook.com", "facebookmail.com", "meta.com"},
+    "instagram": {"instagram.com", "facebookmail.com", "meta.com"},
+    "linkedin": {"linkedin.com"},
+    "docusign": {"docusign.com", "docusign.net"},
+    "adobe": {"adobe.com"},
+    "dropbox": {"dropbox.com"},
+    "zoom": {"zoom.us"},
+    "whatsapp": {"whatsapp.com"},
+    "western union": {"westernunion.com"},
+    "attijari": {"attijaribank.com.tn", "attijariwafabank.com", "attijari.com.tn"},
+}
+_BRAND_KEYWORD_RE = {
+    brand: re.compile(r'\b' + re.escape(brand) + r'\b', re.IGNORECASE)
+    for brand in _BRAND_DOMAINS
+}
+
+
+class _AnchorExtractor(_HTMLParser):
+    """Extracts (href, visible_text) pairs from <a> tags in an HTML email body."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.anchors: list[tuple[str, str]] = []
+        self._current_href: str | None = None
+        self._current_text: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            self._current_href = dict(attrs).get("href")
+            self._current_text = []
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._current_href is not None:
+            self.anchors.append((self._current_href, "".join(self._current_text).strip()))
+            self._current_href = None
+            self._current_text = []
+
+    def handle_data(self, data):
+        if self._current_href is not None:
+            self._current_text.append(data)
+
+
+class _HiddenTextExtractor(_HTMLParser):
+    """Extracts text content from elements CSS-hides from a human reader
+    (display:none, font-size:0, visibility:hidden) via an inline style
+    attribute -- text invisible on screen but still present in the raw
+    HTML an LLM analysis stage reads verbatim. Uses a stack of booleans
+    (not per-tag-name matching) to track "is this element or an ancestor
+    hidden" -- imprecise if a document is malformed, but that's an
+    acceptable tradeoff for a heuristic phishing signal, not a structural
+    security boundary."""
+
+    _HIDING_STYLE_RE = re.compile(
+        r'display\s*:\s*none|font-size\s*:\s*0(?:px|em|%)?\b|visibility\s*:\s*hidden',
+        re.IGNORECASE,
+    )
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.hidden_text_parts: list[str] = []
+        self._hide_stack: list[bool] = [False]
+
+    def handle_starttag(self, tag, attrs):
+        style = dict(attrs).get("style") or ""
+        is_hidden_here = bool(self._HIDING_STYLE_RE.search(style))
+        self._hide_stack.append(self._hide_stack[-1] or is_hidden_here)
+
+    def handle_endtag(self, tag):
+        if len(self._hide_stack) > 1:
+            self._hide_stack.pop()
+
+    def handle_data(self, data):
+        if self._hide_stack[-1] and data.strip():
+            self.hidden_text_parts.append(data.strip())
+
+
+# Common two-label public suffixes -- without this, last-two-labels alone
+# (e.g. "paypal.co.uk" -> "co.uk") makes any two links under the same
+# multi-part TLD register as a "mismatch" (paypal.co.uk vs paypal.com.tn
+# both reduce to different 2-label tails already, but paypal.com displayed
+# vs a real paypal.co.uk href would incorrectly flag as hard evidence).
+# Not a full public-suffix-list implementation -- covers the TLDs relevant
+# to this bank's Tunisian/French/international context; a gap for anything
+# outside this set is a missed detection, not a false positive, which is
+# the safer direction to be wrong in for a HARD_EVIDENCE rule.
+_MULTI_LABEL_TLDS = {
+    "co.uk", "org.uk", "gov.uk", "ac.uk", "co.tn", "com.tn", "org.tn",
+    "net.tn", "gov.tn", "co.jp", "com.au", "co.nz", "com.br", "co.in",
+    "co.za", "com.mx",
+}
+
+
+def _registrable_domain(host: str) -> str:
+    parts = host.lower().split(".")
+    if len(parts) >= 3 and ".".join(parts[-2:]) in _MULTI_LABEL_TLDS:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:]) if len(parts) >= 2 else host.lower()
+
+
+def _find_href_text_mismatches(body_html: str) -> list[dict]:
+    """Returns a list of {displayed_domain, actual_host, href} for every
+    anchor whose visible text names a domain that doesn't match where the
+    href actually goes. Best-effort: malformed HTML or unparseable anchors
+    are silently skipped rather than raised (this is a heuristic signal
+    layered on top of, not a replacement for, deterministic rules)."""
+    if not body_html or "<a" not in body_html.lower():
+        return []
+    parser = _AnchorExtractor()
+    try:
+        parser.feed(body_html)
+    except Exception:
+        return []
+
+    mismatches = []
+    for href, text in parser.anchors:
+        if not href or not text:
+            continue
+        href = href.strip()
+        if href.lower().startswith(("mailto:", "tel:", "javascript:", "#", "cid:")):
+            continue
+        text_match = _TEXT_DOMAIN_RE.search(text)
+        if not text_match:
+            continue
+        text_domain = text_match.group(1).lower()
+        try:
+            href_host = urlparse(href).hostname
+        except Exception:
+            href_host = None
+        if not href_host:
+            continue
+        href_host = href_host.lower()
+        if href_host in _SAFE_LINK_PROXY_DOMAINS:
+            continue
+        if _registrable_domain(text_domain) != _registrable_domain(href_host):
+            mismatches.append({
+                "displayed_domain": text_domain,
+                "actual_host": href_host,
+                "href": href[:200],
+            })
+    return mismatches
+
+
+def _find_hidden_destination_links(body_html: str) -> list[dict]:
+    """Links whose visible text never discloses a destination at all
+    (generic "click here"/"lien"/"voir"-style text) with a real external
+    href. This is the OTHER "hidden URL" phishing tactic, distinct from
+    _find_href_text_mismatches: that one requires the text to make a FALSE
+    domain claim; this one requires no claim at all -- the reader has no
+    way to know where the link goes without hovering/clicking. A bare
+    "click here" is completely ordinary in legitimate marketing on its
+    own, so this is intentionally NOT treated as a standalone signal --
+    callers must pair it with an independent lure/urgency signal already
+    present on the same email before calling it phishing."""
+    if not body_html or "<a" not in body_html.lower():
+        return []
+    parser = _AnchorExtractor()
+    try:
+        parser.feed(body_html)
+    except Exception:
+        return []
+
+    hidden = []
+    for href, text in parser.anchors:
+        if not href:
+            continue
+        href = href.strip()
+        if href.lower().startswith(("mailto:", "tel:", "javascript:", "#", "cid:")):
+            continue
+        try:
+            href_host = urlparse(href).hostname
+        except Exception:
+            href_host = None
+        if not href_host:
+            continue
+        if _TEXT_DOMAIN_RE.search(text or ""):
+            continue  # text DOES disclose a destination -- that's the mismatch check's job, not this one
+        hidden.append({"href": href[:200], "actual_host": href_host.lower()})
+    return hidden
 
 
 def extract_signals(parsed: dict) -> dict:
@@ -382,6 +692,31 @@ class RuleEngine:
         else:
             details.append({"rule": "blocked_extension", "flagged": False, "reason": "no blocked extensions"})
 
+        # Rule 2b — unrecognized attachment type (default-deny)
+        # Extensions already caught by Rule 2 (BLOCKED_EXTENSIONS) are
+        # deliberately excluded here -- that rule already flags them, and
+        # double-flagging the same attachment under two rule names for the
+        # same underlying fact is just analyst-facing noise. This rule is
+        # specifically for the THIRD category: not known-safe, not
+        # known-dangerous, just never vetted at all -- an attachment with
+        # NO extension counts here too (represented as "" by
+        # extract_signals, via os.path.splitext) rather than being silently
+        # skipped: a stripped extension is, if anything, more suspicious
+        # than an unusual-but-present one, not less.
+        unknown_exts = [
+            (ext if ext else "(no extension)")
+            for ext in signals["extensions"]
+            if ext not in BLOCKED_EXTENSIONS and ext not in RECOGNIZED_ATTACHMENT_EXTENSIONS
+        ]
+        if unknown_exts:
+            details.append({"rule": "unrecognized_attachment_type", "flagged": True,
+                            "reason": f"attachment extension(s) not in any known-safe or "
+                                      f"known-dangerous list, default-deny: {', '.join(unknown_exts)}"})
+            flags += 1
+        else:
+            details.append({"rule": "unrecognized_attachment_type", "flagged": False,
+                            "reason": "all attachment extensions recognized"})
+
         # Rule 3 — known bad hashes
         bad_hashes = [h for h in signals["hashes"] if h and h in BLOCKED_HASH]
         if bad_hashes:
@@ -395,7 +730,17 @@ class RuleEngine:
         # Requires BOTH coercive urgency AND financial/credential targeting.
         # "please review the attached invoice" is normal business — only flag when
         # urgency is paired with requests for credentials, wire transfers, or account changes.
-        body = (parsed.get("body_text") or "").lower()
+        # Combines body_text AND body_html (matching the pattern Rules 25/27/27b
+        # use further down this function) -- an HTML-only email (no text/plain
+        # part at all, the common case for real phishing kits) previously made
+        # this `body` variable an empty string, silently blinding phishy_body,
+        # vishing_callback, and thread_hijack_bec's financial-keyword check to
+        # any email that never had a plain-text alternative. Confirmed live:
+        # identical urgency+credential-targeting wording caught when placed in
+        # body_text but missed entirely when placed only in body_html, before
+        # this fix.
+        body = _normalize_for_phrase_match(
+            ((parsed.get("body_text") or "") + " " + (parsed.get("body_html") or "")).lower())
 
         # Tier 1: coercive urgency with threat of consequence (English + French)
         urgency_phrases = [
@@ -487,7 +832,7 @@ class RuleEngine:
             details.append({"rule": "feed_malicious_ip", "flagged": False,
                             "reason": "no malicious IPs found"})
 
-        # Rule 9 — CLAUDE.md rule 8: Encrypted attachment + password in body
+        # Rule 9 — rule 8: Encrypted attachment + password in body
         # "Encrypted attachment + password in email body = automatic escalate/reject"
         has_encryptable_attachment = False
         for att in signals.get("attachments", []):
@@ -655,6 +1000,7 @@ class RuleEngine:
         # Scan body_html for <script> tags, javascript: URIs, and blob creation
         # patterns used in HTML smuggling attacks.
         html_smuggle_flagged = False
+        html_matches = []
         body_html = (parsed.get("body_html") or "").lower()
         if body_html:
             _HTML_DANGER_PATTERNS = (
@@ -664,6 +1010,22 @@ class RuleEngine:
                 "mhtml:", "data:application",
             )
             html_matches = [p for p in _HTML_DANGER_PATTERNS if p in body_html]
+
+            # <meta http-equiv="refresh" content="0;url=..."> is a fully
+            # JS-free HTML redirect -- no <script>, no event-handler
+            # attribute, no <a href>, so it's invisible to every other
+            # pattern above AND to the anchor-only masked_link_mismatch /
+            # hidden_url_phishing_tactic rules below (both bail out
+            # immediately unless the HTML contains an "<a" tag). Confirmed
+            # live: a neutral-worded email whose only payload is a
+            # meta-refresh to a phishing lookalike domain returned
+            # "accepted" with zero rules flagged before this fix.
+            meta_refresh_match = _META_REFRESH_RE.search(body_html)
+            if meta_refresh_match:
+                url_match = _META_REFRESH_URL_RE.search(meta_refresh_match.group(0))
+                target = url_match.group(1) if url_match else ""
+                html_matches.append(f"meta-refresh-redirect{f' to {target[:120]}' if target else ''}")
+
             if html_matches:
                 html_smuggle_flagged = True
 
@@ -877,6 +1239,36 @@ class RuleEngine:
             details.append({"rule": "unicode_from_spoofing", "flagged": False,
                             "reason": "no Unicode spoofing in From header"})
 
+        # Rule 21b — Brand impersonation in From display name
+        display_name_raw, _ = parseaddr(from_raw)
+        display_name_norm = _normalize_for_phrase_match(display_name_raw)
+        brand_impersonation_flagged = False
+        brand_impersonation_reason = ""
+        sender_dom_for_brand = (signals.get("sender_domain") or "").lower()
+        for brand, legit_domains in _BRAND_DOMAINS.items():
+            if not _BRAND_KEYWORD_RE[brand].search(display_name_norm):
+                continue
+            if sender_dom_for_brand and any(
+                sender_dom_for_brand == d or sender_dom_for_brand.endswith("." + d)
+                for d in legit_domains
+            ):
+                continue  # genuinely from the brand's own domain -- not impersonation
+            brand_impersonation_flagged = True
+            brand_impersonation_reason = (
+                f"display name claims '{brand}' but sender domain "
+                f"'{sender_dom_for_brand or 'unknown'}' does not match {brand}'s "
+                f"legitimate domain(s)"
+            )
+            break
+
+        if brand_impersonation_flagged:
+            details.append({"rule": "brand_impersonation_display_name", "flagged": True,
+                            "reason": brand_impersonation_reason})
+            flags += 1
+        else:
+            details.append({"rule": "brand_impersonation_display_name", "flagged": False,
+                            "reason": "no brand impersonation in display name detected"})
+
         # Rule 22 — Source-route injection in From/envelope
         # RFC 5321 source routes (e.g. "From <@relay1,@relay2:attacker@evil.com>")
         # are deprecated but still parsed by some clients. Attackers inject them
@@ -961,7 +1353,9 @@ class RuleEngine:
             "<script", "<embed", "<iframe", "<object", "<svg",
             "javascript:", "vbscript:", "data:text/html", "data:image/svg+xml",
         )
-        combined_body_lower = ((parsed.get("body_text") or "") + " " + (parsed.get("body_html") or "")).lower()
+        # Same text_text+body_html combination as `body` above (Rule 4) --
+        # aliased rather than recomputed so the two can never drift apart again.
+        combined_body_lower = body
         text_script_matches = [p for p in _TEXT_SCRIPT_PATTERNS if p in combined_body_lower]
 
         # Decode base64 data-URI payloads (SVG/HTML smuggling) and check the
@@ -1078,6 +1472,100 @@ class RuleEngine:
             details.append({"rule": "advance_fee_fraud", "flagged": False,
                             "reason": "no advance-fee fraud vocabulary detected"})
 
+        # Rule 27b — Reward/prize/lottery-lure phishing vocabulary
+        # phishy_body (Rule 4) requires BOTH coercive urgency AND financial/
+        # credential targeting — a fear-based pattern. Reward-bait scams
+        # ("vous avez gagné une réduction de 33%... cliquez sur le lien")
+        # are a distinct, equally common social-engineering family that
+        # matches neither tier: there's no threat of suspension, and
+        # "click the link to claim a discount" doesn't match the
+        # credential/wire-transfer-specific targeting phrases. Same
+        # 2-independent-hits threshold as Rule 27 (advance_fee_fraud) for
+        # the same reason: this vocabulary is distinctive enough that two
+        # hits is hard evidence, not a soft signal, but a single generic
+        # word ("réduction"/"discount" alone) is common in legitimate
+        # marketing and must not trip this alone.
+        _REWARD_LURE_PHRASES = (
+            "vous avez gagne", "vous avez ete selectionne", "vous etes le gagnant",
+            "heureux gagnant", "felicitations vous avez gagne", "tirage au sort",
+            "vous avez remporte", "bon d'achat", "carte cadeau gratuite",
+            "cliquez pour reclamer", "reclamer votre gain", "reclamer votre prix",
+            "offre exclusive reservee", "vous avez ete choisi",
+            # English equivalents
+            "you have won", "you've been selected", "you are the lucky winner",
+            "congratulations you have won", "claim your prize", "claim your reward",
+            "free gift card", "click to claim", "you have been chosen",
+        )
+        reward_lure_matches = [p for p in _REWARD_LURE_PHRASES if p in combined_body_lower]
+        reward_lure_flagged = len(reward_lure_matches) >= 2
+
+        if reward_lure_flagged:
+            details.append({"rule": "reward_lure_phishing", "flagged": True,
+                            "reason": f"reward/prize-lure scam vocabulary: {', '.join(reward_lure_matches[:3])}"})
+            flags += 1
+        else:
+            details.append({"rule": "reward_lure_phishing", "flagged": False,
+                            "reason": "no reward/prize-lure vocabulary detected"})
+
+        # Rule 27c — "Hidden URL" phishing tactic: link destination never
+        # disclosed to the reader (generic "click here"/"lien" text, no
+        # domain claim at all -- Rule 29's masked_link_mismatch covers the
+        # case where the text DOES claim a domain and lies), paired with an
+        # independent lure/urgency signal already found on this same email.
+        # Neither signal alone is unusual (a bare "click here" is normal
+        # marketing; a discount mention alone is normal marketing); the
+        # combination is the tactic. This is what a real reward-lure test
+        # email with an opaque "lien" link and no href/text mismatch was
+        # missing before -- reward_lure_phishing caught the vocabulary, but
+        # nothing named the link-concealment tactic itself.
+        hidden_links = _find_hidden_destination_links(parsed.get("body_html") or "")
+        hidden_url_tactic = bool(hidden_links) and (reward_lure_flagged or (urgency_matches and targeting_matches))
+        if hidden_url_tactic:
+            dests = ", ".join(sorted({h["actual_host"] for h in hidden_links})[:3])
+            details.append({"rule": "hidden_url_phishing_tactic", "flagged": True,
+                            "reason": f"phishing tactic: hidden URL — link destination(s) ({dests}) "
+                                      f"never shown to the reader, paired with lure/urgency vocabulary"})
+            flags += 1
+        else:
+            details.append({"rule": "hidden_url_phishing_tactic", "flagged": False,
+                            "reason": "no undisclosed-link-destination + lure/urgency pattern detected"})
+
+        # Rule 27d — Hidden text used for prompt injection: CSS-invisible
+        # content (display:none/font-size:0/visibility:hidden) containing
+        # AI-instruction-style phrasing, aimed at this pipeline's own LLM
+        # analysis stage rather than the human reader who will never see it
+        # rendered. Deliberately does NOT flag hidden text alone -- hiding
+        # text via CSS is a universal, mostly-benign email-marketing
+        # technique (preheader/preview text) on its own, so this mirrors
+        # hidden_url_phishing_tactic's "combine two independent signals"
+        # pattern: hidden text is only escalate-worthy when it ALSO
+        # contains injection-style content, not merely for being hidden.
+        _PROMPT_INJECTION_PHRASES = (
+            "ignore previous instructions", "ignore all previous instructions",
+            "ignore the above", "disregard previous instructions",
+            "disregard the above", "new instructions:", "system prompt:",
+            "you are now", "ignore your instructions",
+            "this email is safe", "this is not phishing", "mark as safe",
+            "do not flag this", "classify this as safe", "override your",
+            "ignore any prior", "forget previous",
+        )
+        _hidden_extractor = _HiddenTextExtractor()
+        try:
+            _hidden_extractor.feed(parsed.get("body_html") or "")
+        except Exception:
+            pass
+        hidden_text_combined = _normalize_for_phrase_match(
+            " ".join(_hidden_extractor.hidden_text_parts).lower())
+        injection_matches = [p for p in _PROMPT_INJECTION_PHRASES if p in hidden_text_combined]
+        if injection_matches:
+            details.append({"rule": "hidden_text_prompt_injection", "flagged": True,
+                            "reason": f"CSS-hidden text contains AI-instruction-style phrasing: "
+                                      f"{', '.join(injection_matches[:3])}"})
+            flags += 1
+        else:
+            details.append({"rule": "hidden_text_prompt_injection", "flagged": False,
+                            "reason": "no hidden-text prompt injection detected"})
+
         # Rule 28 — Unicode/RTLO spoofing in attachment filenames
         # Same trick as Rule 21, applied to attachment names instead of the
         # From header: a right-to-left override (U+202E) or other bidi/
@@ -1106,6 +1594,23 @@ class RuleEngine:
             details.append({"rule": "unicode_filename_spoofing", "flagged": False,
                             "reason": "no Unicode/RTLO spoofing in attachment filenames"})
 
+        # Rule 29 — Masked hyperlink ("hidden URL" phishing): displayed link
+        # text names one domain but the actual href points somewhere else
+        # entirely, e.g. <a href="http://evil.tld/x">https://paypal.com</a>.
+        # See _find_href_text_mismatches for why nothing else in this file
+        # (flat regex URL extraction, feed-based reputation lookups) ever
+        # caught this specific technique.
+        link_mismatches = _find_href_text_mismatches(parsed.get("body_html") or "")
+        if link_mismatches:
+            details.append({"rule": "masked_link_mismatch", "flagged": True,
+                            "reason": "; ".join(
+                                f'displayed "{m["displayed_domain"]}" but links to "{m["actual_host"]}"'
+                                for m in link_mismatches[:3])})
+            flags += 1
+        else:
+            details.append({"rule": "masked_link_mismatch", "flagged": False,
+                            "reason": "no displayed-text/href domain mismatch in links"})
+
         # Determine verdict severity:
         # - "proposed_reject": deterministic hard-evidence rules fired
         #   (blocklist, bad extension, bad hash, threat feed match)
@@ -1114,7 +1619,7 @@ class RuleEngine:
         #   → goes to human review as ambiguous
         # - "accepted": nothing fired
         HARD_EVIDENCE_RULES = {
-            "blocklist_domain", "blocked_extension", "blocked_hash",
+            "blocklist_domain", "blocked_extension", "unrecognized_attachment_type", "blocked_hash",
             "feed_sender_domain", "feed_malicious_url",
             "feed_malicious_domain", "feed_malicious_ip",
             "encrypted_attachment_password",
@@ -1128,6 +1633,7 @@ class RuleEngine:
             "mime_confusion_attack",
             "multi_addr_from",
             "unicode_from_spoofing",
+            "brand_impersonation_display_name",
             "unicode_filename_spoofing",
             "source_route_injection",
             "malformed_email",
@@ -1135,6 +1641,10 @@ class RuleEngine:
             "text_body_script_payload",
             "header_field_injection",
             "advance_fee_fraud",
+            "masked_link_mismatch",
+            "reward_lure_phishing",
+            "hidden_url_phishing_tactic",
+            "hidden_text_prompt_injection",
         }
         hard_flags = [d for d in details if d["flagged"] and d["rule"] in HARD_EVIDENCE_RULES]
 

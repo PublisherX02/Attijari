@@ -54,6 +54,7 @@ TOOL_IMAGES = {
     "yara":       f"{IMAGE_PREFIX}-yara",
     "ioc_finder": f"{IMAGE_PREFIX}-ioc-finder",
     "markitdown": f"{IMAGE_PREFIX}-markitdown",
+    "archive":    f"{IMAGE_PREFIX}-archive",
 }
 
 
@@ -139,8 +140,9 @@ def _run_tool_docker(tool_name: str, input_path: str,
     # Mount input file read-only
     cmd += ["-v", f"{input_abs}:/work/input:ro"]
 
-    # YARA: also mount rules directory read-only
-    if tool_name == "yara" and YARA_RULES_DIR.exists():
+    # YARA (and archive, which runs its own recursive YARA scan on
+    # decompressed members) also mount rules directory read-only
+    if tool_name in ("yara", "archive") and YARA_RULES_DIR.exists():
         rules_abs = str(YARA_RULES_DIR.resolve())
         cmd += ["-v", f"{rules_abs}:/rules:ro"]
 

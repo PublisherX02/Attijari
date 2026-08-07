@@ -11,7 +11,7 @@ Sources:
   - dnstwist: typosquat detection on sender domain
   - WHOIS/RDAP: domain age check
 
-CLAUDE.md compliance:
+Compliance:
   - Only metadata (hashes, IPs, domains) is sent externally
   - Never send email content to any external service
   - Shared infrastructure IPs (Gmail, Outlook) are filtered out
@@ -212,7 +212,7 @@ def run_enrichment(parsed: dict) -> dict:
         all_ips = list(set(header_ips + [ip for ip in ext_ips if ip.strip()]))
         all_ips = [ip for ip in all_ips if ip]
 
-        # Filter shared infrastructure IPs (CLAUDE.md)
+        # Filter shared infrastructure IPs
         infra_ips = [ip for ip in all_ips if is_shared_infrastructure_ip(ip)]
         if infra_ips:
             print(f"[INFRA] Skipping {len(infra_ips)} shared infrastructure IP(s): {', '.join(infra_ips[:3])}")

@@ -3,7 +3,7 @@
 CI has no Ollama/GPU runtime available (no model to actually red-team), so
 this substitutes for a live-model tool like garak: it mocks the boundary
 where analyze_email_body() receives raw LLM output and asserts the
-documented fail-safe invariants from CLAUDE.md's "Critical design rules"
+documented fail-safe invariants from the "Critical design rules"
 hold no matter what a model (or an attacker who successfully manipulated
 one) hands back. The claim under test: the pipeline deterministically
 falls back to human escalation for every adversarial shape below — never
@@ -59,7 +59,7 @@ def test_unknown_verdict_value_defaults_to_escalated(monkeypatch):
 
 
 def test_low_confidence_accept_forced_to_escalate(monkeypatch):
-    """CRITICAL-02 (CLAUDE.md): low confidence forces escalation even when the
+    """CRITICAL-02: low confidence forces escalation even when the
     model itself says 'accepted'."""
     _mock_llm(monkeypatch, '{"verdict": "accepted", "confidence": 0.2, "risk_score": 5, '
                             '"sender_risk": 5, "intent_classification": "benign"}')

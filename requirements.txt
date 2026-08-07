@@ -59,7 +59,12 @@ pdfid
 pymupdf==1.27.2.3
 pytesseract==0.3.13
 Pillow==12.3.0
+opencv-python==5.0.0.93  # QR code ("quishing") decoding via QRCodeDetector -- runs locally, same pattern as pytesseract above
+numpy==2.2.6             # opencv-python's own array-buffer dependency
 yara-python==4.5.4
+pycdlib==1.16.0   # ISO9660/Joliet disk-image member extraction
+py7zr==1.1.3      # real 7z archive member extraction (zipfile can't open these)
+LnkParse3==1.6.0  # parse a shortcut's real payload -- its command line, not the .lnk bytes
 ioc-finder==9.4.1
 git+https://github.com/microsoft/markitdown.git#subdirectory=packages/markitdown
 
@@ -86,3 +91,5 @@ ollama
 --extra-index-url https://download.pytorch.org/whl/cu132
 transformers==5.12.1
 torch==2.13.0+cu132
+accelerate==1.14.0  # required by transformers pipeline(..., device_map="auto") in analysis.py
+

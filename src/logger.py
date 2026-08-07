@@ -14,6 +14,7 @@ The audit file (data/audit.log) contains one JSON object per line with:
 import json
 import logging
 import os
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -25,16 +26,75 @@ _DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 _LOG_FILE = _DATA_DIR / "audit.log"
 
-logging.basicConfig(
-    format='{"ts":"%(asctime)s", "level":"%(levelname)s", "module":"%(name)s", "msg":"%(message)s"}',
-    level=logging.INFO,
-    handlers=[
-        logging.FileHandler(_LOG_FILE, encoding="utf-8"),
-        logging.StreamHandler()
-    ]
+# Scoped to the "attijari" logger tree only -- NOT logging.basicConfig(),
+# which configures the ROOT logger and therefore also captures every
+# third-party library's own logger (rq, aiosmtpd's "mail.log",
+# checkdmarc.*, ...). Those libraries already print their own console
+# output through their own handlers, so hijacking root as well produced
+# every one of their messages TWICE: once from their own handler, once
+# re-echoed through our JSON formatter (confirmed live: 136 duplicate
+# "rq.worker" JSON lines in one worker run alone). Attaching our handlers
+# to "attijari" specifically, with propagate=False, keeps our own JSON
+# console/file output while leaving third-party loggers alone.
+_formatter = logging.Formatter(
+    '{"ts":"%(asctime)s", "level":"%(levelname)s", "module":"%(name)s", "msg":"%(message)s"}'
 )
+_file_handler = logging.FileHandler(_LOG_FILE, encoding="utf-8")
+_file_handler.setFormatter(_formatter)
+_stream_handler = logging.StreamHandler()
+_stream_handler.setFormatter(_formatter)
 
 logger = logging.getLogger("attijari")
+logger.setLevel(logging.INFO)
+logger.propagate = False
+logger.addHandler(_file_handler)
+logger.addHandler(_stream_handler)
+
+# --- Known-noisy, non-actionable third-party log/warning sources -----------
+# Each of these is a real, previously-confirmed source of console clutter
+# with zero diagnostic value in this environment -- not a blanket "silence
+# everything" pass. Other messages from these same libraries still surface
+# normally.
+
+# aiosmtpd logs every SMTP protocol line (EHLO/MAIL FROM/RCPT TO/DATA/QUIT,
+# "Peer: ...", "handling connection", "connection lost") at INFO under the
+# logger name "mail.log" -- routine chatter on every single delivered
+# email. Real problems (oversized message, malformed command) still surface
+# at WARNING+.
+logging.getLogger("mail.log").setLevel(logging.WARNING)
+
+
+class _DropExactMessage(logging.Filter):
+    """Drops only log records whose message exactly matches a known,
+    permanently non-actionable one -- e.g. checkdmarc's Windows-only "TLS
+    testing isn't supported" notice, which fires on nearly every email's
+    DKIM/SPF/DMARC check and can never be resolved on this platform.
+    Deliberately message-scoped rather than a logger-level cutoff, so any
+    other (genuinely actionable) warning from the same logger still shows."""
+
+    def __init__(self, message: str):
+        super().__init__()
+        self._message = message
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.getMessage() != self._message
+
+
+logging.getLogger("checkdmarc.smtp").addFilter(
+    _DropExactMessage("Testing TLS is not supported on Windows")
+)
+
+# pydub emits this RuntimeWarning (via warnings.warn, not logging) every
+# time its ffmpeg/avconv probe runs and finds neither on PATH -- a
+# transitive MarkItDown dependency for audio transcription this project
+# never uses (email/attachment text extraction only, no audio attack
+# surface in scope). Installing ffmpeg would only silence a warning about
+# a feature we don't use.
+warnings.filterwarnings(
+    "ignore",
+    message=r"Couldn't find ffmpeg or avconv.*",
+    category=RuntimeWarning,
+)
 
 
 def get_logger(module_name: str) -> logging.Logger:

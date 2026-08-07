@@ -20,7 +20,8 @@ import os
 # Base URL of the CAPE apiv2 endpoint, e.g. http://192.168.56.10:8000/apiv2
 CAPE_API_URL = os.getenv("CAPE_API_URL", "http://127.0.0.1:8000/apiv2").rstrip("/")
 # Token issued by CAPE (web UI → API tokens). Sent as `Authorization: Token <t>`.
-CAPE_API_TOKEN = os.getenv("CAPE_API_TOKEN", "")
+from secrets_client import get_cape_token
+CAPE_API_TOKEN = get_cape_token("api_token")
 # Verify TLS if CAPE is served over https (set to "0" for self-signed lab certs).
 CAPE_VERIFY_TLS = os.getenv("CAPE_VERIFY_TLS", "1") != "0"
 
@@ -55,6 +56,12 @@ DETONATION_BATCH_SIZE = int(os.getenv("DETONATION_BATCH_SIZE", "5"))
 # the VM resume-from-savestate cost per attachment.
 DETONATION_IDLE_TIMEOUT_SECONDS = int(os.getenv("DETONATION_IDLE_TIMEOUT_SECONDS", "300"))
 
+# Same idea, but for an operator-triggered single-file window (manual upload
+# 'now' branch, confirm, or "run window now"): the operator is watching and
+# expects the pipeline to resume as soon as their file is done, not sit
+# paused for the full batch-oriented idle grace period above.
+DETONATION_MANUAL_IDLE_TIMEOUT_SECONDS = int(os.getenv("DETONATION_MANUAL_IDLE_TIMEOUT_SECONDS", "10"))
+
 # How long to sleep between empty-queue checks while waiting out the idle
 # timeout. Short enough that a newly-arrived attachment starts promptly.
 DETONATION_IDLE_POLL_SECONDS = int(os.getenv("DETONATION_IDLE_POLL_SECONDS", "2"))
@@ -66,6 +73,39 @@ DETONATION_IDLE_POLL_SECONDS = int(os.getenv("DETONATION_IDLE_POLL_SECONDS", "2"
 CAPE_MALSCORE_ESCALATE = float(os.getenv("CAPE_MALSCORE_ESCALATE", "6.0"))
 # malscore >= this  → mark suspicious (surfaced to analyst, not auto-escalated)
 CAPE_MALSCORE_SUSPICIOUS = float(os.getenv("CAPE_MALSCORE_SUSPICIOUS", "3.0"))
+
+# --------------------------------------------------------------------------
+# Evasion hardening: signature-category escalation override
+# --------------------------------------------------------------------------
+# CAPE's malscore can stay low for a sample that detects the sandbox and
+# goes dormant — but CAPE still logs an anti-sandbox/anti-VM/anti-debug
+# signature when that happens. Any signature name/description matching one
+# of these substrings (case-insensitive) forces escalation regardless of
+# malscore, closing that blind spot.
+ANTI_ANALYSIS_SIGNATURE_PATTERNS = (
+    "antisandbox", "anti-sandbox", "anti_sandbox",
+    "antivm", "anti-vm", "anti_vm",
+    "antidebug", "anti-debug", "anti_debug",
+    "antiemulation", "anti-emulation", "anti_emulation",
+    "stalling", "sandbox_evasion", "sandbox evasion", "vmdetect",
+)
+
+# --------------------------------------------------------------------------
+# Evasion hardening: submission-side anti-evasion options
+# --------------------------------------------------------------------------
+# CAPE has debugger/tracing options (bp0-bp3, count, depth) and a
+# human-interaction-emulation toggle per current docs, but the exact
+# option key names must be confirmed against the LIVE CAPE instance before
+# enabling — docs found during the 2026-07-31 evasion-hardening research
+# were inconsistent across versions, and CAPE is not reachable from this
+# dev machine to verify directly. Disabled by default (no extra options
+# sent, unchanged behavior) until verified live, matching this project's
+# established practice of confirming against the real instance rather than
+# guessing (see the 2026-07-27 CAPE-proxy build log entries).
+CAPE_ANTI_EVASION_OPTIONS_ENABLED = os.getenv("CAPE_ANTI_EVASION_OPTIONS_ENABLED", "0") != "0"
+# Raw CAPE "options" submission string (CAPE's own semicolon-separated
+# key=value format), only sent when the toggle above is on.
+CAPE_ANTI_EVASION_OPTIONS = os.getenv("CAPE_ANTI_EVASION_OPTIONS", "")
 
 # --------------------------------------------------------------------------
 # Which file types are worth detonating
@@ -155,7 +195,7 @@ CAPE_READY_TIMEOUT = int(os.getenv("CAPE_READY_TIMEOUT", "180"))
 # runbook (docs/imania-sandbox-setup.md) has been executed.
 CAPE_VM_WRAPPER_ENABLED = os.getenv("CAPE_VM_WRAPPER_ENABLED", "0") != "0"
 CAPE_VM_WRAPPER_URL = os.getenv("CAPE_VM_WRAPPER_URL", "http://192.168.100.10:8090").rstrip("/")
-CAPE_VM_WRAPPER_TOKEN = os.getenv("CAPE_VM_WRAPPER_TOKEN", "")
+CAPE_VM_WRAPPER_TOKEN = get_cape_token("vm_wrapper_token")
 CAPE_VM_WRAPPER_TIMEOUT = int(os.getenv("CAPE_VM_WRAPPER_TIMEOUT", "20"))
 
 # websockify endpoint on imania fronting cuckoo2's fixed VNC port. The

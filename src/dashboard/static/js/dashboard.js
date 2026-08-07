@@ -615,7 +615,7 @@ function _attachmentPanelRowHtml(emailId, a, detRowsBySha, windowActive) {
                 <div class="sandbox-preview-meta">
                     <div class="detail-row"><span class="detail-label">File</span>
                         <span class="detail-value">${esc(truncate(a.filename, 60))}</span></div>
-                    <span class="badge accepted">Verified safe</span>
+                    <span class="badge accepted">Safe</span>
                 </div>
                 <div>${preview}</div>
             </div>`;
@@ -627,19 +627,19 @@ function _attachmentPanelRowHtml(emailId, a, detRowsBySha, windowActive) {
         const live = (isRunning && taskId)
             ? `<div class="sandbox-live" id="sandbox-live-${parseInt(a.id)}" data-task-id="${parseInt(taskId)}"></div>`
             : `<div class="sandbox-empty"><div class="spinner"></div>
-                   <p>${isRunning ? 'Detonating…' : 'Queued for detonation — the sandbox stays hot and works through the queue one file at a time.'}</p></div>`;
+                   <p>${isRunning ? 'Detonating…' : 'Pending detonation — the sandbox stays hot and works through the queue one file at a time.'}</p></div>`;
         return `
             <div class="sandbox-preview-meta">
                 <div class="detail-row"><span class="detail-label">File</span>
                     <span class="detail-value">${esc(truncate(a.filename, 60))}</span></div>
-                <span class="badge escalated">${isRunning ? 'Detonating' : 'Verifying…'}</span>
+                <span class="badge escalated">${isRunning ? 'Detonating' : 'Pending detonation'}</span>
             </div>
             ${live}`;
     }
 
     // 'unverified' or 'unsafe'
     const badge = a.status === 'unsafe'
-        ? '<span class="badge quarantined">Unsafe</span>'
+        ? '<span class="badge quarantined">Malicious</span>'
         : '<span class="badge recu">Not verified safe</span>';
     const reportLine = (a.status === 'unsafe' && detRow && detRow.result && detRow.result.malscore !== undefined)
         ? `<div class="detail-row"><span class="detail-label">Malscore</span><span class="detail-value">${esc(String(detRow.result.malscore))} / 10</span></div>`
@@ -727,7 +727,7 @@ async function mountNoVnc(container, taskId, onFail, interactive) {
         const url = `${proto}://${location.host}/ws/vnc/${parseInt(taskId) || 0}?token=${encodeURIComponent(token)}`;
         const rfb = new RFB(container, url);
         // Automated email-attachment detonation stays view-only (display-only
-        // layer, CLAUDE.md rule 1 — nothing here should be able to influence
+        // layer, rule 1 — nothing here should be able to influence
         // the run being observed). Manual detonation (analyst uploaded the
         // sample themselves) opts into mouse/keyboard control instead.
         rfb.viewOnly = !interactive;
@@ -1035,15 +1035,17 @@ function notifyManualReady(ready) {
     });
 }
 
-// Per-email attachment detonation events (always-on flow) — logged +
-// popped once ever per (id, event) pair, so a 'detonating' + later
-// 'report_ready' for the same row still each get their own notification.
+// Detonation events (email-attachment always-on flow AND operator-triggered
+// manual uploads, which have no email_id) — logged + popped once ever per
+// (id, event) pair, so a 'detonating' + later 'report_ready' for the same
+// row still each get their own notification.
 function notifyDetonationEvents(events) {
     (events || []).forEach(function (ev) {
         const key = 'event:' + ev.id + ':' + ev.event;
+        const target = ev.email_id ? ('email #' + ev.email_id) : 'manual upload';
         const msg = ev.event === 'detonating'
-            ? 'Detonating "' + (ev.filename || 'attachment') + '" for email #' + ev.email_id + '…'
-            : 'Sandbox report ready for email #' + ev.email_id + ' ("' + (ev.filename || 'attachment') + '")';
+            ? 'Detonating "' + (ev.filename || 'attachment') + '" for ' + target + '…'
+            : 'Sandbox report ready for ' + target + ' ("' + (ev.filename || 'attachment') + '")';
         _recordNotification(key, msg, ev.event === 'detonating' ? 'info' : 'success', function (m) {
             if ('Notification' in window && Notification.permission === 'granted') {
                 try { new Notification('Attijari — sandbox', { body: m }); } catch (_) {}

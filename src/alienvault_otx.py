@@ -23,7 +23,8 @@ BASE_URL = "https://otx.alienvault.com/api/v1"
 
 
 def _otx_headers() -> dict:
-    key = os.getenv("OTX_API_KEY")
+    from secrets_client import get_api_key
+    key = get_api_key("otx")
     headers = {"Accept": "application/json"}
     if key:
         headers["X-OTX-API-KEY"] = key
@@ -31,15 +32,42 @@ def _otx_headers() -> dict:
 
 
 def _otx_get(endpoint: str, retries: int = 2, timeout: int = 20) -> dict | None:
-    """Generic OTX GET with retry logic."""
+    """Generic OTX GET with retry logic, result caching, and self-throttling.
+
+    Unlike ThreatFoxAPI.py (which has both since it was written), this had
+    neither -- every call re-hit OTX fresh even for an indicator already
+    queried minutes earlier, with zero backpressure. Confirmed live: 44
+    HTTP 429s in one backlog-drain run, entirely explained by burst volume
+    against OTX's public (no-API-key) rate limit, not a bug in the request
+    itself. Matches ThreatFoxAPI.py's cache-key/TTL/rate-limit convention
+    exactly for consistency.
+    """
+    # api_cache.get_cached() returns None for both "not cached" and (if we
+    # stored one) "cached 404/not-found" -- indistinguishable, so a raw
+    # None couldn't ever be safely cached. A sentinel value gets cached
+    # instead and decoded back to None on read, so the (typically dominant
+    # -- most indicators are clean) not-found case is cached too, not just
+    # successful hits.
+    _NOT_FOUND = {"__otx_not_found__": True}
+
+    from api_cache import api_cache
+    cache_key = f"otx_{endpoint}"
+    cached = api_cache.get_cached(cache_key)
+    if cached is not None:
+        return None if cached == _NOT_FOUND else cached
+    api_cache.enforce_rate_limit("otx", 10)
+
     url = f"{BASE_URL}/{endpoint}"
     attempt = 0
     while attempt <= retries:
         try:
             resp = get_session().get(url, headers=_otx_headers(), timeout=timeout)
             if resp.status_code == 200:
-                return resp.json()
+                data = resp.json()
+                api_cache.set_cache(cache_key, data, 86400)
+                return data
             if resp.status_code == 404:
+                api_cache.set_cache(cache_key, _NOT_FOUND, 86400)
                 return None  # not found = clean
             if resp.status_code == 429 and attempt < retries:
                 time.sleep(2 + attempt * 3)

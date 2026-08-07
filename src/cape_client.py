@@ -3,7 +3,7 @@
 Talks to CAPE's apiv2 over HTTP. The host never runs the guest directly; it
 just submits a sample, polls the task, and pulls the report. All email content
 stays inside the isolated CAPE VM — only the file bytes are sent to the
-local CAPE instance (not any external service), consistent with CLAUDE.md.
+local CAPE instance (not any external service).
 
 Uses the project's shared TLS-verified HTTP session (http_client) so we don't
 re-implement certificate handling.
@@ -22,6 +22,8 @@ from detonation_config import (
     CAPE_ANALYSIS_TIMEOUT, CAPE_READY_TIMEOUT, CAPE_ENFORCE_TIMEOUT,
     CAPE_MALSCORE_ESCALATE, CAPE_MALSCORE_SUSPICIOUS,
     CAPE_VM_WRAPPER_ENABLED, IMAGE_EXTENSIONS,
+    ANTI_ANALYSIS_SIGNATURE_PATTERNS,
+    CAPE_ANTI_EVASION_OPTIONS_ENABLED, CAPE_ANTI_EVASION_OPTIONS,
 )
 
 
@@ -93,6 +95,8 @@ def submit_file(file_path: str, filename: str) -> Optional[int]:
             ext = os.path.splitext(filename or "")[1].lower()
             if ext in IMAGE_EXTENSIONS:
                 data["package"] = "image"
+            if CAPE_ANTI_EVASION_OPTIONS_ENABLED and CAPE_ANTI_EVASION_OPTIONS:
+                data["options"] = CAPE_ANTI_EVASION_OPTIONS
             r = requests.post(
                 f"{CAPE_API_URL}/tasks/create/file/",
                 headers=_headers(), files=files, data=data,
@@ -133,11 +137,20 @@ def _task_status(task_id: int) -> Optional[str]:
 
 
 def wait_for_report(task_id: int) -> bool:
-    """Block until the task reaches a terminal state. True if reported OK."""
+    """Block until the task reaches a terminal state. True if reported OK.
+
+    "completed" means the sandbox run finished, NOT that a report exists —
+    report generation is a separate, sometimes slow (occasionally stuck)
+    step on the CAPE side. Only "reported" means report.json is actually
+    ready; treating "completed" as terminal here caused fetch_report() to
+    be called before the report existed, producing spurious
+    cape_report_unavailable errors on samples that were still fine, just
+    not done processing yet.
+    """
     deadline = time.time() + CAPE_TOTAL_TIMEOUT
     while time.time() < deadline:
         status = _task_status(task_id)
-        if status in ("reported", "completed"):
+        if status == "reported":
             return True
         if status in ("failed_analysis", "failed_processing", "failed"):
             return False
@@ -184,6 +197,18 @@ def parse_report(report: dict[str, Any], task_id: int) -> dict[str, Any]:
 
     escalate = malscore >= CAPE_MALSCORE_ESCALATE
     suspicious = malscore >= CAPE_MALSCORE_SUSPICIOUS or bool(sig_names)
+
+    # Evasion hardening: a sample that detects the sandbox and goes dormant
+    # can score low on malscore, but CAPE still logs the anti-sandbox/anti-VM
+    # signature when that happens — force escalate regardless of malscore.
+    anti_analysis_hit = any(
+        pattern in name.lower()
+        for name in sig_names
+        for pattern in ANTI_ANALYSIS_SIGNATURE_PATTERNS
+    )
+    if anti_analysis_hit:
+        escalate = True
+        suspicious = True
 
     return {
         "tool": "detonation",

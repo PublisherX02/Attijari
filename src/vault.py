@@ -1,36 +1,32 @@
 """vault.py — Encrypted quarantine vault for escalated emails.
 
-Uses Fernet (AES-128-CBC + HMAC-SHA256) symmetric encryption.
-Key is loaded from the VAULT_ENCRYPTION_KEY environment variable.
+NOTE: this is unrelated to HashiCorp Vault (see src/secrets_client.py). This
+module is Fernet-based at-rest encryption for quarantined emails and TOTP
+secrets; the Fernet key itself is now fetched from HashiCorp Vault via
+secrets_client.get_vault_encryption_key(), rather than read directly from
+an environment variable.
 
 Directory structure:
   data/vault/{YYYY-MM}/{email_sha256}.enc
+
 
 If the key is lost, quarantined emails are unrecoverable (by design).
 """
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
-from dotenv import load_dotenv
-
-load_dotenv()
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VAULT_DIR = _PROJECT_ROOT / "data" / "vault"
 
 
 def _get_fernet() -> Fernet:
-    """Get the Fernet cipher from environment. Raises if key is missing."""
-    key = os.getenv("VAULT_ENCRYPTION_KEY")
-    if not key:
-        raise RuntimeError(
-            "VAULT_ENCRYPTION_KEY not set. "
-            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
-        )
+    """Get the Fernet cipher from Vault (secret/attijari/vault_encryption_key)."""
+    from secrets_client import get_vault_encryption_key
+    key = get_vault_encryption_key()
     return Fernet(key.encode() if isinstance(key, str) else key)
 
 

@@ -50,13 +50,16 @@ if not audit_logger.handlers:
     handler.setFormatter(logging.Formatter('{"ts": "%(asctime)s", "event": %(message)s}'))
     audit_logger.addHandler(handler)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
+from secrets_client import get_database_url
+
+try:
+    DATABASE_URL = get_database_url()
+except RuntimeError as exc:
     raise RuntimeError(
-        "DATABASE_URL is not set. "
+        "Could not read DATABASE_URL from Vault. "
         "The application refuses to start without a database connection string. "
-        "Set it in your .env file (e.g. DATABASE_URL=postgresql://user:pass@host:5432/dbname)."
-    )
+        f"Underlying error: {exc}"
+    ) from exc
 
 # ---------------------------------------------------------------------------
 # Engine & session factory
@@ -176,7 +179,7 @@ class Blocklist(Base):
 
 
 class Whitelist(Base):
-    """Whitelisted indicators — always override blocklist (CLAUDE.md rule)."""
+    """Whitelisted indicators — always override blocklist."""
 
     __tablename__ = "whitelist"
 
@@ -338,10 +341,17 @@ class Attachment(Base):
     attachment with a correct safe/unsafe status; PendingDetonation alone
     only covers attachments static analysis found inconclusive.
 
-    No status column here on purpose: safety is always derived live from
-    the most recent PendingDetonation row for this sha256 (see
-    attachments.attachment_safety_status), so there is nothing to keep in
-    sync or invalidate.
+    No CAPE-outcome status column here on purpose: dynamic-sandbox safety is
+    always derived live from the most recent PendingDetonation row for this
+    sha256 (see attachments.attachment_safety_status), so there is nothing
+    to keep in sync or invalidate there.
+
+    extraction_escalate/extraction_flags ARE persisted (unlike CAPE status)
+    because they're this specific occurrence's own static-analysis verdict
+    (YARA/sandbox-tool fail-safe) — attachment_safety_status uses them to
+    make sure a stale PendingDetonation row for the same bytes (e.g. an old
+    manual "insist" run from before these flags existed) can never silently
+    present a currently-flagged attachment as "safe".
     """
 
     __tablename__ = "attachments"
@@ -353,6 +363,8 @@ class Attachment(Base):
     filename = Column(String(512), nullable=True)   # data only, never a real path (rule 6)
     real_type = Column(String(255), nullable=True)   # magic-verified at extraction time
     size_bytes = Column(Integer, nullable=True)
+    extraction_escalate = Column(Boolean, nullable=True)   # NULL = extraction never ran for this row
+    extraction_flags = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
 
@@ -513,6 +525,27 @@ def _migrate_email_account_column():
         print(f"[DB] emails.account migration skipped: {e}")
 
 
+def _migrate_attachments_extraction_columns():
+    """One-time: add attachments.extraction_escalate/extraction_flags.
+    Pre-existing rows get NULL (== 'extraction never ran for this row' in
+    attachment_safety_status), which preserves prior behavior for them."""
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        if "attachments" not in inspector.get_table_names():
+            return
+        existing = {c["name"] for c in inspector.get_columns("attachments")}
+        with engine.begin() as conn:
+            if "extraction_escalate" not in existing:
+                conn.execute(sa_text('ALTER TABLE attachments ADD COLUMN "extraction_escalate" BOOLEAN'))
+                print("[DB] Added column attachments.extraction_escalate")
+            if "extraction_flags" not in existing:
+                conn.execute(sa_text('ALTER TABLE attachments ADD COLUMN "extraction_flags" JSONB'))
+                print("[DB] Added column attachments.extraction_flags")
+    except Exception as e:
+        print(f"[DB] attachments extraction-columns migration skipped: {e}")
+
+
 def _migrate_mailbox_protocol_and_outbound_smtp():
     """One-time: add mailbox_accounts.protocol (default 'imap') and the four
     nullable outbound-SMTP-relay columns. All additive — existing rows get
@@ -601,6 +634,7 @@ def init_db():
     _migrate_encrypt_totp_secrets()
     _migrate_email_account_column()
     _migrate_mailbox_protocol_and_outbound_smtp()
+    _migrate_attachments_extraction_columns()
 
     # Initialize default admin if no users exist
     try:
@@ -925,6 +959,8 @@ def save_attachments(db: Session, email_id: int, attachments: list[dict]) -> lis
             filename=att.get("original_name"),
             real_type=att.get("real_type"),
             size_bytes=att.get("size_bytes"),
+            extraction_escalate=att.get("extraction_escalate"),
+            extraction_flags=att.get("extraction_flags"),
         )
         db.add(row)
         rows.append(row)
@@ -990,6 +1026,59 @@ def count_queued_detonations(db: Session) -> int:
     return db.query(PendingDetonation).filter(PendingDetonation.status == "queued").count()
 
 
+def _serialize_queue_row(r: "PendingDetonation") -> dict:
+    return {
+        "id": r.id,
+        "email_id": r.email_id,
+        "filename": r.filename,
+        "sha256": r.sha256,
+        "reason": r.reason,
+        "status": r.status,
+        "priority": r.priority,
+        "created_by": r.created_by,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+def get_detonation_queue_overview(db: Session, limit: int = 50) -> dict:
+    """Everything the operator-facing Detonation Queue panel needs in one
+    query: the in-flight row(s), the actual priority-ordered queue, and the
+    manual (Branch-B) rows that haven't reached the queue yet — deferred
+    (waiting for the email backlog to clear) or ready (awaiting operator
+    confirmation). priority is a boolean jump-the-queue flag, not a rank —
+    see PendingDetonation.priority; ordering here matches
+    get_queued_detonations exactly (priority desc, created_at asc)."""
+    rows = (
+        db.query(PendingDetonation)
+        .filter(PendingDetonation.status.in_(["running", "queued", "deferred", "ready"]))
+        .order_by(PendingDetonation.priority.desc(), PendingDetonation.created_at.asc())
+        .limit(limit)
+        .all()
+    )
+    return {
+        "running": [_serialize_queue_row(r) for r in rows if r.status == "running"],
+        "queued": [_serialize_queue_row(r) for r in rows if r.status == "queued"],
+        "manual_deferred": [_serialize_queue_row(r) for r in rows if r.status == "deferred"],
+        "manual_ready": [_serialize_queue_row(r) for r in rows if r.status == "ready"],
+    }
+
+
+def set_detonation_priority(db: Session, pending_id: int) -> Optional["PendingDetonation"]:
+    """Flip a queued row to priority=True so it's picked up right after the
+    current in-flight item finishes (see process_detonation_queue's
+    re-query-before-each-pick loop). Returns None if not found; the row
+    itself otherwise (caller decides what to do with a non-'queued' status —
+    kept dumb/pure here, same convention as get_pending_detonation)."""
+    row = db.query(PendingDetonation).filter(PendingDetonation.id == pending_id).first()
+    if not row:
+        return None
+    if row.status == "queued":
+        row.priority = True
+        db.commit()
+        db.refresh(row)
+    return row
+
+
 def list_manual_detonations(db: Session, limit: int = 100) -> list["PendingDetonation"]:
     """Manual (non-email) detonations, newest first, for the manual-detonation page."""
     return (
@@ -1017,14 +1106,16 @@ def get_pending_detonation(db: Session, pending_id: int) -> Optional["PendingDet
 
 
 def get_recent_detonation_events(db: Session, limit: int = 50) -> list[dict]:
-    """Per-email detonation lifecycle events for dashboard notifications.
+    """Detonation lifecycle events for dashboard notifications, covering both
+    per-email (always-on auto-detonate) and manual (operator-uploaded, no
+    email_id) rows — manual detonations are precisely the ones the operator
+    triggered and is watching, so they must notify too, not just email rows.
     'running' rows are surfaced as 'detonating'; 'done'/'error' rows (which
     already have a report, good or bad) as 'report_ready'. 'queued' rows
     produce no event yet — nothing has started for them."""
     rows = (
         db.query(PendingDetonation)
-        .filter(PendingDetonation.status.in_(["running", "done", "error"]),
-                PendingDetonation.email_id.isnot(None))
+        .filter(PendingDetonation.status.in_(["running", "done", "error"]))
         .order_by(PendingDetonation.updated_at.desc())
         .limit(limit)
         .all()

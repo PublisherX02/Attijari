@@ -8,7 +8,7 @@ from email.utils import parseaddr
 
 from dotenv import load_dotenv
 
-from email_extraction import EmailIngestion, TimeoutError, verify_sender_authentication
+from email_extraction import EmailIngestion, TimeoutError, verify_sender_authentication, html_to_text
 from rules import RuleEngine, add_to_blocklist
 from analysis import analyze_email_body
 from logger import get_logger
@@ -83,7 +83,7 @@ def _ollama_reachable(timeout: float = 5.0) -> bool:
         return False
 
 
-def run_pipeline(single_file: str | None = None):
+def run_pipeline(single_file: str | None = None) -> bool:
     load_dotenv()
     logger = get_logger("pipeline")
 
@@ -92,7 +92,7 @@ def run_pipeline(single_file: str | None = None):
         import detonation_state
         if detonation_state.is_active():
             logger.info("[PIPELINE] Detonation active — skipping this pipeline run")
-            return
+            return False
     except ImportError:
         pass
 
@@ -103,7 +103,7 @@ def run_pipeline(single_file: str | None = None):
     # picked up on the next poll once Ollama is back.
     if not _ollama_reachable():
         logger.warning("[PIPELINE] Ollama unreachable — deferring this run; mail stays on IMAP server")
-        return
+        return False
 
     logger.info("=" * 50)
     logger.info("[START] Email Ingestion & Analysis Pipeline")
@@ -129,7 +129,7 @@ def run_pipeline(single_file: str | None = None):
         import detonation_state
         if detonation_state.is_active():
             print("[DETONATION] A detonation window is active — pipeline paused, skipping this run")
-            return
+            return False
         from detonation import is_available as _cape_up
         if _cape_up():
             print("[DETONATION] CAPE API reachable (VM currently running)")
@@ -404,6 +404,18 @@ def run_pipeline(single_file: str | None = None):
                     print(f"[EXTRACTION] Running isolated security extraction on {len(parsed['attachments'])} attachment(s)...")
                     extraction_results = extract_all_attachments(parsed)
                     parsed["extraction"] = extraction_results
+
+                    # Fold each attachment's own escalate/flags back onto
+                    # parsed["attachments"] so save_attachments() persists them —
+                    # without this, attachment_safety_status() has no way to know
+                    # THIS occurrence was flagged, and a stale prior detonation
+                    # of the same bytes could silently show "safe" instead.
+                    _ext_by_sha = {r.get("sha256"): r for r in extraction_results.get("results", []) if r.get("sha256")}
+                    for _att in parsed["attachments"]:
+                        _ext = _ext_by_sha.get(_att.get("sha256"))
+                        if _ext is not None:
+                            _att["extraction_escalate"] = bool(_ext.get("escalate"))
+                            _att["extraction_flags"] = _ext.get("flags") or []
 
                     if extraction_results.get("escalate"):
                         parsed["status"] = "escalated"
@@ -700,7 +712,17 @@ def run_pipeline(single_file: str | None = None):
                 else:
                     # LLM analysis (Ollama)
                     try:
-                        llm_input = parsed.get("body_text") or ""
+                        # HTML-only emails (no text/plain part -- the common
+                        # case for real phishing kits, which rarely bother
+                        # with a plain-text alternative) previously made this
+                        # an empty string, meaning the LLM's holistic/
+                        # creative-language judgment covered zero content for
+                        # any such email -- only the deterministic phrase
+                        # rules in rules.py (fixed separately, same session)
+                        # saw the HTML at all, and those only catch *known*
+                        # phrases. Falls back to a stripped-tags version of
+                        # body_html so the LLM has something to reason about.
+                        llm_input = parsed.get("body_text") or html_to_text(parsed.get("body_html") or "")
                         # Build enrichment context with all signals for LLM
                         enrichment_data = {
                             "threatfox": threat_results,
@@ -775,7 +797,7 @@ def run_pipeline(single_file: str | None = None):
                 print(f"[RULES] Skipped — email already ESCALATED from parse errors")
 
             # Blocklist cascade is DEFERRED to analyst action (quarantine button).
-            # CLAUDE.md: "All rejections must be confirmed by a human analyst."
+            # "All rejections must be confirmed by a human analyst."
             # The pipeline proposes verdicts; only analyst confirmation triggers blocklist.
             if parsed["status"] == "escalated":
                 if _deterministic_escalation:
@@ -919,6 +941,7 @@ def run_pipeline(single_file: str | None = None):
 
     elapsed = time.time() - t_start
     logger.info(f"=== Pipeline Finished in {elapsed:.1f}s ===")
+    return True
 
 
 if __name__ == "__main__":

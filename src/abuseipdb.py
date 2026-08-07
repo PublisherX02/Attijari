@@ -1,7 +1,7 @@
 """abuseipdb.py — AbuseIPDB IP reputation checker
 
 Queries the /check endpoint for IP abuse confidence scores.
-Only sends IP addresses — NEVER email content (CLAUDE.md compliance).
+Only sends IP addresses — NEVER email content.
 
 Usage:
     from abuseipdb import check_ip
@@ -24,7 +24,7 @@ BASE_URL = "https://api.abuseipdb.com/api/v2/check"
 # IPs above this score are considered malicious
 ABUSE_THRESHOLD = 75
 
-# Shared infrastructure IPs — never flag these (CLAUDE.md rule)
+# Shared infrastructure IPs — never flag these
 # Gmail, Outlook, major CDN relays
 WHITELISTED_RANGES = {
     "127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.",
@@ -37,6 +37,11 @@ WHITELISTED_RANGES = {
 def _is_private_ip(ip: str) -> bool:
     """Skip private/loopback IPs — they have no AbuseIPDB data."""
     return any(ip.startswith(prefix) for prefix in WHITELISTED_RANGES)
+
+
+def _resolve_key(api_key: str | None) -> str:
+    from secrets_client import get_api_key
+    return api_key or get_api_key("abuseipdb")
 
 
 def check_ip(ip: str, api_key: str | None = None,
@@ -64,7 +69,7 @@ def check_ip(ip: str, api_key: str | None = None,
         return {"source": "abuseipdb", "ip": ip, "abuse_score": 0,
                 "is_malicious": False, "skipped": "private_ip"}
 
-    key = api_key or os.getenv("ABUSEIPDB_API_KEY")
+    key = _resolve_key(api_key)
     if not key:
         return {"source": "abuseipdb", "ip": ip, "abuse_score": 0,
                 "is_malicious": False, "error": "no_api_key"}

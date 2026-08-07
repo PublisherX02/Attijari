@@ -30,3 +30,8 @@ models/
 .worktrees/
 
 docs/
+
+# Test/dev-server artifacts — never useful in history, sometimes sensitive
+.coverage
+vault_dev.log
+*.log

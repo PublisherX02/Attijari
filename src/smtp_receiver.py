@@ -14,6 +14,7 @@ from pathlib import Path
 from aiosmtpd.controller import Controller
 
 from pipeline_jobs import enqueue_pipeline_job
+from smtp_rate_limit import SmtpRateLimiter
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_DIR = _PROJECT_ROOT / "data" / "smtp_pending"
@@ -22,10 +23,24 @@ PENDING_DIR = _PROJECT_ROOT / "data" / "smtp_pending"
 class PendingMailHandler:
     """aiosmtpd message handler: validate fast, persist, return."""
 
-    def __init__(self, pending_dir: Path, accepted_domains: set[str], max_size: int):
+    def __init__(
+        self,
+        pending_dir: Path,
+        accepted_domains: set[str],
+        max_size: int,
+        rate_limiter: SmtpRateLimiter | None = None,
+    ):
         self.pending_dir = pending_dir
         self.accepted_domains = accepted_domains
         self.max_size = max_size
+        self.rate_limiter = rate_limiter if rate_limiter is not None else SmtpRateLimiter()
+
+    async def handle_MAIL(self, server, session, envelope, address, mail_options):
+        if not self.rate_limiter.allow(address):
+            return "450 4.7.1 rate limit exceeded, try again later"
+        envelope.mail_from = address
+        envelope.mail_options.extend(mail_options)
+        return "250 OK"
 
     async def handle_RCPT(self, server, session, envelope, address, rcpt_options):
         if self.accepted_domains:
@@ -43,6 +58,19 @@ class PendingMailHandler:
         self.pending_dir.mkdir(parents=True, exist_ok=True)
         sha = hashlib.sha256(data).hexdigest()
         path = self.pending_dir / f"{sha}.eml"
+        # A successfully processed job MOVES its file to pending_dir/processed/
+        # (pipeline_jobs.process_email_file) -- checking only `path` here meant
+        # an already-fully-processed message re-delivered by a source that
+        # keeps re-sending unread mail (gmail_smtp_bridge.py polls the last 7
+        # days / 50 most recent messages every 60s, forever, since it never
+        # marks anything read) would be silently rewritten and re-enqueued on
+        # every single poll tick -- indefinitely, regardless of whether the
+        # source message was later deleted, until it aged out of that window.
+        # Checking processed/ too restores the "re-relaying an already-seen
+        # message is a no-op" guarantee this module's docstring promises.
+        processed_path = self.pending_dir / "processed" / f"{sha}.eml"
+        if processed_path.exists():
+            return "250 Message accepted for delivery"
         if not path.exists():
             path.write_bytes(data)
         enqueue_pipeline_job(str(path))

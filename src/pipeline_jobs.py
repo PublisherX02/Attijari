@@ -83,7 +83,10 @@ def process_email_file(file_path: str) -> None:
     ws_manager, so Redis (already shared infrastructure between app and
     worker) is the cross-process signal. See api.py's
     _pipeline_refresh_listener for the subscriber side."""
-    run_pipeline(single_file=file_path)
+    processed = run_pipeline(single_file=file_path)
+    if not processed:
+        print(f"[PIPELINE-JOB] Pipeline skipped {file_path}, leaving file on disk for later sweep.")
+        return
 
     src = Path(file_path)
     processed_dir = src.parent / "processed"

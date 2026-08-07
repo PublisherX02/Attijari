@@ -5,7 +5,7 @@
 # only the container command differs.
 #
 # replicas is pinned to 1 deliberately: this POC targets a single,
-# memory-constrained VM (see CLAUDE.md / the detonation-window and
+# memory-constrained VM (see the detonation-window and
 # _ollama_reachable() memory-guard rationale used elsewhere in this
 # codebase). Two or more worker replicas could each pick up a pipeline job
 # concurrently and run full LLM/extraction work in parallel, reintroducing

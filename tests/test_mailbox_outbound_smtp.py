@@ -132,8 +132,11 @@ def test_send_smtp_report_falls_back_to_env_when_mailbox_none(monkeypatch):
         "details": [],
     }
     monkeypatch.setenv("SMTP_HOST", "env-smtp.example.com")
-    monkeypatch.setenv("SMTP_USER", "env-user@example.com")
-    monkeypatch.setenv("SMTP_PASSWORD", "env-pass")
+    # SMTP_USER/SMTP_PASSWORD now come from Vault via secrets_client, not
+    # os.getenv directly — see reporting._smtp_fallback_creds().
+    monkeypatch.setattr(
+        reporting, "_smtp_fallback_creds", lambda: ("env-user@example.com", "env-pass")
+    )
     captured = {}
 
     class FakeSMTPSSL:
