@@ -847,7 +847,7 @@ async def api_send_report(report_id: int, user: AuthenticatedUser = Depends(requ
     """Send a previously generated report through a delivery channel.
 
     Stub: delivery-channel configuration (which SMTP/Slack/Teams target to
-    resend to) is deferred to a later pass — see CLAUDE.md. Returns 501 with
+    resend to) is deferred to a later pass. Returns 501 with
     a clear message rather than silently pretending to send something."""
     db = SessionLocal()
     try:
@@ -978,7 +978,9 @@ def _serialize_attachments(db, email_id: int) -> list[dict]:
             "sha256": a.sha256,
             "real_type": a.real_type,
             "size_bytes": a.size_bytes,
-            "status": attachment_safety_status(db, a.sha256),
+            "status": attachment_safety_status(
+                db, a.sha256, extraction_escalate=a.extraction_escalate, occurred_at=a.created_at,
+            ),
         }
         for a in rows
     ]

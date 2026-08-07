@@ -1,7 +1,7 @@
 """whois_check.py — Domain age and registration lookup via RDAP/whoisit
 
 Checks domain registration date to detect newly registered domains.
-CLAUDE.md: "Newly registered domain = strong signal"
+"Newly registered domain = strong signal"
 
 Only sends the domain name — NEVER email content.
 """

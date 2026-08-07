@@ -36,7 +36,7 @@ Weight rationale (documented for peer review):
   - OTX (w=12): AlienVault pulse matches provide campaign context but have
     higher FP rates than single-indicator lookups. Moderate weight.
 
-  - Encrypted attachment (w=12): CLAUDE.md rule 8 mandates escalation for
+  - Encrypted attachment (w=12): rule 8 mandates escalation for
     encrypted attachment + password in body. Weight reflects policy, not
     statistical evidence.
 

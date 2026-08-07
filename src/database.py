@@ -179,7 +179,7 @@ class Blocklist(Base):
 
 
 class Whitelist(Base):
-    """Whitelisted indicators — always override blocklist (CLAUDE.md rule)."""
+    """Whitelisted indicators — always override blocklist."""
 
     __tablename__ = "whitelist"
 
@@ -341,10 +341,17 @@ class Attachment(Base):
     attachment with a correct safe/unsafe status; PendingDetonation alone
     only covers attachments static analysis found inconclusive.
 
-    No status column here on purpose: safety is always derived live from
-    the most recent PendingDetonation row for this sha256 (see
-    attachments.attachment_safety_status), so there is nothing to keep in
-    sync or invalidate.
+    No CAPE-outcome status column here on purpose: dynamic-sandbox safety is
+    always derived live from the most recent PendingDetonation row for this
+    sha256 (see attachments.attachment_safety_status), so there is nothing
+    to keep in sync or invalidate there.
+
+    extraction_escalate/extraction_flags ARE persisted (unlike CAPE status)
+    because they're this specific occurrence's own static-analysis verdict
+    (YARA/sandbox-tool fail-safe) — attachment_safety_status uses them to
+    make sure a stale PendingDetonation row for the same bytes (e.g. an old
+    manual "insist" run from before these flags existed) can never silently
+    present a currently-flagged attachment as "safe".
     """
 
     __tablename__ = "attachments"
@@ -356,6 +363,8 @@ class Attachment(Base):
     filename = Column(String(512), nullable=True)   # data only, never a real path (rule 6)
     real_type = Column(String(255), nullable=True)   # magic-verified at extraction time
     size_bytes = Column(Integer, nullable=True)
+    extraction_escalate = Column(Boolean, nullable=True)   # NULL = extraction never ran for this row
+    extraction_flags = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
 
@@ -516,6 +525,27 @@ def _migrate_email_account_column():
         print(f"[DB] emails.account migration skipped: {e}")
 
 
+def _migrate_attachments_extraction_columns():
+    """One-time: add attachments.extraction_escalate/extraction_flags.
+    Pre-existing rows get NULL (== 'extraction never ran for this row' in
+    attachment_safety_status), which preserves prior behavior for them."""
+    from sqlalchemy import inspect, text as sa_text
+    try:
+        inspector = inspect(engine)
+        if "attachments" not in inspector.get_table_names():
+            return
+        existing = {c["name"] for c in inspector.get_columns("attachments")}
+        with engine.begin() as conn:
+            if "extraction_escalate" not in existing:
+                conn.execute(sa_text('ALTER TABLE attachments ADD COLUMN "extraction_escalate" BOOLEAN'))
+                print("[DB] Added column attachments.extraction_escalate")
+            if "extraction_flags" not in existing:
+                conn.execute(sa_text('ALTER TABLE attachments ADD COLUMN "extraction_flags" JSONB'))
+                print("[DB] Added column attachments.extraction_flags")
+    except Exception as e:
+        print(f"[DB] attachments extraction-columns migration skipped: {e}")
+
+
 def _migrate_mailbox_protocol_and_outbound_smtp():
     """One-time: add mailbox_accounts.protocol (default 'imap') and the four
     nullable outbound-SMTP-relay columns. All additive — existing rows get
@@ -604,6 +634,7 @@ def init_db():
     _migrate_encrypt_totp_secrets()
     _migrate_email_account_column()
     _migrate_mailbox_protocol_and_outbound_smtp()
+    _migrate_attachments_extraction_columns()
 
     # Initialize default admin if no users exist
     try:
@@ -928,6 +959,8 @@ def save_attachments(db: Session, email_id: int, attachments: list[dict]) -> lis
             filename=att.get("original_name"),
             real_type=att.get("real_type"),
             size_bytes=att.get("size_bytes"),
+            extraction_escalate=att.get("extraction_escalate"),
+            extraction_flags=att.get("extraction_flags"),
         )
         db.add(row)
         rows.append(row)

@@ -39,7 +39,7 @@ def is_valid_ip(ip: str) -> bool:
         return False
 
 
-# CLAUDE.md: "never auto-block shared infrastructure IPs (Gmail, Outlook relays)"
+# "never auto-block shared infrastructure IPs (Gmail, Outlook relays)"
 # These are well-known mail relay prefixes whose IPs frequently appear in OTX pulses
 # but should NOT trigger escalation — they serve millions of legitimate senders.
 _SHARED_INFRA_PREFIXES = (

@@ -5,7 +5,7 @@ docs/superpowers/specs/2026-07-24-smtp-ingestion-design.md) replaced IMAP
 polling with src/smtp_receiver.py as the pipeline's ONLY ingestion source.
 That spec deliberately simulates "the internet" locally — it expects a test
 client (swaks/smtplib) to deliver mail, not real mail. That broke the
-personal-mailbox demo described in CLAUDE.md, since nothing bridged the two.
+personal-mailbox demo, since nothing bridged the two.
 
 This module IS that test client: it polls the active mailbox over IMAP
 (reusing EmailIngestion, the same class the pipeline used before SMTP

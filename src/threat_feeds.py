@@ -27,7 +27,7 @@ _URLHAUS_PATH = _SRC_DIR / "urlhaus.txt"
 OPENPHISH_URL = "https://openphish.com/feed.txt"
 URLHAUS_URL = "https://urlhaus.abuse.ch/downloads/csv/"
 
-# Shared infrastructure whitelist — CLAUDE.md: "never auto-block shared
+# Shared infrastructure whitelist — "never auto-block shared
 # infrastructure IPs (Gmail, Outlook relays). A whitelist override always wins."
 # Attackers host malware on these platforms, but blocking the domain itself
 # would block ALL legitimate traffic. Only full URLs are checked, not domains.

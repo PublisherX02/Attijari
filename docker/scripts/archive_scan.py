@@ -20,8 +20,10 @@ import zipfile
 
 _DANGEROUS_ARCHIVE_MEMBER_EXTS = (".js", ".vbs", ".exe", ".scr", ".bat",
                                    ".ps1", ".hta", ".cmd", ".com", ".msi",
-                                   ".jar", ".wsf", ".lnk")
-_SCRIPT_EXTS = (".vbs", ".vbe", ".js", ".jse", ".wsf", ".ps1", ".hta")
+                                   ".jar", ".wsf", ".lnk",
+                                   ".py", ".pyw", ".sh", ".rb", ".pl", ".php")
+_SCRIPT_EXTS = (".vbs", ".vbe", ".js", ".jse", ".wsf", ".ps1", ".hta",
+                 ".py", ".pyw", ".sh", ".rb", ".pl", ".php")
 _UNSUPPORTED_ARCHIVE_EXTS = (".rar", ".vhd", ".vhdx", ".cab")
 _DISK_IMAGE_MIMES = {"application/x-iso9660-image", "application/x-cd-image", "application/x-raw-disk-image"}
 _DISK_IMAGE_EXTS = (".iso", ".img")
@@ -29,17 +31,37 @@ _SEVENZIP_EXTS = (".7z",)
 _MAX_NESTED_ARCHIVE_DEPTH = 3
 
 
+_yara_compiled_cache: dict | None = None
+
+
+def _get_compiled_yara_rulesets() -> dict:
+    """Compile each rule file once and cache for this container invocation's
+    lifetime -- a single archive scan can call _local_yara() once per member
+    (up to _MAX_NESTED_ARCHIVE_DEPTH deep, potentially dozens of members),
+    and this was recompiling every .yar/.yara file from scratch on every
+    single call. Mirrors the same fix extraction.py's copy of this function
+    already had (2026-07-31) but which was never backported here."""
+    global _yara_compiled_cache
+    if _yara_compiled_cache is None:
+        import yara
+        _yara_compiled_cache = {}
+        for rf in glob.glob("/rules/*.yar") + glob.glob("/rules/*.yara"):
+            try:
+                _yara_compiled_cache[rf] = yara.compile(filepath=rf)
+            except Exception:
+                continue
+    return _yara_compiled_cache
+
+
 def _local_yara(content: bytes) -> dict:
     try:
-        import yara
+        rulesets = _get_compiled_yara_rulesets()
     except ImportError:
         return {"suspicious": False, "matches": []}
-    rule_files = glob.glob("/rules/*.yar") + glob.glob("/rules/*.yara")
     matches = []
-    for rf in rule_files:
+    for rf, compiled in rulesets.items():
         try:
-            rules = yara.compile(filepath=rf)
-            for m in rules.match(data=content):
+            for m in compiled.match(data=content):
                 matches.append({"rule": m.rule})
         except Exception:
             continue

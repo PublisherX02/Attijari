@@ -68,7 +68,7 @@ jobs:
         # contexts and resource limits on the Ollama deployment, missing
         # NetworkPolicies scoping most pods beyond the sandbox deny-all —
         # matches the already-tracked "Health and reliability" item in
-        # CLAUDE.md's Production Deployment Backlog) and missing HEALTHCHECK
+        # the Production Deployment Backlog) and missing HEALTHCHECK
         # instructions across every docker/*.Dockerfile. This gate surfaces
         # that existing debt, it doesn't invent new work. Promote to blocking
         # once that backlog item is addressed, not before (it would otherwise

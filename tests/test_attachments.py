@@ -23,7 +23,8 @@ import pytest
 def test_attachment_table_columns():
     import database as db
     cols = db.Attachment.__table__.columns.keys()
-    for c in ("id", "email_id", "sha256", "stored_path", "filename", "real_type", "size_bytes", "created_at"):
+    for c in ("id", "email_id", "sha256", "stored_path", "filename", "real_type", "size_bytes",
+              "extraction_escalate", "extraction_flags", "created_at"):
         assert c in cols, f"Attachment missing column {c}"
 
 
@@ -63,7 +64,8 @@ def test_save_attachments_persists_every_attachment(db_session):
 
     parsed_attachments = [
         {"sha256": "a" * 64, "stored_path": "/tmp/a.pdf", "original_name": "invoice.pdf",
-         "real_type": "application/pdf", "size_bytes": 100},
+         "real_type": "application/pdf", "size_bytes": 100,
+         "extraction_escalate": True, "extraction_flags": ["yara_match: high_entropy_payload"]},
         # A fully-clean attachment that was NEVER a detonation candidate —
         # must still be persisted (this is the whole point of the table).
         {"sha256": "b" * 64, "stored_path": "/tmp/b.png", "original_name": "logo.png",
@@ -84,6 +86,10 @@ def test_save_attachments_persists_every_attachment(db_session):
     assert pdf_row.filename == "invoice.pdf"
     assert pdf_row.real_type == "application/pdf"
     assert pdf_row.size_bytes == 100
+    assert pdf_row.extraction_escalate is True
+    assert pdf_row.extraction_flags == ["yara_match: high_entropy_payload"]
+    png_row = next(r for r in rows if r.sha256 == "b" * 64)
+    assert png_row.extraction_escalate is None  # not set on this dict -> legacy/unknown
 
 
 def test_save_attachments_empty_list_no_commit(db_session, monkeypatch):
@@ -188,6 +194,66 @@ def test_safety_status_error_is_unsafe():
     assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64) == STATUS_UNSAFE
 
 
+def test_safety_status_stale_safe_detonation_does_not_override_fresh_escalation():
+    """Regression: a same-bytes attachment detonated 'safe' by CAPE BEFORE this
+    occurrence's own extraction run (YARA match / sandbox fail-safe) flagged it
+    must not be shown as 'Safe' — the older dynamic verdict can't know about a
+    static signal discovered afterward."""
+    from datetime import datetime, timedelta, timezone
+    from attachments import attachment_safety_status, STATUS_UNVERIFIED
+    import detonation_config as cfg
+
+    now = datetime.now(timezone.utc)
+
+    class Row:
+        status = "done"
+        result = {"malscore": cfg.CAPE_MALSCORE_SUSPICIOUS - 0.1}  # would be "safe" on its own
+        created_at = now - timedelta(days=11)  # the old CAPE run
+
+    status = attachment_safety_status(
+        _fake_db_returning(Row()), "x" * 64,
+        extraction_escalate=True, occurred_at=now,  # this occurrence's extraction ran AFTER
+    )
+    assert status == STATUS_UNVERIFIED
+
+
+def test_safety_status_fresh_analyst_insist_after_escalation_is_trusted():
+    """A detonation that happened AFTER this occurrence's extraction flag
+    (e.g. an analyst explicitly Insisting post-flag) is a real, human-confirmed
+    override and should be trusted normally."""
+    from datetime import datetime, timedelta, timezone
+    from attachments import attachment_safety_status, STATUS_SAFE
+    import detonation_config as cfg
+
+    occurred_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+
+    class Row:
+        status = "done"
+        result = {"malscore": cfg.CAPE_MALSCORE_SUSPICIOUS - 0.1}
+        created_at = datetime.now(timezone.utc)  # newer than occurred_at
+
+    status = attachment_safety_status(
+        _fake_db_returning(Row()), "x" * 64,
+        extraction_escalate=True, occurred_at=occurred_at,
+    )
+    assert status == STATUS_SAFE
+
+
+def test_safety_status_no_extraction_flag_unaffected():
+    """extraction_escalate False/None (legacy rows, or extraction never flagged
+    this attachment) must behave exactly as before."""
+    from attachments import attachment_safety_status, STATUS_SAFE
+    import detonation_config as cfg
+
+    class Row:
+        status = "done"
+        result = {"malscore": cfg.CAPE_MALSCORE_SUSPICIOUS - 0.1}
+        created_at = None
+
+    assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64, extraction_escalate=None) == STATUS_SAFE
+    assert attachment_safety_status(_fake_db_returning(Row()), "x" * 64, extraction_escalate=False) == STATUS_SAFE
+
+
 def test_resolve_attachment_not_found():
     from attachments import resolve_attachment
 
@@ -210,6 +276,8 @@ def test_resolve_attachment_found_computes_status(monkeypatch):
         sha256 = "c" * 64
         stored_path = "/tmp/x.pdf"
         filename = "x.pdf"
+        extraction_escalate = None
+        created_at = None
 
     class FakeQuery:
         def filter(self, *a, **k): return self
@@ -218,7 +286,7 @@ def test_resolve_attachment_found_computes_status(monkeypatch):
     class FakeDB:
         def query(self, *a, **k): return FakeQuery()
 
-    monkeypatch.setattr(att_mod, "attachment_safety_status", lambda db, sha: "safe")
+    monkeypatch.setattr(att_mod, "attachment_safety_status", lambda db, sha, extraction_escalate=None, occurred_at=None: "safe")
     out = att_mod.resolve_attachment(FakeDB(), email_id=1, attachment_id=5)
     assert out["found"] is True
     assert out["status"] == "safe"
@@ -294,3 +362,28 @@ def test_insist_open_window_already_active(monkeypatch):
     out = att_mod.insist_open(db=None, attachment=_FakeAttachment(), username="bob")
     assert out["window"] == "active"
     assert state["window_started"] == 0
+
+
+def test_start_window_uses_manual_idle_timeout(monkeypatch):
+    """The analyst is watching this run live (email-detail 'Insist' button) —
+    the window must close on the short manual idle timeout, same as
+    manual_detonation.py's _start_window, not the 5-minute automatic-scheduler
+    default. A regression here means the sandbox panel stays 'stuck' for up
+    to 5 minutes after CAPE actually finishes."""
+    import attachments as att_mod
+    import detonation_config as cfg
+
+    captured = {}
+
+    class FakeThread:
+        def __init__(self, target=None, kwargs=None, daemon=None, name=None):
+            captured["target"] = target
+            captured["kwargs"] = kwargs
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(att_mod.threading, "Thread", FakeThread)
+    att_mod._start_window()
+
+    assert captured["kwargs"] == {"idle_timeout_seconds": cfg.DETONATION_MANUAL_IDLE_TIMEOUT_SECONDS}

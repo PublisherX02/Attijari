@@ -3,7 +3,7 @@
 Talks to CAPE's apiv2 over HTTP. The host never runs the guest directly; it
 just submits a sample, polls the task, and pulls the report. All email content
 stays inside the isolated CAPE VM — only the file bytes are sent to the
-local CAPE instance (not any external service), consistent with CLAUDE.md.
+local CAPE instance (not any external service).
 
 Uses the project's shared TLS-verified HTTP session (http_client) so we don't
 re-implement certificate handling.

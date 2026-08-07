@@ -1,7 +1,7 @@
 """abuseipdb.py — AbuseIPDB IP reputation checker
 
 Queries the /check endpoint for IP abuse confidence scores.
-Only sends IP addresses — NEVER email content (CLAUDE.md compliance).
+Only sends IP addresses — NEVER email content.
 
 Usage:
     from abuseipdb import check_ip
@@ -24,7 +24,7 @@ BASE_URL = "https://api.abuseipdb.com/api/v2/check"
 # IPs above this score are considered malicious
 ABUSE_THRESHOLD = 75
 
-# Shared infrastructure IPs — never flag these (CLAUDE.md rule)
+# Shared infrastructure IPs — never flag these
 # Gmail, Outlook, major CDN relays
 WHITELISTED_RANGES = {
     "127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.",

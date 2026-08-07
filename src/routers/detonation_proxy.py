@@ -7,7 +7,7 @@ same-origin so the strict CSP stays intact:
     attachment bytes for the preview pane, ONLY for attachments verified
     safe by CAPE (see attachments.attachment_safety_status). attachment_id
     is the Attachment row id. Content-type is forced from magic bytes — the
-    declared type and filename are hostile data (CLAUDE.md 6+7).
+    declared type and filename are hostile data (rules 6+7).
   - POST /api/emails/{email_id}/attachments/{attachment_id}/insist  — analyst
     insists on opening an attachment that isn't verified safe; submits it to
     CAPE now (on-demand, not the batch queue) and starts a live VM session.

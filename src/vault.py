@@ -9,6 +9,7 @@ an environment variable.
 Directory structure:
   data/vault/{YYYY-MM}/{email_sha256}.enc
 
+
 If the key is lost, quarantined emails are unrecoverable (by design).
 """
 from __future__ import annotations

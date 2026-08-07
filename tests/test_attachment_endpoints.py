@@ -24,6 +24,7 @@ def test_serialize_attachments(monkeypatch):
             self.real_type = "application/pdf"
             self.size_bytes = 1234
             self.created_at = None
+            self.extraction_escalate = None
 
     rows = [FakeAttachment(1, "a.pdf", "a" * 64), FakeAttachment(2, "b.exe", "b" * 64)]
 
@@ -36,7 +37,7 @@ def test_serialize_attachments(monkeypatch):
         def query(self, *a, **k): return FakeQuery()
 
     monkeypatch.setattr(e, "attachment_safety_status",
-                        lambda db, sha: "safe" if sha.startswith("a") else "unsafe")
+                        lambda db, sha, extraction_escalate=None, occurred_at=None: "safe" if sha.startswith("a") else "unsafe")
     out = e._serialize_attachments(FakeDB(), email_id=1)
     assert out[0]["id"] == 1 and out[0]["filename"] == "a.pdf" and out[0]["status"] == "safe"
     assert out[1]["id"] == 2 and out[1]["status"] == "unsafe"

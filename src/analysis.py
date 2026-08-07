@@ -58,7 +58,7 @@ OLLAMA_HTTP_URL = "http://localhost:11434/api/generate"
 HTTP_TIMEOUT = 120
 HTTP_RETRIES = 3
 HTTP_BACKOFF = 2.0
-CONFIDENCE_THRESHOLD = 0.6  # Below this → forced escalation (CLAUDE.md rule 3)
+CONFIDENCE_THRESHOLD = 0.6  # Below this → forced escalation (rule 3)
 
 
 def _load_skills_prompt(path: str = SKILLS_PATH) -> str:
@@ -616,7 +616,7 @@ def analyze_email_body(body_text: str, model: Optional[str] = None, skills_path_
         )
         confidence = signal_score_result.confidence_hint
 
-    # CRITICAL-02: Low confidence → forced escalation (CLAUDE.md rule)
+    # CRITICAL-02: Low confidence → forced escalation
     if confidence is not None and verdict == "accepted" and confidence < CONFIDENCE_THRESHOLD:
         verdict = "escalated"
         reasons.append(f"system_override: low confidence ({confidence:.2f} < {CONFIDENCE_THRESHOLD})")

@@ -205,7 +205,7 @@ def _pe_disguised_as_pdf() -> bytes:
 def _password_zip_with_body_password() -> tuple[bytes, str]:
     """Password-protected ZIP + email body containing the password.
 
-    CLAUDE.md rule 8: encrypted attachment + password in body = auto-escalate.
+    Rule 8: encrypted attachment + password in body = auto-escalate.
     Uses a non-obvious password placement.
     """
     password = "S3cur3Doc2024!"
@@ -1273,7 +1273,7 @@ def build_malicious_cases() -> list[dict]:
     zip_data, zip_body = _password_zip_with_body_password()
     cases.append({
         "name": "encrypted_zip_password_in_body",
-        "description": "Password-protected ZIP + password in email body (CLAUDE.md rule 8)",
+        "description": "Password-protected ZIP + password in email body (rule 8)",
         "expected": "malicious",
         "eml": _make_eml(
             from_addr="finance@trusted-vendor.com",

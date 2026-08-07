@@ -117,6 +117,48 @@ async def test_handle_data_rejects_oversized_message(tmp_path):
     assert list(tmp_path.glob("*.eml")) == []
 
 
+@pytest.mark.asyncio
+async def test_handle_data_is_noop_for_already_processed_file(tmp_path):
+    # A source that re-delivers unread mail on every poll (gmail_smtp_bridge.py,
+    # every 60s, forever) must not resurrect and re-enqueue a message whose
+    # file was already moved to processed/ by a successful pipeline run --
+    # otherwise every already-analyzed email gets silently re-queued forever
+    # for as long as it stays in the bridge's fetch window, even after the
+    # source message is deleted.
+    handler = PendingMailHandler(pending_dir=tmp_path, accepted_domains=set(), max_size=1000)
+    content = b"Subject: already handled\r\n\r\nbody\r\n"
+    import hashlib
+    sha = hashlib.sha256(content).hexdigest()
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+    (processed_dir / f"{sha}.eml").write_bytes(content)
+
+    envelope = _FakeEnvelope()
+    envelope.content = content
+    with patch("src.smtp_receiver.enqueue_pipeline_job") as mock_enqueue:
+        status = await handler.handle_DATA(None, _FakeSession(), envelope)
+
+    assert status == "250 Message accepted for delivery"
+    mock_enqueue.assert_not_called()
+    # must not resurrect the file in the top-level pending dir either
+    assert not (tmp_path / f"{sha}.eml").exists()
+
+
+@pytest.mark.asyncio
+async def test_handle_data_still_enqueues_when_not_yet_processed(tmp_path):
+    # Sanity check the fix doesn't over-broaden: a genuinely new (or still
+    # pending/failed, never-moved-to-processed/) message must still enqueue.
+    handler = PendingMailHandler(pending_dir=tmp_path, accepted_domains=set(), max_size=1000)
+    envelope = _FakeEnvelope()
+    envelope.content = b"Subject: brand new\r\n\r\nbody\r\n"
+    with patch("src.smtp_receiver.enqueue_pipeline_job") as mock_enqueue:
+        status = await handler.handle_DATA(None, _FakeSession(), envelope)
+
+    assert status == "250 Message accepted for delivery"
+    mock_enqueue.assert_called_once()
+    assert len(list(tmp_path.glob("*.eml"))) == 1
+
+
 def test_end_to_end_delivery_via_real_controller(tmp_path):
     """Integration test: real Controller on an ephemeral port, real smtplib client.
 

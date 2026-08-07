@@ -34,7 +34,7 @@ spec:
             - name: ollama-models
               mountPath: /root/.ollama
           # CPU-only by default — matches this POC's existing CPU-inference
-          # baseline (see CLAUDE.md tech stack table). GPU is opt-in via
+          # baseline. GPU is opt-in via
           # deploy/k8s/overlays/gpu/, applied with:
           #   kubectl apply -k deploy/k8s/overlays/gpu/
           resources:

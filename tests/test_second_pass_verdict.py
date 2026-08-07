@@ -56,7 +56,7 @@ def test_cape_clean_result_lets_llm_verdict_stand(monkeypatch):
 
 def test_second_pass_never_sets_quarantined(monkeypatch):
     """Even a maximally-malicious CAPE result must land on 'escalated', not
-    'quarantined' — CLAUDE.md: all rejections require human confirmation."""
+    'quarantined' — all rejections require human confirmation."""
     import detonation
 
     email = _FakeEmail()

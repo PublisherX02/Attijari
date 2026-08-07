@@ -42,7 +42,7 @@ jobs:
           extra_args: --debug --only-verified
         # No fallback here on purpose: a verified secret hit fails this
         # job outright, which blocks merge once branch protection requires
-        # this check (see the branch-protection note in CLAUDE.md).
+        # this check.
 
   dependency-scan:
     name: Software Composition Analysis (SCA)
@@ -223,7 +223,7 @@ jobs:
       - name: Run adversarial regression suite (blocks — pure logic, no live LLM needed)
         # Substitutes for a live-model red-teaming tool (garak): CI has no
         # Ollama/GPU runtime to actually attack. This mocks analyze_email_body's
-        # LLM-output boundary and asserts CLAUDE.md's fail-safe invariants hold
+        # LLM-output boundary and asserts the documented fail-safe invariants hold
         # for malformed JSON, wrong-typed fields, low confidence, a simulated
         # LLM crash, and a prompt-injection attempt against a model that fully
         # complied with it — every case must escalate, never silently accept.

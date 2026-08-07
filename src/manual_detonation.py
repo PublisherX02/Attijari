@@ -3,7 +3,7 @@
 Thin, hermetically-testable logic behind the Manual Detonation page. The
 FastAPI endpoints in routers/detonation_proxy.py are thin wrappers over this.
 
-Security (CLAUDE.md): the uploaded file is stored under an internal id (never
+Security: the uploaded file is stored under an internal id (never
 the attacker filename, rule 6), typed by magic bytes downstream (rule 7), and
 only ever submitted to the LOCAL CAPE VM — never to any external service.
 """

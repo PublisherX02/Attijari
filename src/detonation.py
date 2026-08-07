@@ -209,7 +209,7 @@ def _process_one(row) -> dict[str, Any]:
 def _second_pass_verdict(db, email, result: dict) -> None:
     """Re-run LLM analysis with the CAPE report folded in. Sets email.status
     to 'accepted' or 'escalated' ONLY — never 'quarantined'/'released'
-    (CLAUDE.md: all rejections require human confirmation; those two
+    (all rejections require human confirmation; those two
     statuses are analyst-only actions on an already-escalated email).
     A CAPE-confirmed-malicious result always pins the verdict to
     'escalated', matching the existing rule that deterministic signals

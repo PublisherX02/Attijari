@@ -247,7 +247,7 @@ def _pipeline_verdict(parsed: dict) -> str:
     """Run the full deterministic pipeline and return overriding verdict if any.
 
     Rules engine or extraction escalations / rejections are binding and cannot
-    be cleared by the LLM (per CLAUDE.md design rule 2).
+    be cleared by the LLM (per design rule 2).
     Returns 'pipeline_escalate', 'pipeline_reject', or 'llm_only' (meaning
     no deterministic override -- LLM verdict applies).
     """

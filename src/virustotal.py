@@ -1,6 +1,6 @@
 """virustotal.py — VirusTotal hash reputation checker
 
-CRITICAL COMPLIANCE RULE (from CLAUDE.md):
+CRITICAL COMPLIANCE RULE:
   - Hash lookups: YES — sending a SHA-256 reveals nothing about content
   - File uploads: ABSOLUTELY NOT — uploading exposes confidential data
   - This is a compliance incident, not a bug

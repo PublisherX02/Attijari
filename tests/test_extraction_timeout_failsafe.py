@@ -1,6 +1,6 @@
 """test_extraction_timeout_failsafe.py — a sandboxed-tool container timeout
 for a SANDBOX_REQUIRED_TOOLS tool must escalate the whole attachment
-(CLAUDE.md: "Crash or timeout -> escalate, never accept"). Closes a gap
+("Crash or timeout -> escalate, never accept"). Closes a gap
 where sandbox.py's TimeoutExpired handler doesn't set fallback=True, so
 _run_tool()'s existing escalate-on-required-tool-failure branch never
 triggers for a timeout specifically."""

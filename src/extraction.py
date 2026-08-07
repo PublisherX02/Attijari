@@ -20,7 +20,7 @@ Container security (enforced by sandbox.py):
   --network=none, --read-only, --cap-drop=ALL, --no-new-privileges,
   --cpus=0.5, --memory=256m, --pids-limit=50, --tmpfs /tmp:noexec:50m
 
-CRITICAL DESIGN RULES (from CLAUDE.md):
+CRITICAL DESIGN RULES:
   - MarkItDown alone is NEVER sufficient — always run oletools/pdfid too
   - Declared file type lies — python-magic verifies via magic bytes
   - File names are hostile — only internal IDs used as paths
@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from sandbox import run_tool as _sandbox_run, check_sandbox_status
+from rules import BLOCKED_EXTENSIONS as _RULES_BLOCKED_EXTENSIONS
 
 # ---------- safe base paths ----------
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -48,7 +49,7 @@ EXTRACTION_TIMEOUT = 60  # seconds per attachment
 # our privileges. They MUST run inside the sandbox container. If the sandbox
 # is unavailable, we escalate the attachment (fail-safe) rather than parse it
 # unsandboxed on the host — the same rule the pipeline applies to timeouts and
-# crashes (CLAUDE.md: the extraction environment must be isolated).
+# crashes (the extraction environment must be isolated).
 #
 # magic / yara / tesseract / ioc_finder are intentionally NOT here: they are
 # byte-level type sniffing, pattern matching, OCR, and text regexing — a far
@@ -65,7 +66,7 @@ EXTRACTION_TIMEOUT = 60  # seconds per attachment
 # yara are in; (b) independent of memory-safety, ANY unbounded decompression
 # of attacker-controlled bytes running in the shared pipeline process (not a
 # resource-capped, killable container) is a real DoS against every other
-# pending email, not just the one attachment -- CLAUDE.md's own "hard CPU/
+# pending email, not just the one attachment -- the "hard CPU/
 # memory/time limits" requirement for attacker-controlled file handling
 # applies here regardless of language memory-safety.
 SANDBOX_REQUIRED_TOOLS = {"oletools", "pdfid", "pymupdf", "markitdown", "onenote", "archive"}
@@ -73,7 +74,7 @@ SANDBOX_REQUIRED_TOOLS = {"oletools", "pdfid", "pymupdf", "markitdown", "onenote
 # Tools in SANDBOX_REQUIRED_TOOLS that actually have a local (unsandboxed)
 # implementation to fall back to — see the dispatch in _run_tool below.
 # "onenote" is deliberately excluded: no mature open-source parser exists at
-# all (CLAUDE.md), so there is nothing to "fall back" to. It must always
+# all, so there is nothing to "fall back" to. It must always
 # escalate when the sandbox is unavailable, regardless of the escape hatch
 # below — EXTRACTION_ALLOW_UNSANDBOXED can only unlock tools that have real
 # local code to run, never silently turn "no parser" into "unavailable, but
@@ -167,6 +168,13 @@ try:
     _HAS_MARKITDOWN = True
 except ImportError:
     _HAS_MARKITDOWN = False
+
+try:
+    import cv2 as _cv2
+    import numpy as _np
+    _HAS_OPENCV = True
+except ImportError:
+    _HAS_OPENCV = False
 
 
 def _available_tools() -> dict[str, str]:
@@ -298,6 +306,46 @@ def _local_tesseract(content: bytes) -> dict:
         return {"tool": "tesseract", "status": "ok", "text": text[:5000], "text_length": len(text)}
     except Exception as e:
         return {"tool": "tesseract", "status": "error", "error": str(e)}
+
+
+def _local_qrcode(content: bytes) -> dict:
+    """QR code detection/decoding in image attachments -- "quishing" is a
+    real and growing phishing vector precisely because the malicious URL
+    never appears as literal text anywhere in the email, evading every
+    text/URL-based scanner entirely (masked_link_mismatch,
+    hidden_url_phishing_tactic, feed_malicious_url all operate on text
+    extracted from body_html/body_text -- a URL that only ever exists as
+    pixels in an embedded QR code is invisible to all of them). Runs
+    locally like Tesseract (same risk profile: read-only image decoding,
+    not sandboxed via Docker), using OpenCV's built-in QRCodeDetector --
+    already an installed dependency here, avoiding a new pyzbar/libzbar
+    system dependency this project doesn't otherwise need."""
+    if not _HAS_OPENCV:
+        return {"tool": "qrcode", "status": "unavailable"}
+    try:
+        arr = _np.frombuffer(content, dtype=_np.uint8)
+        img = _cv2.imdecode(arr, _cv2.IMREAD_COLOR)
+        if img is None:
+            return {"tool": "qrcode", "status": "ok", "urls": []}
+        detector = _cv2.QRCodeDetector()
+        _retval, decoded_info, _points, _straight = detector.detectAndDecodeMulti(img)
+        urls = [d for d in (decoded_info or []) if d]
+        if not urls:
+            # Fallback: a thumbnail-sized or tightly-cropped QR image (no
+            # quiet-zone margin) can fail detection at its native
+            # resolution -- confirmed during testing that OpenCV's own
+            # bare encoder output (33x33px, zero margin) fails to decode
+            # without this. Real-world phishing QR images are usually
+            # properly sized/margined since they need to be phone-camera
+            # scannable, but this costs little and closes a real gap for
+            # small/thumbnail attachments.
+            bordered = _cv2.copyMakeBorder(img, 20, 20, 20, 20, _cv2.BORDER_CONSTANT, value=(255, 255, 255))
+            upscaled = _cv2.resize(bordered, None, fx=4, fy=4, interpolation=_cv2.INTER_NEAREST)
+            _retval, decoded_info, _points, _straight = detector.detectAndDecodeMulti(upscaled)
+            urls = [d for d in (decoded_info or []) if d]
+        return {"tool": "qrcode", "status": "ok", "urls": urls}
+    except Exception as e:
+        return {"tool": "qrcode", "status": "error", "error": str(e)}
 
 
 _yara_compiled_cache: dict | None = None
@@ -516,6 +564,15 @@ _IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff
 _ARCHIVE_MIMES = {"application/zip", "application/x-rar-compressed", "application/x-7z-compressed",
                    "application/gzip", "application/x-tar"}
 _ONENOTE_MIMES = {"application/onenote", "application/msonenote"}
+# An email attached inside another email (forwarded "as attachment", or a
+# raw .eml dropped in). No deep-scan capability exists for this pipeline's
+# own rules/URL/sender checks to recurse into the nested message's body --
+# a malicious link or spoofed sender living only inside it is invisible to
+# every check that runs against the *outer* email. Escalate by design,
+# matching the OneNote/RAR "no parser available" pattern, rather than
+# silently passing an unexamined email-within-an-email through as a
+# generic attachment.
+_EMAIL_MIMES = {"message/rfc822"}
 # Disk-image containers: a well-documented delivery vector (Qakbot, IcedID,
 # and others moved to these specifically) because many pipelines -- this one
 # included, until 2026-08-02 -- only ever inspect archive containers
@@ -531,8 +588,13 @@ _SEVENZIP_EXTS = (".7z",)
 # the same list rather than each format silently drifting its own copy.
 _DANGEROUS_ARCHIVE_MEMBER_EXTS = (".js", ".vbs", ".exe", ".scr", ".bat",
                                    ".ps1", ".hta", ".cmd", ".com", ".msi",
-                                   ".jar", ".wsf", ".lnk")
-_SCRIPT_EXTS = (".vbs", ".vbe", ".js", ".jse", ".wsf", ".ps1", ".hta")
+                                   ".jar", ".wsf", ".lnk",
+                                   ".py", ".pyw", ".sh", ".rb", ".pl", ".php")
+# .py/.pyw/.sh/.rb/.pl/.php added alongside BLOCKED_EXTENSIONS in rules.py --
+# same interpreter-script risk class as .js/.vbs/.ps1, previously invisible
+# to both the rules engine and this archive-member/padding-evasion check.
+_SCRIPT_EXTS = (".vbs", ".vbe", ".js", ".jse", ".wsf", ".ps1", ".hta",
+                 ".py", ".pyw", ".sh", ".rb", ".pl", ".php")
 
 
 # =====================================================================
@@ -573,18 +635,35 @@ def _check_pdf_urls_for_phishing(urls: list[str]) -> list[str]:
     return flags
 
 
+_OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
 def _detect_encryption(content: bytes, filename: str) -> dict:
     """Structurally detect whether a ZIP-based or OOXML/OLE attachment is
     password-protected, replacing the old MIME/extension-only guess.
+
+    Gated on the content's own magic-byte signature, NOT the filename
+    extension -- an earlier version gated on `filename.endswith((".zip",
+    ".docx", ...))`, which silently returned "not encrypted" for a
+    genuinely encrypted Office document renamed to any other extension
+    (e.g. "invoice.docx" -> "invoice.pdf"), without ever looking at the
+    bytes. This directly violated this project's own rule 7 ("declared
+    file type lies... extension is metadata to analyze, not trust") and
+    meant CLAUDE.md rule 8 ("encrypted attachment + password in body =
+    automatic escalate, must never pass silently") could be evaded by a
+    plain rename. A password-protected Office file is physically an
+    OLE/CFB container (not a ZIP), so the sibling MIME-archive fallback in
+    extract_attachment() (`effective_mime in _ARCHIVE_MIMES`) can't save
+    this case either -- OLE/CFB was never in that set. Confirmed live
+    before this fix: `_detect_encryption(real_encrypted_zip_bytes,
+    "photo.jpg")` returned `{"encrypted": False}`.
 
     RAR/7z are not structurally verified here (no parser library in
     requirements.txt) — callers should still combine this with the
     extension/MIME heuristic for those formats, same as before.
     """
-    fname_lower = filename.lower()
-
-    if fname_lower.endswith((".zip", ".docx", ".xlsx", ".pptx", ".docm",
-                              ".xlsm", ".pptm", ".ppsx", ".ppsm")):
+    zip_magic = content[:4] in (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
+    if zip_magic:
         try:
             import zipfile as _zf
             import io as _io
@@ -598,8 +677,7 @@ def _detect_encryption(content: bytes, filename: str) -> dict:
         except Exception:
             pass
 
-    if _HAS_OLEFILE and fname_lower.endswith((".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-                                               ".docm", ".xlsm", ".pptm", ".ppsx", ".ppsm")):
+    if _HAS_OLEFILE and content[:8] == _OLE_MAGIC:
         try:
             import io as _io
             buf = _io.BytesIO(content)
@@ -1046,6 +1124,38 @@ def _local_archive_scan(content: bytes, filename: str, effective_mime: str = "")
     return result
 
 
+# A genuine PE/ELF/Mach-O binary hiding behind a filename like
+# "invoice.pdf" is CLAUDE.md rule 7's canonical example ("declared file
+# type lies... extension is metadata to analyze, not trust"), and the
+# existing type_mismatch flag (below) does not by itself force escalation
+# -- it was, until this fix, purely descriptive metadata, relying entirely
+# on YARA/oletools happening to also catch the same file for an unrelated
+# reason. Confirmed live: a real PE renamed to invoice.pdf/resume.docx/
+# vacation_photo.jpg escalated only via yara_match:suspicious_exe_in_document,
+# not via type_mismatch itself, which stayed silent alongside it.
+#
+# Checked against the RAW CONTENT MAGIC BYTES directly, not a magic-library-
+# reported MIME string -- first attempt used a fixed set of MIME strings
+# (application/x-dosexec etc.) and missed real detections: the sandboxed
+# Docker "magic" tool and the local ingestion-time python-magic call
+# report the SAME PE file as two DIFFERENT strings
+# (application/vnd.microsoft.portable-executable vs application/x-dosexec)
+# depending on which libmagic database/wrapper ran, confirmed live by
+# comparing both paths against the identical file. Raw signature bytes
+# don't have this version-drift problem.
+_EXECUTABLE_MAGIC_SIGNATURES = (
+    b"MZ",           # Windows PE (DOS stub header)
+    b"\x7fELF",       # Linux/Unix ELF
+    b"\xca\xfe\xba\xbe",  # Mach-O (macOS) fat binary
+    b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf",  # Mach-O 32/64-bit
+    b"\xce\xfa\xed\xfe", b"\xcf\xfa\xed\xfe",  # Mach-O 32/64-bit, reversed byte order
+)
+
+
+def _content_is_executable(content: bytes) -> bool:
+    return any(content.startswith(sig) for sig in _EXECUTABLE_MAGIC_SIGNATURES)
+
+
 # =====================================================================
 # Main extraction orchestrator
 # =====================================================================
@@ -1102,6 +1212,27 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
     if type_mismatch:
         result["flags"].append(f"type_mismatch: declared={declared_type} real={real_type}")
 
+    # Filename-vs-content executable disguise -- independent of the
+    # declared-Content-Type comparison above, which is attacker-controlled
+    # and trivially neutralized by declaring a generic
+    # application/octet-stream (deliberately excluded above to avoid
+    # false positives from senders who never set a specific Content-Type
+    # -- confirmed live this genuinely suppresses type_mismatch). This
+    # check instead compares real_type against the FILENAME ITSELF: a
+    # genuine executable/shared-library binary whose filename doesn't
+    # already say so (an honest .exe/.dll would already be hard-blocked
+    # by rules.py's BLOCKED_EXTENSIONS before extraction ever runs) means
+    # the filename is the lie, and that's escalate-worthy on its own --
+    # not merely descriptive metadata for an analyst to notice later.
+    if (_content_is_executable(content)
+            and not filename.lower().endswith(tuple(_RULES_BLOCKED_EXTENSIONS))):
+        result["suspicious"] = True
+        result["escalate"] = True
+        result["flags"].append(
+            f"executable_disguised_as_document: raw content is a native "
+            f"executable (PE/ELF/Mach-O) behind filename {filename!r}"
+        )
+
     text_parts = []
 
     # 1. YARA — always runs
@@ -1112,6 +1243,16 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
         result["escalate"] = True
         matches = [m.get("rule", "?") for m in yara_result.get("matches", []) if "rule" in m]
         result["flags"].append(f"yara_match: {', '.join(matches)}")
+
+    # 1a0. Nested email (.eml / message/rfc822) — always escalate, no deep
+    # scan attempted. See _EMAIL_MIMES definition for why.
+    if effective_mime in _EMAIL_MIMES or filename.lower().endswith(".eml"):
+        result["suspicious"] = True
+        result["escalate"] = True
+        result["flags"].append(
+            "nested_email_attachment: message/rfc822/.eml attachments are not "
+            "deeply scanned by this pipeline -- always escalated by design"
+        )
 
     # 1a1. High-confidence YARA skip: 3+ DISTINCT rules matching the
     # top-level attachment's own bytes is already overwhelming static
@@ -1126,7 +1267,7 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
     # zip/ISO/LNK member still gets opened and scanned there; you can't
     # know it matches 3+ rules without opening it first. Local, non-sandboxed
     # checks (script padding, DDE, encryption+password) are NOT gated by
-    # this — they still run below regardless, per CLAUDE.md rule #8.
+    # this — they still run below regardless, per rule #8.
     yara_rule_names = {m.get("rule") for m in yara_result.get("matches", []) if m.get("rule")}
     skip_sandboxed = len(yara_rule_names) >= 3
     if skip_sandboxed:
@@ -1272,7 +1413,7 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
         result["tools_run"].append(ocr_result)
         if ocr_result.get("text"):
             text_parts.append(ocr_result["text"])
-        
+
         # Check image metadata for stego signatures
         stego_flags = _check_image_stego_metadata(content, filename)
         if stego_flags:
@@ -1281,10 +1422,29 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
             for flag in stego_flags:
                 result["flags"].append(flag)
 
+        # QR code decoding ("quishing") -- a malicious URL that only ever
+        # exists as pixels in an embedded QR code is invisible to every
+        # text/URL-based check this pipeline otherwise has, since none of
+        # them ever see it as literal text. Runs locally, same as
+        # Tesseract just above (not routed through _run_tool/sandbox --
+        # matches Tesseract's own established "always local" pattern).
+        # Decoded URLs are fed into text_parts so they get IOC-extracted
+        # and threat-feed-checked exactly like any other body URL, rather
+        # than duplicating that logic here.
+        qr_result = _local_qrcode(content)
+        result["tools_run"].append(qr_result)
+        if qr_result.get("urls"):
+            result["flags"].append(
+                f"qr_code_url_found: {len(qr_result['urls'])} URL(s) decoded from image: "
+                + ", ".join(qr_result["urls"][:3])
+            )
+            text_parts.append(" ".join(qr_result["urls"]))
+
     # 5. MarkItDown — text extraction (complementary, NEVER standalone)
     if (effective_mime not in _IMAGE_MIMES and effective_mime not in _ARCHIVE_MIMES
             and effective_mime not in _ONENOTE_MIMES and effective_mime not in _DISK_IMAGE_MIMES
-            and not filename.lower().endswith((".one",) + _DISK_IMAGE_EXTS)) and not skip_sandboxed:
+            and effective_mime not in _EMAIL_MIMES
+            and not filename.lower().endswith((".one", ".eml") + _DISK_IMAGE_EXTS)) and not skip_sandboxed:
         md_result = _run_tool("markitdown", content, stored_path, filename)
         result["tools_run"].append(md_result)
         if md_result.get("text"):
@@ -1317,7 +1477,7 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
                 result["flags"].append(_flag)
 
     # 7c. Sandboxed-tool timeout fail-safe — a container timeout for a
-    # SANDBOX_REQUIRED_TOOLS tool must escalate (CLAUDE.md: "Crash or
+    # SANDBOX_REQUIRED_TOOLS tool must escalate ("Crash or
     # timeout -> escalate, never accept"), same principle as the SEC-H1
     # loop above. sandbox.py's TimeoutExpired handler doesn't set
     # fallback=True, so _run_tool()'s escalate-on-required-tool-failure
@@ -1343,7 +1503,7 @@ def extract_attachment(attachment: dict, body_text: str | None = None) -> dict:
     # archive-directory-structure DoS that OOMs the container before it can
     # write any JSON) would silently carry no suspicious/escalate signal at
     # all — exactly the "found nothing vs. couldn't look" conflation
-    # CLAUDE.md's "any extraction failure = escalate, never accept" rule
+    # the "any extraction failure = escalate, never accept" rule
     # exists to prevent. Generic across all required tools, not just archive.
     for _tr in result["tools_run"]:
         if _tr.get("tool") in SANDBOX_REQUIRED_TOOLS and _tr.get("status") == "error":

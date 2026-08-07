@@ -727,7 +727,7 @@ async function mountNoVnc(container, taskId, onFail, interactive) {
         const url = `${proto}://${location.host}/ws/vnc/${parseInt(taskId) || 0}?token=${encodeURIComponent(token)}`;
         const rfb = new RFB(container, url);
         // Automated email-attachment detonation stays view-only (display-only
-        // layer, CLAUDE.md rule 1 — nothing here should be able to influence
+        // layer, rule 1 — nothing here should be able to influence
         // the run being observed). Manual detonation (analyst uploaded the
         // sample themselves) opts into mouse/keyboard control instead.
         rfb.viewOnly = !interactive;
